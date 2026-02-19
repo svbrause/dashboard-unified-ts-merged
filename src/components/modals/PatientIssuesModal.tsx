@@ -1,18 +1,35 @@
 // Patient Issues Modal Component
 
-import { useEffect } from 'react';
-import { Client } from '../../types';
+import { useEffect, useState } from 'react';
+import { Client, TreatmentPhoto } from '../../types';
 import { formatRelativeDate } from '../../utils/dateFormatting';
 import { issueToSuggestionMap, groupIssuesByArea } from '../../utils/issueMapping';
-import { setBodyScrollLock } from '../../utils/scrollLock';
+import IssuePhotoCarousel from './IssuePhotoCarousel';
 import './PatientIssuesModal.css';
 
 interface PatientIssuesModalProps {
   client: Client;
   onClose: () => void;
+  onPhotoClick?: (photo: TreatmentPhoto) => void;
+  /** Optional demo photos for debug pages (skip API fetch in carousel) */
+  demoPhotos?: TreatmentPhoto[] | null;
 }
 
-export default function PatientIssuesModal({ client, onClose }: PatientIssuesModalProps) {
+export default function PatientIssuesModal({ client, onClose, onPhotoClick, demoPhotos }: PatientIssuesModalProps) {
+  // Track which issues have their carousel expanded
+  const [expandedIssues, setExpandedIssues] = useState<Set<string>>(new Set());
+
+  const toggleIssueCarousel = (issueKey: string) => {
+    setExpandedIssues((prev) => {
+      const next = new Set(prev);
+      if (next.has(issueKey)) {
+        next.delete(issueKey);
+      } else {
+        next.add(issueKey);
+      }
+      return next;
+    });
+  };
   // Handle Escape key to close modal
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -23,12 +40,6 @@ export default function PatientIssuesModal({ client, onClose }: PatientIssuesMod
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose]);
-
-  // Lock body scroll when modal is open (prevents iOS background scroll)
-  useEffect(() => {
-    setBodyScrollLock(true);
-    return () => setBodyScrollLock(false);
-  }, []);
 
   // Parse issues - kept for potential future use
   // let allIssues: string[] = [];
@@ -204,27 +215,51 @@ export default function PatientIssuesModal({ client, onClose }: PatientIssuesMod
                         const isInterested = interestedSet.has(issue.toLowerCase());
                         const matchingInterests = findMatchingInterests(issue);
                         
+                        const issueKey = `${area}-${issue}`;
+                        const isCarouselExpanded = expandedIssues.has(issueKey);
+                        
                         return (
                           <li key={i} className="patient-issues-item">
                             <span className="patient-issues-bullet">•</span>
-                            <div className="patient-issues-header">
-                              <span className="patient-issues-name">{issue}</span>
-                              {isInterested && (
-                                <span className="patient-issues-interested-badge">
-                                  Interested
+                            <div className="patient-issues-content">
+                              <div className="patient-issues-header">
+                                <span className="patient-issues-name">{issue}</span>
+                                {isInterested && (
+                                  <span className="patient-issues-interested-badge">
+                                    Interested
+                                  </span>
+                                )}
+                              </div>
+                              {matchingInterests.length > 0 && (
+                                <div className="patient-issues-treatments-container">
+                                  <span className="patient-issues-treatments-label">Interested Treatments:</span>
+                                  {matchingInterests.map((interest, j) => (
+                                    <span key={j} className="patient-issues-treatment-tag">
+                                      {interest}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                className={`patient-issues-carousel-toggle ${isCarouselExpanded ? 'expanded' : ''}`}
+                                onClick={() => toggleIssueCarousel(issueKey)}
+                              >
+                                {isCarouselExpanded ? 'Hide Examples' : 'View Examples'}
+                                <span className="patient-issues-carousel-toggle-arrow">
+                                  {isCarouselExpanded ? '▲' : '▼'}
                                 </span>
+                              </button>
+                              {isCarouselExpanded && (
+                                <IssuePhotoCarousel
+                                  issue={issue}
+                                  region={area}
+                                  client={client}
+                                  onPhotoClick={onPhotoClick}
+                                  demoPhotos={demoPhotos}
+                                />
                               )}
                             </div>
-                            {matchingInterests.length > 0 && (
-                              <div className="patient-issues-treatments-container">
-                                <span className="patient-issues-treatments-label">Interested Treatments:</span>
-                                {matchingInterests.map((interest, j) => (
-                                  <span key={j} className="patient-issues-treatment-tag">
-                                    {interest}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
                           </li>
                         );
                       })}

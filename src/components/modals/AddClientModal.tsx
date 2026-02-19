@@ -1,11 +1,16 @@
 // Add Client Modal Component
 
-import { useState, FormEvent, useEffect } from 'react';
-import { createLeadRecord } from '../../services/api';
-import { isValidEmail, isValidPhone, isValidZipCode, formatPhoneInput, formatZipCodeInput } from '../../utils/validation';
-import { setBodyScrollLock } from '../../utils/scrollLock';
-import { showToast, showError } from '../../utils/toast';
-import './AddClientModal.css';
+import { useState, FormEvent, useEffect } from "react";
+import { createLeadRecord } from "../../services/api";
+import {
+  isValidEmail,
+  isValidPhone,
+  isValidZipCode,
+  formatPhoneInput,
+  formatZipCodeInput,
+} from "../../utils/validation";
+import { showToast, showError } from "../../utils/toast";
+import "./AddClientModal.css";
 
 interface AddClientModalProps {
   onClose: () => void;
@@ -13,15 +18,19 @@ interface AddClientModalProps {
   providerId: string;
 }
 
-export default function AddClientModal({ onClose, onSuccess, providerId }: AddClientModalProps) {
+export default function AddClientModal({
+  onClose,
+  onSuccess,
+  providerId,
+}: AddClientModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    age: '',
-    zipCode: '',
-    source: 'Walk-in',
-    notes: '',
+    name: "",
+    email: "",
+    phone: "",
+    age: "",
+    zipCode: "",
+    source: "Walk-in",
+    notes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -29,19 +38,13 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
   // Handle Escape key to close modal
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onClose();
       }
     };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
-
-  // Lock body scroll when modal is open (prevents iOS background scroll)
-  useEffect(() => {
-    setBodyScrollLock(true);
-    return () => setBodyScrollLock(false);
-  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -49,27 +52,27 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
 
     // Validation
     if (!formData.name.trim()) {
-      setErrors({ name: 'Name is required' });
+      setErrors({ name: "Name is required" });
       return;
     }
 
     if (!formData.email.trim()) {
-      setErrors({ email: 'Email is required' });
+      setErrors({ email: "Email is required" });
       return;
     }
 
     if (!isValidEmail(formData.email)) {
-      setErrors({ email: 'Please enter a valid email address' });
+      setErrors({ email: "Please enter a valid email address" });
       return;
     }
 
     if (formData.phone && !isValidPhone(formData.phone)) {
-      setErrors({ phone: 'Please enter a valid phone number' });
+      setErrors({ phone: "Please enter a valid phone number" });
       return;
     }
 
     if (formData.zipCode && !isValidZipCode(formData.zipCode)) {
-      setErrors({ zipCode: 'Please enter a valid 5-digit zip code' });
+      setErrors({ zipCode: "Please enter a valid 5-digit zip code" });
       return;
     }
 
@@ -78,24 +81,24 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
     try {
       const fields = {
         Name: formData.name.trim(),
-        'Email Address': formData.email.trim(),
-        'Phone Number': formData.phone ? formData.phone.replace(/\D/g, '') : '',
+        "Email Address": formData.email.trim(),
+        "Phone Number": formData.phone ? formData.phone.replace(/\D/g, "") : "",
         Age: formData.age ? parseInt(formData.age, 10) : null,
-        'Zip Code': formData.zipCode || null,
+        "Zip Code": formData.zipCode || null,
         Source: formData.source,
-        Notes: formData.notes.trim() || '',
-        Status: 'New',
+        Notes: formData.notes.trim() || "",
+        Status: "New",
         Contacted: false,
         // Link to provider if providerId is available
         ...(providerId ? { Providers: [providerId] } : {}),
       };
 
-      await createLeadRecord('Web Popup Leads', fields);
-      showToast(`Added ${formData.name} as a new client!`);
+      await createLeadRecord("Web Popup Leads", fields);
+      showToast(`Added ${formData.name} as a new lead!`);
       onSuccess();
       onClose();
     } catch (error: any) {
-      showError(error.message || 'Failed to add client. Please try again.');
+      showError(error.message || "Failed to add client. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -103,12 +106,17 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
 
   return (
     <div className="modal-overlay active" onClick={onClose}>
-      <div className="modal-content add-lead-modal-content" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content add-lead-modal-content"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div className="modal-header-info">
-            <h2 className="modal-title">Add New Client</h2>
+            <h2 className="modal-title">Add New Lead</h2>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={onClose}>
+            ×
+          </button>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -121,9 +129,13 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                 required
                 placeholder="Enter full name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
               />
-              {errors.name && <span className="field-error">{errors.name}</span>}
+              {errors.name && (
+                <span className="field-error">{errors.name}</span>
+              )}
             </div>
 
             <div className="form-row">
@@ -135,9 +147,13 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                   required
                   placeholder="email@example.com"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                 />
-                {errors.email && <span className="field-error">{errors.email}</span>}
+                {errors.email && (
+                  <span className="field-error">{errors.email}</span>
+                )}
               </div>
               <div className="form-group">
                 <label htmlFor="new-lead-phone">Phone Number</label>
@@ -148,13 +164,18 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                   value={formData.phone}
                   onInput={(e) => {
                     formatPhoneInput(e.target as HTMLInputElement);
-                    setFormData({ ...formData, phone: (e.target as HTMLInputElement).value });
+                    setFormData({
+                      ...formData,
+                      phone: (e.target as HTMLInputElement).value,
+                    });
                   }}
                   onChange={(e) => {
                     setFormData({ ...formData, phone: e.target.value });
                   }}
                 />
-                {errors.phone && <span className="field-error">{errors.phone}</span>}
+                {errors.phone && (
+                  <span className="field-error">{errors.phone}</span>
+                )}
               </div>
             </div>
 
@@ -168,7 +189,9 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                   max="100"
                   placeholder="Enter age"
                   value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, age: e.target.value })
+                  }
                 />
               </div>
               <div className="form-group">
@@ -181,13 +204,18 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                   value={formData.zipCode}
                   onInput={(e) => {
                     formatZipCodeInput(e.target as HTMLInputElement);
-                    setFormData({ ...formData, zipCode: (e.target as HTMLInputElement).value });
+                    setFormData({
+                      ...formData,
+                      zipCode: (e.target as HTMLInputElement).value,
+                    });
                   }}
                   onChange={(e) => {
                     setFormData({ ...formData, zipCode: e.target.value });
                   }}
                 />
-                {errors.zipCode && <span className="field-error">{errors.zipCode}</span>}
+                {errors.zipCode && (
+                  <span className="field-error">{errors.zipCode}</span>
+                )}
               </div>
             </div>
 
@@ -197,7 +225,9 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                 <select
                   id="new-lead-source"
                   value={formData.source}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, source: e.target.value })
+                  }
                 >
                   <option value="Walk-in">Walk-in</option>
                   <option value="Phone Call">Phone Call</option>
@@ -217,7 +247,9 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                 rows={3}
                 placeholder="Any additional details about this client..."
                 value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
               />
             </div>
           </div>
@@ -236,7 +268,15 @@ export default function AddClientModal({ onClose, onSuccess, providerId }: AddCl
                   </>
                 ) : (
                   <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="modal-icon-spacing">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="modal-icon-spacing"
+                    >
                       <line x1="12" y1="5" x2="12" y2="19"></line>
                       <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>

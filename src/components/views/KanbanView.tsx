@@ -18,8 +18,8 @@ export default function KanbanView() {
     sort,
     loading,
     refreshClients,
-    updateClient,
     provider,
+    effectiveProviderIds,
   } = useDashboard();
   const [selectedClient, setSelectedClient] = useState<
     (typeof clients)[0] | null
@@ -35,12 +35,9 @@ export default function KanbanView() {
     return filtered;
   }, [clients, filters, searchQuery, sort]);
 
-  const statuses: Array<"new" | "contacted" | "scheduled" | "converted"> = [
-    "new",
-    "contacted",
-    "scheduled",
-    "converted",
-  ];
+  const statuses: Array<
+    "new" | "contacted" | "requested-consult" | "scheduled" | "converted"
+  > = ["new", "contacted", "requested-consult", "scheduled", "converted"];
 
   const getClientsByStatus = (status: (typeof statuses)[0]) => {
     return processedClients.filter((client) => client.status === status);
@@ -52,7 +49,11 @@ export default function KanbanView() {
 
     // Debounce photo loading
     const timeout = setTimeout(async () => {
-      await preloadVisiblePhotos(processedClients, provider.id);
+      const providerIdParam =
+        effectiveProviderIds.length > 0
+          ? effectiveProviderIds.join(",")
+          : provider.id;
+      await preloadVisiblePhotos(processedClients, providerIdParam);
       // Update local photo state from loaded client photos
       const updatedPhotos: Record<string, string> = {};
       processedClients.forEach((client) => {
@@ -75,7 +76,7 @@ export default function KanbanView() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [processedClients, provider?.id]);
+  }, [processedClients, provider?.id, effectiveProviderIds]);
 
   const handleCardClick = (client: (typeof clients)[0]) => {
     setSelectedClient(client);
@@ -83,7 +84,7 @@ export default function KanbanView() {
 
   const handleDragStart = (
     e: React.DragEvent<HTMLDivElement>,
-    clientId: string
+    clientId: string,
   ) => {
     setDraggedClientId(clientId);
     e.dataTransfer.effectAllowed = "move";
@@ -109,7 +110,7 @@ export default function KanbanView() {
 
   const handleDrop = async (
     e: React.DragEvent<HTMLDivElement>,
-    newStatus: (typeof statuses)[0]
+    newStatus: (typeof statuses)[0],
   ) => {
     e.preventDefault();
     e.currentTarget.classList.remove("drag-over");
@@ -124,7 +125,14 @@ export default function KanbanView() {
 
     try {
       await updateClientStatus(client, newStatus);
-      showToast(`Moved ${client.name} to ${newStatus}`);
+      const statusDisplayNames: Record<typeof newStatus, string> = {
+        new: "New Leads",
+        contacted: "Contacted",
+        "requested-consult": "Requested Consult",
+        scheduled: "Consultation Scheduled",
+        converted: "Converted",
+      };
+      showToast(`Moved ${client.name} to ${statusDisplayNames[newStatus]}`);
       refreshClients();
     } catch (error: any) {
       showError(error.message || "Failed to update status");
@@ -139,8 +147,9 @@ export default function KanbanView() {
         {statuses.map((status) => {
           const statusClients = getClientsByStatus(status);
           const statusLabels = {
-            new: "New Clients",
+            new: "New Leads",
             contacted: "Contacted",
+            "requested-consult": "Requested Consult",
             scheduled: "Consultation Scheduled",
             converted: "Converted",
           };
@@ -190,9 +199,7 @@ export default function KanbanView() {
                     return (
                       <div
                         key={client.id}
-                        className={`client-card ${
-                          draggedClientId === client.id ? "dragging" : ""
-                        }`}
+                        className={`client-card ${draggedClientId === client.id ? "dragging" : ""}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, client.id)}
                         onDragEnd={handleDragEnd}
@@ -238,19 +245,6 @@ export default function KanbanView() {
                           <span className="lead-date">
                             {formatRelativeDate(client.createdAt)}
                           </span>
-                          {client.tableSource === "Web Popup Leads" && (
-                            <span
-                              className={
-                                client.offerClaimed
-                                  ? "coupon-pill coupon-pill-claimed"
-                                  : "coupon-pill coupon-pill-available"
-                              }
-                            >
-                              {client.offerClaimed
-                                ? "Coupon claimed"
-                                : "$50 available"}
-                            </span>
-                          )}
                         </div>
                       </div>
                     );
@@ -264,23 +258,11 @@ export default function KanbanView() {
 
       {selectedClient && (
         <ClientDetailModal
-          client={selectedClient}
+          client={
+            clients.find((c) => c.id === selectedClient.id) ?? selectedClient
+          }
           onClose={() => setSelectedClient(null)}
-          onCouponMarkedClaimed={() => {
-            if (selectedClient) {
-              updateClient(selectedClient.id, { offerClaimed: true });
-              setSelectedClient((prev) =>
-                prev ? { ...prev, offerClaimed: true } : null
-              );
-            }
-          }}
-          onUpdate={async () => {
-            const next = await refreshClients();
-            if (next?.length && selectedClient) {
-              const updated = next.find((c) => c.id === selectedClient.id);
-              if (updated) setSelectedClient(updated);
-            }
-          }}
+          onUpdate={() => refreshClients(true)}
         />
       )}
     </section>

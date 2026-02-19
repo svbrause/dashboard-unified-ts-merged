@@ -179,8 +179,20 @@
 }
 
 .facial-tag.interest {
-  background: #8B7FA8;
-  color: white;
+  font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
+}
+
+.facial-tag-button {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  margin: 0 2px 2px 0;
+}
+.facial-tag-button:hover {
+  opacity: 0.9;
 }
 
 .facial-card-text {

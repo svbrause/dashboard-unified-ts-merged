@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Client } from '../../types';
 import { fetchTableRecords } from '../../services/api';
-import { setBodyScrollLock } from '../../utils/scrollLock';
 import './PhotoViewerModal.css';
 
 interface PhotoViewerModalProps {
@@ -73,12 +72,6 @@ export default function PhotoViewerModal({ client, initialPhotoType, onClose }: 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose]);
-
-  // Lock body scroll when modal is open (prevents iOS background scroll)
-  useEffect(() => {
-    setBodyScrollLock(true);
-    return () => setBodyScrollLock(false);
-  }, []);
 
   const currentPhotoUrl = photoType === 'front' ? frontPhotoUrl : sidePhotoUrl;
   const hasFrontPhoto = frontPhotoUrl !== null;

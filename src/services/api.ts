@@ -1,9 +1,10 @@
-// API service – all calls go to the backend (https://ponce-patient-backend.vercel.app/api/...)
-// No localhost or deprecated /api/airtable-* routes.
+// API service for fetching data from Airtable via backend (ponce-patient-backend.vercel.app)
+// All dashboard API calls go to the backend; no /api or relative routes.
 
-const API_BASE_URL =
+export const BACKEND_API_URL =
   import.meta.env.VITE_BACKEND_API_URL ||
   "https://ponce-patient-backend.vercel.app";
+const API_BASE_URL = BACKEND_API_URL;
 
 export interface Provider {
   id: string;
@@ -62,6 +63,45 @@ export async function fetchProviderByCode(
 
   const data = await safeJsonParse(response);
   return data.provider;
+}
+
+/**
+ * Notify backend of dashboard login. Backend writes to Airtable "new app logins" table.
+ * Source is "analysis.ponce.ai" to distinguish from cases.ponce.ai (different app).
+ * Fire-and-forget: does not block login; failures are logged only.
+ */
+export function notifyLoginToSlack(provider: Provider): void {
+  const apiUrl = API_BASE_URL + "/api/dashboard/login-notification";
+
+  const timestamp = new Date().toISOString();
+  const sessionId =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : "";
+
+  const payload = {
+    providerId: provider.id,
+    providerName: provider.name ?? "",
+    providerCode: provider.code ?? "",
+    timestamp,
+    source: "analysis.ponce.ai",
+    sessionId,
+    name: provider.name ?? "",
+    email: (provider as { email?: string }).email ?? "",
+    stage: "login",
+    metadata: JSON.stringify({
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+      referrer: typeof document !== "undefined" ? document.referrer || "" : "",
+    }),
+  };
+
+  fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch((err) => {
+    console.warn("Login notification failed (non-blocking):", err);
+  });
 }
 
 /**
@@ -216,43 +256,6 @@ export async function fetchContactHistory(
 }
 
 /**
- * Update Web Popup Lead coupon claimed state (stored in Airtable "Coupons Claimed" checkbox).
- * All Web Popup Leads earn a coupon by default; this updates whether they have claimed it.
- * Routes through backend PATCH /api/dashboard/leads/:recordId/coupon-claimed.
- *
- * IMPORTANT: Only the provider (dashboard user) should set claimed = true. The patient-facing
- * flow (e.g. "Request consultation" or "Redeem offer" buttons) must NOT set "Coupons Claimed"
- * in Airtable — only the provider marks it claimed when the client has actually redeemed (e.g. in-office).
- */
-export async function updateWebPopupLeadCouponClaimed(
-  recordId: string,
-  claimed: boolean
-): Promise<boolean> {
-  const apiUrl = `${API_BASE_URL}/api/dashboard/leads/${encodeURIComponent(
-    recordId
-  )}/coupon-claimed`;
-
-  const response = await fetch(apiUrl, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ claimed }),
-  });
-
-  if (!response.ok) {
-    const errorData = await safeJsonParse(response).catch(() => ({}));
-    throw new Error(
-      errorData.message ||
-        errorData.error ||
-        `Failed to update coupon claimed: ${response.statusText}`
-    );
-  }
-
-  return true;
-}
-
-/**
  * Update lead/patient record in Airtable
  */
 export async function updateLeadRecord(
@@ -267,7 +270,7 @@ export async function updateLeadRecord(
   const apiUrl = `${API_BASE_URL}/api/dashboard/update-record`;
 
   const response = await fetch(apiUrl, {
-    method: "POST",
+    method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
@@ -337,7 +340,7 @@ export async function createLeadRecord(
 }
 
 /**
- * Submit help request (creates a record in the Help Requests Airtable table)
+ * Submit help request
  */
 export async function submitHelpRequest(
   name: string,
@@ -346,20 +349,19 @@ export async function submitHelpRequest(
   providerId: string
 ): Promise<boolean> {
   const apiUrl = `${API_BASE_URL}/api/dashboard/help-requests`;
-
-  const fields: Record<string, string> = {
-    Name: name,
-    Email: email,
-    Message: message,
-    "Provider Id": providerId,
-  };
-
   const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({
+      fields: {
+        Name: name,
+        Email: email,
+        Message: message,
+        "Provider Id": providerId,
+      },
+    }),
   });
 
   return response.ok;
@@ -381,12 +383,15 @@ export async function updateFacialAnalysisStatus(
   };
 
   const apiUrl = `${API_BASE_URL}/api/dashboard/records/Patients/${clientId}`;
+  const method = "PATCH";
+  const body = JSON.stringify({ fields });
+
   const response = await fetch(apiUrl, {
-    method: "PATCH",
+    method,
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ fields }),
+    body,
   });
 
   if (!response.ok) {
@@ -400,19 +405,260 @@ export async function updateFacialAnalysisStatus(
 }
 
 /**
- * Fetch offers from Airtable
+ * Fetch treatment photos from the Photos table.
+ * Uses a minimal filter (done = TRUE when possible); filtering by treatment/area
+ * is done client-side for reliability across different Airtable field types.
+ *
+ * The backend must paginate Airtable (pageSize 100 + offset loop) when tableName
+ * is "Photos" so that all photos are returned; Airtable returns at most 100 per request.
  */
-export async function fetchOffers(): Promise<any[]> {
-  const apiPath = `/api/dashboard/offers`;
-  const apiUrl = API_BASE_URL + apiPath;
+export async function fetchTreatmentPhotos(
+  options: {
+    treatment?: string;
+    area?: string;
+    /** Client-side cap; use a high value or omit to use all records the backend returns. Backend must paginate to return more than 100. */
+    limit?: number;
+  } = {}
+): Promise<AirtableRecord[]> {
+  const { limit = 2000 } = options;
 
-  const response = await fetch(apiUrl);
+  // Fetch with minimal filter so client can filter by treatment/region
+  const filterFormula = "done = TRUE()";
 
-  if (!response.ok) {
-    const errorData = await safeJsonParse(response).catch(() => ({}));
-    throw new Error(errorData.message || "Failed to fetch offers");
+  let records: AirtableRecord[] = [];
+  try {
+    records = await fetchTableRecords("Photos", {
+      filterFormula,
+      fields: [
+        "Name",
+        "Photo",
+        "Treatments",
+        "Name (from Treatments)",
+        "General Treatments",
+        "Name (from General Treatments)",
+        "Area Names",
+        "Surgical (from General Treatments)",
+        "Caption",
+        "Story Title",
+        "Story Detailed",
+        "Age",
+        "Skin Tone",
+        "Ethnic Background",
+        "Skin Type",
+        "Longevity (from General Treatments)",
+        "Downtime (from General Treatments)",
+        "Price Range (from General Treatments)",
+      ],
+    });
+  } catch {
+    // If Photos table or filter fails, try without filter to get any photos
+    try {
+      records = await fetchTableRecords("Photos", {
+        fields: [
+          "Name",
+          "Photo",
+          "Name (from General Treatments)",
+          "Area Names",
+          "Surgical (from General Treatments)",
+          "Caption",
+          "Story Title",
+          "Story Detailed",
+        ],
+      });
+    } catch {
+      return [];
+    }
   }
 
-  const data = await safeJsonParse(response);
-  return data.records || [];
+  return limit > 0 ? records.slice(0, limit) : records;
+}
+
+/**
+ * Fetch patient mapping records (Patient-Issue/Suggestion Mapping) by patient email.
+ * Used for area cropped photos on suggestion cards. Each record includes
+ * "Name (from Suggestions)" and "Photo (from Area Cropped Photos)".
+ * See AREA_CROPPED_IMAGE_INTEGRATION.md for response shape.
+ */
+export async function fetchPatientRecords(
+  email: string
+): Promise<AirtableRecord[]> {
+  if (!email?.trim()) return [];
+  const apiUrl = `${API_BASE_URL}/api/patient-records?email=${encodeURIComponent(
+    email.trim().toLowerCase()
+  )}`;
+  const response = await fetch(apiUrl);
+  if (!response.ok) return [];
+  const data = await safeJsonParse(response).catch(() => ({}));
+  const records = data?.records;
+  return Array.isArray(records) ? records : [];
+}
+
+/** Field name for area cropped photo in patient-records response */
+export const PATIENT_RECORDS_PHOTO_FIELD = "Photo (from Area Cropped Photos)";
+/** Field name for suggestion name in patient-records response */
+export const PATIENT_RECORDS_SUGGESTION_NAME_FIELD = "Name (from Suggestions)";
+/** Area label (e.g. "Under Eyes") */
+export const PATIENT_RECORDS_AREA_NAMES_FIELD = "Area Names";
+/** Short "I am noticing…" copy */
+export const PATIENT_RECORDS_SHORT_SUMMARY_FIELD = "short summary";
+/** Longer AI summary (Learn more) */
+export const PATIENT_RECORDS_AI_SUMMARY_FIELD = "ai summary test v2 copy";
+/** Comma-separated issues (e.g. "Issue A, Issue B") */
+export const PATIENT_RECORDS_ISSUES_STRING_FIELD = "Issues String";
+/** 1 / "1" / true = focus area */
+export const PATIENT_RECORDS_IS_FOCUS_FIELD = "Is an area of interest?";
+export const PATIENT_RECORDS_SUGGESTION_RECORD_ID_FIELD = "Record ID (from Suggestions)";
+export const PATIENT_RECORDS_PATIENT_ID_FIELD = "RECORD ID (from Patients)";
+export const PATIENT_RECORDS_PATIENT_EMAIL_FIELD = "Email (from Patients)";
+
+/** One suggestion card from patient-records (SUGGESTION_CARDS_INTEGRATION.md) */
+export interface PatientSuggestionCard {
+  id: string;
+  suggestionName: string;
+  areaNames: string;
+  photoUrl: string | null;
+  shortSummary: string;
+  aiSummary: string;
+  issuesString: string;
+  isFocusArea: boolean;
+  suggestionRecordId: string;
+  patientId: string;
+  patientEmail: string;
+}
+
+/** Normalize Airtable linked-record field (string or [string]) to a single display string */
+export function toDisplayName(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value) && value.length > 0) {
+    const first = value[0];
+    return typeof first === "string" ? first.trim() : String(first).trim();
+  }
+  return String(value).trim();
+}
+
+/** Parse patient-records response into suggestion cards with details (SUGGESTION_CARDS_INTEGRATION.md) */
+export function parsePatientRecordsToCards(records: AirtableRecord[]): PatientSuggestionCard[] {
+  const cards: PatientSuggestionCard[] = [];
+  for (const record of records) {
+    const fields = record.fields || {};
+    const suggestionName = toDisplayName(fields[PATIENT_RECORDS_SUGGESTION_NAME_FIELD]);
+    if (!suggestionName) continue;
+    const areaNames = toDisplayName(fields[PATIENT_RECORDS_AREA_NAMES_FIELD]);
+    const photo = fields[PATIENT_RECORDS_PHOTO_FIELD];
+    const photoUrl = getAreaCroppedPhotoUrl(photo);
+    const shortSummary = toDisplayName(fields[PATIENT_RECORDS_SHORT_SUMMARY_FIELD]);
+    const aiSummary = toDisplayName(fields[PATIENT_RECORDS_AI_SUMMARY_FIELD]);
+    const issuesString = toDisplayName(fields[PATIENT_RECORDS_ISSUES_STRING_FIELD]);
+    const focusVal = fields[PATIENT_RECORDS_IS_FOCUS_FIELD];
+    const isFocusArea = focusVal === 1 || focusVal === "1" || focusVal === true;
+    const suggestionRecordId = toDisplayName(fields[PATIENT_RECORDS_SUGGESTION_RECORD_ID_FIELD]);
+    const patientId = toDisplayName(fields[PATIENT_RECORDS_PATIENT_ID_FIELD]);
+    const patientEmail = toDisplayName(fields[PATIENT_RECORDS_PATIENT_EMAIL_FIELD]);
+    cards.push({
+      id: record.id,
+      suggestionName,
+      areaNames,
+      photoUrl,
+      shortSummary,
+      aiSummary,
+      issuesString,
+      isFocusArea,
+      suggestionRecordId,
+      patientId,
+      patientEmail,
+    });
+  }
+  return cards;
+}
+
+type PhotoField =
+  | { id?: string; url: string; filename?: string }
+  | { id?: string; url: string; filename?: string }[]
+  | string
+  | null
+  | undefined;
+
+/**
+ * Extract a single image URL from the "Photo (from Area Cropped Photos)" field
+ * (array of attachments, single attachment, or string URL).
+ */
+export function getAreaCroppedPhotoUrl(photo: PhotoField): string | null {
+  if (photo == null || photo === undefined) return null;
+  if (Array.isArray(photo) && photo.length > 0) {
+    const first = photo[0];
+    if (typeof first === "object" && first && "url" in first) return first.url;
+    if (typeof first === "string") return first;
+  }
+  if (typeof photo === "object" && "url" in photo) return (photo as { url: string }).url;
+  if (typeof photo === "string") return photo;
+  return null;
+}
+
+/* ========== AI Assessment APIs ========== */
+
+export interface AIAssessmentPayload {
+  overall: number;
+  categories: Array<{ name: string; score: number; tier: string }>;
+  focusCount: number;
+  detectedIssues: string[];
+}
+
+export interface CategoryAssessmentPayload {
+  categoryOrArea: string;
+  score: number;
+  tier: string;
+  subScores: Array<{ name: string; score: number; detected: number; total: number }>;
+  detectedIssues: string[];
+  strengthIssues: string[];
+}
+
+/**
+ * Fetch AI-generated overview assessment from the backend.
+ * Falls back to null on failure (caller should use template text as fallback).
+ */
+export async function fetchAIAssessment(
+  payload: AIAssessmentPayload
+): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${API_BASE_URL}/api/assessment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { assessment?: string };
+    return data.assessment || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch AI-generated category/area-specific assessment from the backend.
+ * Falls back to null on failure.
+ */
+export async function fetchCategoryAssessment(
+  payload: CategoryAssessmentPayload
+): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${API_BASE_URL}/api/category-assessment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { assessment?: string };
+    return data.assessment || null;
+  } catch {
+    return null;
+  }
 }

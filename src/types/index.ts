@@ -4,6 +4,8 @@ export interface Provider {
   id: string;
   name: string;
   code: string;
+  /** When set, leads/patients are fetched for all these IDs (merge group). Backend returns this for e.g. TheTreatment250/TheTreatment447 so both codes see the same combined list. */
+  mergedProviderIds?: string[];
   logo?:
     | string
     | Array<{
@@ -17,6 +19,51 @@ export interface Provider {
   JotformURL?: string;
   SCAN_FORM_URL?: string;
   [key: string]: any; // Allow additional fields from Airtable
+}
+
+/** One item (treatment/product) discussed with the patient in clinic */
+export interface DiscussedItem {
+  id: string;
+  /** ISO date string when this item was added to the plan */
+  addedAt?: string;
+  /** High-level treatment interest from analysis (e.g. "Improve Cheek Definition") that this treatment addresses */
+  interest?: string;
+  /** Detected issues linked to this item (e.g. "Forehead Wrinkles") when added by patient interest */
+  findings?: string[];
+  treatment: string;
+  /** When treatment is Skincare, optional product type (e.g. Retinol, Vitamin C) */
+  product?: string;
+  brand?: string;
+  region?: string;
+  timeline?: string;
+  /** Quantity (e.g. syringes, units) – quick-select in UI */
+  quantity?: string;
+  recurring?: string;
+  notes?: string;
+}
+
+/** Treatment photo from the Photos table (before/after examples) */
+export interface TreatmentPhoto {
+  id: string;
+  name: string;
+  photoUrl: string;
+  thumbnailUrl?: string;
+  treatments: string[];
+  generalTreatments: string[];
+  areaNames: string[];
+  /** "Surgical" or "Non-Surgical" from Photos table – used to filter to non-surgical only */
+  surgical?: string;
+  caption?: string;
+  storyTitle?: string;
+  storyDetailed?: string;
+  longevity?: string;
+  downtime?: string;
+  priceRange?: string;
+  /** Patient demographics for matching */
+  age?: string;
+  skinTone?: string;
+  ethnicBackground?: string;
+  skinType?: string;
 }
 
 export interface ContactHistoryEntry {
@@ -61,7 +108,7 @@ export interface Client {
   photosViewed: number;
   treatmentsViewed: string[];
   source: string;
-  status: "new" | "contacted" | "scheduled" | "converted";
+  status: "new" | "contacted" | "requested-consult" | "scheduled" | "converted";
   priority: "high" | "medium" | "low";
   createdAt: string;
   notes: string;
@@ -81,20 +128,16 @@ export interface Client {
   processedAreasOfInterest: string;
   areasOfInterestFromForm: string;
   archived: boolean;
-  offerEarned: boolean;
   offerClaimed: boolean;
+  /** Offer/coupon expiration date (e.g. $50 off). ISO date string or null. */
+  offerExpirationDate: string | null;
+  /** Patients: Location name from Boulevard Appointments (from Form Submissions) */
+  locationName: string | null;
+  /** Patients: Appointment service staff name (first + last from Boulevard Appointments) */
+  appointmentStaffName: string | null;
+  /** Treatments/products discussed with patient in clinic (optional; persisted as "Treatments Discussed" in Airtable) */
+  discussedItems?: DiscussedItem[];
   contactHistory: ContactHistoryEntry[];
-}
-
-export interface Offer {
-  id: string;
-  name: string;
-  heading: string;
-  details: string;
-  availableUntil: string;
-  redemptionPeriod: string;
-  treatmentFilter: string;
-  createdTime?: string;
 }
 
 export type ViewType =
@@ -111,6 +154,10 @@ export interface FilterState {
   ageMax: number | null;
   analysisStatus: string;
   leadStage: string;
+  /** Location name (e.g. Newport Beach) – from client.locationName (Patients). */
+  locationName: string;
+  /** Provider / staff name – from client.appointmentStaffName (Patients). */
+  providerName: string;
 }
 
 export interface SortState {

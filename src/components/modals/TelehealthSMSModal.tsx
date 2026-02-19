@@ -1,15 +1,20 @@
 // Telehealth SMS Modal Component
 
-import { useState, useEffect } from 'react';
-import { Client } from '../../types';
-import { useDashboard } from '../../context/DashboardContext';
-import { sendSMSNotification } from '../../services/api';
-import { getTelehealthScanLink } from '../../utils/providerHelpers';
-import { splitName, cleanPhoneNumber } from '../../utils/validation';
-import { mapAreasToFormFields, mapSkinComplaints } from '../../utils/formMapping';
-import { setBodyScrollLock } from '../../utils/scrollLock';
-import { showToast, showError } from '../../utils/toast';
-import './TelehealthSMSModal.css';
+import { useState, useEffect } from "react";
+import { Client } from "../../types";
+import { useDashboard } from "../../context/DashboardContext";
+import { sendSMSNotification } from "../../services/api";
+import {
+  getTelehealthScanLink,
+  formatProviderDisplayName,
+} from "../../utils/providerHelpers";
+import { splitName, cleanPhoneNumber } from "../../utils/validation";
+import {
+  mapAreasToFormFields,
+  mapSkinComplaints,
+} from "../../utils/formMapping";
+import { showToast, showError } from "../../utils/toast";
+import "./TelehealthSMSModal.css";
 
 interface TelehealthSMSModalProps {
   client: Client;
@@ -17,32 +22,30 @@ interface TelehealthSMSModalProps {
   onSuccess: () => void;
 }
 
-export default function TelehealthSMSModal({ client, onClose, onSuccess }: TelehealthSMSModalProps) {
+export default function TelehealthSMSModal({
+  client,
+  onClose,
+  onSuccess,
+}: TelehealthSMSModalProps) {
   const { provider } = useDashboard();
-  const [message, setMessage] = useState('');
-  const [smsLink, setSmsLink] = useState('');
+  const [message, setMessage] = useState("");
+  const [smsLink, setSmsLink] = useState("");
   const [sending, setSending] = useState(false);
 
   // Handle Escape key to close modal
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onClose();
       }
     };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
-
-  // Lock body scroll when modal is open (prevents iOS background scroll)
-  useEffect(() => {
-    setBodyScrollLock(true);
-    return () => setBodyScrollLock(false);
-  }, []);
 
   useEffect(() => {
     // Build default message
-    const providerName = provider?.name || 'We';
+    const providerName = formatProviderDisplayName(provider?.name) || "We";
     const defaultMessage = `${providerName}: We are now utilizing a new patient tool to help track treatment progress and develop customized plans. Please complete the 5-min at-home AI facial scan prior to your next appointment and earn $50 off any new treatments you discover:`;
     setMessage(defaultMessage);
 
@@ -57,35 +60,49 @@ export default function TelehealthSMSModal({ client, onClose, onSuccess }: Teleh
     if (first) params.push(`name[first]=${encodeURIComponent(first)}`);
     if (last) params.push(`name[last]=${encodeURIComponent(last)}`);
     if (client.email) params.push(`email=${encodeURIComponent(client.email)}`);
-    if (phoneNumber) params.push(`phoneNumber=${encodeURIComponent(phoneNumber)}`);
-    if (client.zipCode) params.push(`zipCode=${encodeURIComponent(client.zipCode)}`);
-    if (whatAreas.length > 0) params.push(`whatAreas=${encodeURIComponent(whatAreas.join(','))}`);
-    if (faceRegions.length > 0) params.push(`faceRegions=${encodeURIComponent(faceRegions.join(','))}`);
-    if (skinComplaints.length > 0) params.push(`skinComplaints=${encodeURIComponent(skinComplaints.join(','))}`);
-    params.push(`source=${encodeURIComponent('Provider Dashboard - SMS Link')}`);
+    if (phoneNumber)
+      params.push(`phoneNumber=${encodeURIComponent(phoneNumber)}`);
+    if (client.zipCode)
+      params.push(`zipCode=${encodeURIComponent(client.zipCode)}`);
+    if (whatAreas.length > 0)
+      params.push(`whatAreas=${encodeURIComponent(whatAreas.join(","))}`);
+    if (faceRegions.length > 0)
+      params.push(`faceRegions=${encodeURIComponent(faceRegions.join(","))}`);
+    if (skinComplaints.length > 0)
+      params.push(
+        `skinComplaints=${encodeURIComponent(skinComplaints.join(","))}`,
+      );
+    params.push(
+      `source=${encodeURIComponent("Provider Dashboard - SMS Link")}`,
+    );
 
     const link = getTelehealthScanLink(provider);
-    setSmsLink(`${link}?${params.join('&')}`);
+    setSmsLink(`${link}?${params.join("&")}`);
   }, [client, provider]);
 
   const handleSend = async () => {
     if (!message.trim()) {
-      showError('Please enter a message');
+      showError("Please enter a message");
       return;
     }
 
     setSending(true);
     try {
       const finalMessage = `${message} ${smsLink}`;
-      const cleanedPhone = client.phone.replace(/\D/g, '');
-      
-      await sendSMSNotification(cleanedPhone, finalMessage, client.id, client.tableSource);
-      
+      const cleanedPhone = client.phone.replace(/\D/g, "");
+
+      await sendSMSNotification(
+        cleanedPhone,
+        finalMessage,
+        client.id,
+        client.tableSource,
+      );
+
       showToast(`SMS notification sent to ${client.name}`);
       onSuccess();
       onClose();
     } catch (error: any) {
-      showError(error.message || 'Failed to send SMS');
+      showError(error.message || "Failed to send SMS");
     } finally {
       setSending(false);
     }
@@ -95,12 +112,17 @@ export default function TelehealthSMSModal({ client, onClose, onSuccess }: Teleh
 
   return (
     <div className="modal-overlay active" onClick={onClose}>
-      <div className="modal-content add-lead-modal-content modal-content-narrow" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content add-lead-modal-content modal-content-narrow"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div className="modal-header-info">
             <h2 className="modal-title">Review SMS Message</h2>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={onClose}>
+            ×
+          </button>
         </div>
 
         <div className="modal-body">
@@ -130,7 +152,9 @@ export default function TelehealthSMSModal({ client, onClose, onSuccess }: Teleh
                 onChange={(e) => setMessage(e.target.value)}
                 className="form-textarea-base"
               />
-              <div className={`character-count ${characterCount > 160 ? 'character-count-error' : characterCount > 140 ? 'character-count-warning' : 'character-count-normal'}`}>
+              <div
+                className={`character-count ${characterCount > 160 ? "character-count-error" : characterCount > 140 ? "character-count-warning" : "character-count-normal"}`}
+              >
                 {characterCount} characters
               </div>
             </div>
@@ -156,7 +180,15 @@ export default function TelehealthSMSModal({ client, onClose, onSuccess }: Teleh
                 </>
               ) : (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="modal-icon-spacing">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="modal-icon-spacing"
+                  >
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                   </svg>

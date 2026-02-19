@@ -1,14 +1,16 @@
 // View Controls Component (Search, Filters, Sort)
 
-import { useState } from 'react';
-import { useDashboard } from '../../context/DashboardContext';
-import './ViewControls.css';
+import { useMemo, useState } from "react";
+import { useDashboard } from "../../context/DashboardContext";
+import { formatProviderDisplayName } from "../../utils/providerHelpers";
+import "./ViewControls.css";
 
 export default function ViewControls() {
-  const { 
-    searchQuery, 
-    setSearchQuery, 
-    currentView, 
+  const {
+    clients,
+    searchQuery,
+    setSearchQuery,
+    currentView,
     setCurrentView,
     filters,
     setFilters,
@@ -16,7 +18,35 @@ export default function ViewControls() {
     setSort,
     setPagination,
   } = useDashboard();
-  
+
+  const locationOptions = useMemo(() => {
+    const set = new Set<string>();
+    clients.forEach((c) => {
+      const loc = String(c.locationName ?? "").trim();
+      if (loc) set.add(loc);
+    });
+    return Array.from(set).sort();
+  }, [clients]);
+
+  const providerOptions = useMemo(() => {
+    const set = new Set<string>();
+    clients.forEach((c) => {
+      const name = String(c.appointmentStaffName ?? "").trim();
+      if (name) set.add(formatProviderDisplayName(name));
+    });
+    return Array.from(set).sort();
+  }, [clients]);
+
+  /** Source filter options: all unique source values present in the current data (not hardcoded). */
+  const sourceOptions = useMemo(() => {
+    const set = new Set<string>();
+    clients.forEach((c) => {
+      const src = String(c.source ?? "").trim();
+      if (src) set.add(src);
+    });
+    return Array.from(set).sort();
+  }, [clients]);
+
   const [showFilters, setShowFilters] = useState(false);
   const [showSort, setShowSort] = useState(false);
 
@@ -24,12 +54,21 @@ export default function ViewControls() {
     <div className="view-controls-container">
       <div className="control-section view-toggle-section">
         <div className="view-toggle-buttons">
-          <button 
-            className={`view-toggle-btn ${currentView === 'list' ? 'active' : ''}`}
-            onClick={() => setCurrentView('list')}
+          <button
+            className={`view-toggle-btn ${
+              currentView === "list" ? "active" : ""
+            }`}
+            onClick={() => setCurrentView("list")}
             title="List View"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <line x1="8" y1="6" x2="21" y2="6"></line>
               <line x1="8" y1="12" x2="21" y2="12"></line>
               <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -39,12 +78,23 @@ export default function ViewControls() {
             </svg>
             <span>List</span>
           </button>
-          <button 
-            className={`view-toggle-btn ${currentView === 'cards' || currentView === 'facial-analysis' ? 'active' : ''}`}
-            onClick={() => setCurrentView('facial-analysis')}
+          <button
+            className={`view-toggle-btn ${
+              currentView === "cards" || currentView === "facial-analysis"
+                ? "active"
+                : ""
+            }`}
+            onClick={() => setCurrentView("facial-analysis")}
             title="Card View"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>
               <rect x="14" y="14" width="7" height="7"></rect>
@@ -57,7 +107,14 @@ export default function ViewControls() {
 
       <div className="control-section search-section">
         <div className="search-box-main">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <circle cx="11" cy="11" r="8"></circle>
             <path d="m21 21-4.35-4.35"></path>
           </svg>
@@ -73,19 +130,19 @@ export default function ViewControls() {
 
       {/* Filter Section */}
       <div className="control-section filter-section">
-        <button 
-          className="control-toggle-btn" 
+        <button
+          className="control-toggle-btn"
           onClick={() => setShowFilters(!showFilters)}
         >
           <span>Filters</span>
-          <svg 
-            width="16" 
-            height="16" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             strokeWidth="2"
-            className={`filter-icon-rotate ${showFilters ? 'active' : ''}`}
+            className={`filter-icon-rotate ${showFilters ? "active" : ""}`}
           >
             <polyline points="6 9 12 15 18 9"></polyline>
           </svg>
@@ -103,15 +160,11 @@ export default function ViewControls() {
                 className="filter-select"
               >
                 <option value="">All Sources</option>
-                <option value="Website">Website</option>
-                <option value="Facial Analysis Form">Facial Analysis Form</option>
-                <option value="Treatment Room QR Code">Treatment Room QR Code</option>
-                <option value="Walk-in">Walk-in</option>
-                <option value="Phone Call">Phone Call</option>
-                <option value="Referral">Referral</option>
-                <option value="Social Media">Social Media</option>
-                <option value="AI Consult">AI Consult Tool</option>
-                <option value="Other">Other</option>
+                {sourceOptions.map((src) => (
+                  <option key={src} value={src}>
+                    {src}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="filter-group">
@@ -122,11 +175,13 @@ export default function ViewControls() {
                   placeholder="Min"
                   min="0"
                   max="150"
-                  value={filters.ageMin || ''}
+                  value={filters.ageMin || ""}
                   onChange={(e) => {
-                    setFilters({ 
-                      ...filters, 
-                      ageMin: e.target.value ? parseInt(e.target.value, 10) : null 
+                    setFilters({
+                      ...filters,
+                      ageMin: e.target.value
+                        ? parseInt(e.target.value, 10)
+                        : null,
                     });
                     setPagination({ currentPage: 1, itemsPerPage: 25 });
                   }}
@@ -138,11 +193,13 @@ export default function ViewControls() {
                   placeholder="Max"
                   min="0"
                   max="150"
-                  value={filters.ageMax || ''}
+                  value={filters.ageMax || ""}
                   onChange={(e) => {
-                    setFilters({ 
-                      ...filters, 
-                      ageMax: e.target.value ? parseInt(e.target.value, 10) : null 
+                    setFilters({
+                      ...filters,
+                      ageMax: e.target.value
+                        ? parseInt(e.target.value, 10)
+                        : null,
                     });
                     setPagination({ currentPage: 1, itemsPerPage: 25 });
                   }}
@@ -177,23 +234,66 @@ export default function ViewControls() {
                 className="filter-select"
               >
                 <option value="">All Stages</option>
-                <option value="new">New Client</option>
+                <option value="new">New Lead</option>
                 <option value="contacted">Contacted</option>
+                <option value="requested-consult">Requested Consult</option>
                 <option value="scheduled">Scheduled</option>
                 <option value="converted">Converted</option>
               </select>
             </div>
+            {locationOptions.length > 0 && (
+              <div className="filter-group">
+                <label>Location</label>
+                <select
+                  value={filters.locationName}
+                  onChange={(e) => {
+                    setFilters({ ...filters, locationName: e.target.value });
+                    setPagination({ currentPage: 1, itemsPerPage: 25 });
+                  }}
+                  className="filter-select"
+                >
+                  <option value="">All Locations</option>
+                  {locationOptions.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {providerOptions.length > 0 && (
+              <div className="filter-group">
+                <label>Provider</label>
+                <select
+                  value={filters.providerName}
+                  onChange={(e) => {
+                    setFilters({ ...filters, providerName: e.target.value });
+                    setPagination({ currentPage: 1, itemsPerPage: 25 });
+                  }}
+                  className="filter-select"
+                >
+                  <option value="">All Providers</option>
+                  {providerOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <button
               className="btn-secondary btn-sm filter-clear-btn"
               onClick={() => {
                 setFilters({
-                  source: '',
+                  source: "",
                   ageMin: null,
                   ageMax: null,
-                  analysisStatus: '',
-                  leadStage: '',
+                  analysisStatus: "",
+                  leadStage: "",
+                  locationName: "",
+                  providerName: "",
                 });
-                setSort({ field: 'createdAt', order: 'desc' });
+                setSort({ field: "createdAt", order: "desc" });
                 setPagination({ currentPage: 1, itemsPerPage: 25 });
               }}
             >
@@ -205,19 +305,19 @@ export default function ViewControls() {
 
       {/* Sort Section */}
       <div className="control-section sort-section">
-        <button 
-          className="control-toggle-btn" 
+        <button
+          className="control-toggle-btn"
           onClick={() => setShowSort(!showSort)}
         >
           <span>Sort</span>
-          <svg 
-            width="16" 
-            height="16" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             strokeWidth="2"
-            className={`sort-icon-rotate ${showSort ? 'active' : ''}`}
+            className={`sort-icon-rotate ${showSort ? "active" : ""}`}
           >
             <polyline points="6 9 12 15 18 9"></polyline>
           </svg>
@@ -248,7 +348,7 @@ export default function ViewControls() {
               <select
                 value={sort.order}
                 onChange={(e) => {
-                  setSort({ ...sort, order: e.target.value as 'asc' | 'desc' });
+                  setSort({ ...sort, order: e.target.value as "asc" | "desc" });
                   setPagination({ currentPage: 1, itemsPerPage: 25 });
                 }}
                 className="filter-select"
