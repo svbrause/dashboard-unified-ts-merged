@@ -37,7 +37,7 @@ import {
 import { splitName, cleanPhoneNumber } from "../../utils/validation";
 import {
   mapAreasToFormFields,
-  mapSkinComplaints,
+  parseDateOfBirthForForm,
 } from "../../utils/formMapping";
 import {
   shouldLoadPhotoForClient,
@@ -245,34 +245,31 @@ export default function ClientDetailModal({
   };
 
   const handleScanPatientNow = () => {
-    const providerName = formatProviderDisplayName(provider?.name) || "We";
     const { first, last } = splitName(client.name);
     const phoneNumber = cleanPhoneNumber(client.phone);
     const { whatAreas, faceRegions } = mapAreasToFormFields(client);
-    const skinComplaints = mapSkinComplaints(client);
+    const dob = parseDateOfBirthForForm(client.dateOfBirth);
 
     const params: string[] = [];
-    params.push(`provider=${encodeURIComponent(providerName)}`);
     if (first) params.push(`name[first]=${encodeURIComponent(first)}`);
     if (last) params.push(`name[last]=${encodeURIComponent(last)}`);
     if (client.email) params.push(`email=${encodeURIComponent(client.email)}`);
     if (phoneNumber)
       params.push(`phoneNumber=${encodeURIComponent(phoneNumber)}`);
-    if (client.zipCode)
-      params.push(`zipCode=${encodeURIComponent(client.zipCode)}`);
+    if (dob) {
+      params.push(`dateOf[month]=${encodeURIComponent(String(dob.month))}`);
+      params.push(`dateOf[day]=${encodeURIComponent(String(dob.day))}`);
+      params.push(`dateOf[year]=${encodeURIComponent(String(dob.year))}`);
+    }
     if (whatAreas.length > 0)
-      params.push(`whatAreas=${encodeURIComponent(whatAreas.join(","))}`);
+      params.push(`whatAre137=${encodeURIComponent(whatAreas[0])}`);
+    else if (faceRegions.length > 0)
+      params.push(`whatAre137=${encodeURIComponent("Face")}`);
     if (faceRegions.length > 0)
-      params.push(`faceRegions=${encodeURIComponent(faceRegions.join(","))}`);
-    if (skinComplaints.length > 0)
-      params.push(
-        `skinComplaints=${encodeURIComponent(skinComplaints.join(","))}`
-      );
-    params.push(
-      `source=${encodeURIComponent("Provider Dashboard - In-Clinic Scan")}`
-    );
+      params.push(`whichRegions138=${encodeURIComponent(faceRegions.join(","))}`);
 
-    const formUrl = `${getJotformUrl(provider)}?${params.join("&")}`;
+    const baseUrl = getJotformUrl(provider);
+    const formUrl = params.length > 0 ? `${baseUrl}?${params.join("&")}` : baseUrl;
     window.open(formUrl, "_blank");
   };
 

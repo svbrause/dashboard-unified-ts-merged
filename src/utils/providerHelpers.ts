@@ -22,23 +22,18 @@ export function formatProviderDisplayName(
   return `${firstPart} ${lastPart}`;
 }
 
-/** In-clinic scan URL for TheTreatment250 (overrides Jotform/Form Link). */
-const THE_TREATMENT_250_IN_CLINIC_SCAN_URL =
-  "https://app.ponce.ai/face/treatment-clinic-realtime";
-
 export function getJotformUrl(provider: Provider | null): string {
   if (!provider) return "https://app.ponce.ai/face/default-clinic";
 
-  if ((provider.code || "").toLowerCase() === "thetreatment250") {
-    return THE_TREATMENT_250_IN_CLINIC_SCAN_URL;
-  }
-
+  // Use Form Link from Providers table when set (used for in-clinic scan)
   const formLink =
     provider["Form Link"] ||
     provider.FormLink ||
     provider["Form link"] ||
     provider["form link"];
-  if (formLink) return formLink;
+  if (formLink && typeof formLink === "string" && formLink.trim()) {
+    return formLink.trim();
+  }
 
   return (
     provider.JotformURL ||
