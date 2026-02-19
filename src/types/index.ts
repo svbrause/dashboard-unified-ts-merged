@@ -140,6 +140,17 @@ export interface Client {
   contactHistory: ContactHistoryEntry[];
 }
 
+export interface Offer {
+  id: string;
+  name: string;
+  heading: string;
+  details: string;
+  availableUntil: string;
+  redemptionPeriod: string;
+  treatmentFilter: string;
+  createdTime?: string;
+}
+
 export type ViewType =
   | "list"
   | "cards"

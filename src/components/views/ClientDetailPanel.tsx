@@ -383,7 +383,7 @@ export default function ClientDetailPanel({
               <h2 className="client-detail-panel-title">{client.name}</h2>
               {recommenderMode && (
                 <span className="client-detail-panel-header-subtitle">
-                  Treatment recommender ({recommenderMode === "by-treatment" ? "by treatment" : "by suggestion"})
+                  Treatment Recommender
                 </span>
               )}
               {!recommenderMode && (
@@ -1088,17 +1088,7 @@ export default function ClientDetailPanel({
                           setRecommenderMode("by-treatment");
                         }}
                       >
-                        Recommender (by treatment)
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary btn-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRecommenderMode("by-suggestion");
-                        }}
-                      >
-                        Recommender (by suggestion)
+                        Treatment Recommender
                       </button>
                     </>
                   )}

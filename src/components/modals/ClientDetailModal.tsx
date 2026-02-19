@@ -343,7 +343,7 @@ export default function ClientDetailModal({
             <h2 className="modal-title">{client.name}</h2>
             {recommenderMode && (
               <span className="client-detail-modal-header-subtitle">
-                Treatment recommender ({recommenderMode === "by-treatment" ? "by treatment" : "by suggestion"})
+                Treatment Recommender
               </span>
             )}
             {!recommenderMode && (
@@ -1048,17 +1048,7 @@ export default function ClientDetailModal({
                           setRecommenderMode("by-treatment");
                         }}
                       >
-                        Recommender (by treatment)
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary btn-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRecommenderMode("by-suggestion");
-                        }}
-                      >
-                        Recommender (by suggestion)
+                        Treatment Recommender
                       </button>
                     </>
                   )}
