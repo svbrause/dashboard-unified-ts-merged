@@ -1,13 +1,13 @@
 // Utility to map Airtable records to Client format
 
-import { Client, AirtableRecord } from "../types";
+import { Client, AirtableRecord, DiscussedItem } from "../types";
 
 /**
  * Map Airtable status field to dashboard status
  */
 function mapAirtableStatus(
-  fields: Record<string, any>
-): "new" | "contacted" | "scheduled" | "converted" {
+  fields: Record<string, any>,
+): "new" | "contacted" | "requested-consult" | "scheduled" | "converted" {
   const status = (fields["Status"] || "").toLowerCase();
 
   if (
@@ -19,6 +19,9 @@ function mapAirtableStatus(
   }
   if (status.includes("scheduled") || status.includes("consultation")) {
     return "scheduled";
+  }
+  if (status.includes("requested") && status.includes("consult")) {
+    return "requested-consult";
   }
   if (status.includes("contacted") || status.includes("reached")) {
     return "contacted";
@@ -61,7 +64,7 @@ function formatPatientSource(sourceValue: string | null | undefined): string {
  * Determine priority based on fields
  */
 function determinePriority(
-  fields: Record<string, any>
+  fields: Record<string, any>,
 ): "high" | "medium" | "low" {
   // High priority: recent activity, high engagement, or scheduled
   const lastContact = fields["Last Contact"] || fields["Contacted"];
@@ -69,6 +72,9 @@ function determinePriority(
   const status = (fields["Status"] || "").toLowerCase();
 
   if (status.includes("scheduled") || status.includes("consultation")) {
+    return "high";
+  }
+  if (status.includes("requested") && status.includes("consult")) {
     return "high";
   }
 
@@ -92,7 +98,7 @@ function determinePriority(
  */
 export function mapRecordToClient(
   record: AirtableRecord,
-  tableName: string
+  tableName: string,
 ): Client {
   const fields = record.fields || {};
 
@@ -124,15 +130,15 @@ export function mapRecordToClient(
           ? fields["Name (from Interest Items)"]
           : []
         : Array.isArray(fields["Goals"])
-        ? fields["Goals"]
-        : [],
+          ? fields["Goals"]
+          : [],
     concerns:
       tableName === "Patients"
         ? fields["Areas of Interest (from Form Submissions)"] ||
           (Array.isArray(
             fields[
               "Which regions of your face do you want to improve? (from Form Submissions)"
-            ]
+            ],
           )
             ? fields[
                 "Which regions of your face do you want to improve? (from Form Submissions)"
@@ -140,14 +146,14 @@ export function mapRecordToClient(
             : "") ||
           ""
         : Array.isArray(fields["Concerns"])
-        ? fields["Concerns"]
-        : fields["Concerns"] || "",
+          ? fields["Concerns"]
+          : fields["Concerns"] || "",
     areas:
       tableName === "Patients"
         ? null
         : Array.isArray(fields["Areas"])
-        ? fields["Areas"]
-        : null,
+          ? fields["Areas"]
+          : null,
     aestheticGoals: (() => {
       let value =
         tableName === "Patients"
@@ -174,8 +180,8 @@ export function mapRecordToClient(
       tableName === "Patients"
         ? null
         : Array.isArray(fields["Concerns Explored"])
-        ? fields["Concerns Explored"]
-        : null,
+          ? fields["Concerns Explored"]
+          : null,
     photosLiked: Array.isArray(fields["Liked Photos"])
       ? fields["Liked Photos"].length
       : 0,
@@ -185,8 +191,8 @@ export function mapRecordToClient(
           parseInt(fields["Interested Photos Viewed"]) ||
           0
         : Array.isArray(fields["Viewed Photos"])
-        ? fields["Viewed Photos"].length
-        : 0,
+          ? fields["Viewed Photos"].length
+          : 0,
     treatmentsViewed: [],
     source: (() => {
       if (tableName === "Web Popup Leads") {
@@ -243,7 +249,7 @@ export function mapRecordToClient(
         ? Array.isArray(
             fields[
               "Which regions of your face do you want to improve? (from Form Submissions)"
-            ]
+            ],
           )
           ? fields[
               "Which regions of your face do you want to improve? (from Form Submissions)"
@@ -255,7 +261,7 @@ export function mapRecordToClient(
     skinComplaints:
       tableName === "Patients"
         ? Array.isArray(
-            fields["Do you have any skin complaints? (from Form Submissions)"]
+            fields["Do you have any skin complaints? (from Form Submissions)"],
           )
           ? fields[
               "Do you have any skin complaints? (from Form Submissions)"
@@ -267,10 +273,10 @@ export function mapRecordToClient(
     processedAreasOfInterest:
       tableName === "Patients"
         ? Array.isArray(
-            fields["Processed Areas of Interest (from Form Submissions)"]
+            fields["Processed Areas of Interest (from Form Submissions)"],
           )
           ? fields["Processed Areas of Interest (from Form Submissions)"].join(
-              ", "
+              ", ",
             )
           : fields["Processed Areas of Interest (from Form Submissions)"] || ""
         : "",
@@ -279,21 +285,52 @@ export function mapRecordToClient(
         ? Array.isArray(fields["Areas of Interest (from Form Submissions)"])
           ? fields["Areas of Interest (from Form Submissions)"].join(", ")
           : typeof fields["Areas of Interest (from Form Submissions)"] ===
-            "string"
-          ? fields["Areas of Interest (from Form Submissions)"]
-          : ""
+              "string"
+            ? fields["Areas of Interest (from Form Submissions)"]
+            : ""
         : "",
     archived: fields["Archived"] || false,
-    // Web Popup Leads: all earn a coupon by default; claimed state from "Coupons Claimed" (checkbox).
-    // Patients: optional Offer Earned / Offer Claimed if present.
-    offerEarned:
-      tableName === "Web Popup Leads"
-        ? true
-        : fields["Offer Earned"] || fields["Coupon Earned"] || false,
-    offerClaimed:
-      tableName === "Web Popup Leads"
-        ? !!fields["Coupons Claimed"]
-        : !!fields["Offer Claimed"],
+    offerClaimed: fields["Offer Claimed"] || false,
+    offerExpirationDate:
+      fields["Offer Expiration"] ||
+      fields["Offer Expiration Date"] ||
+      fields["Coupon Expiration"] ||
+      null,
+    locationName:
+      tableName === "Patients"
+        ? fields[
+            "Location name (from Boulevard Appointments) (from Form Submissions)"
+          ] || null
+        : null,
+    appointmentStaffName: (() => {
+      if (tableName !== "Patients") return null;
+      const first =
+        fields[
+          "Appointment Service Staff First Name (from Boulevard Appointments) (from Form Submissions)"
+        ];
+      const last =
+        fields[
+          "Appointment Service Staff Last Name (from Boulevard Appointments) (from Form Submissions)"
+        ];
+      const parts = [first, last].filter(Boolean);
+      return parts.length ? parts.join(" ").trim() : null;
+    })(),
+    discussedItems: (() => {
+      const raw =
+        fields["Treatments Discussed"] ?? fields["Discussed Treatments"];
+      if (!raw || typeof raw !== "string") return undefined;
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) return undefined;
+        return (parsed as DiscussedItem[])
+          .filter(
+            (x) => x && typeof x.treatment === "string" && x.treatment.trim(),
+          )
+          .map((x, i) => ({ ...x, id: x.id || `disc-${record.id}-${i}` }));
+      } catch {
+        return undefined;
+      }
+    })(),
     contactHistory: [],
   };
 

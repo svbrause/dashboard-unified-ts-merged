@@ -1,13 +1,17 @@
 // Share Analysis Modal Component
 
-import { useState, useEffect } from 'react';
-import { Client } from '../../types';
-import { useDashboard } from '../../context/DashboardContext';
-import { sendSMSNotification } from '../../services/api';
-import { isValidPhone, formatPhoneInput, cleanPhoneNumber } from '../../utils/validation';
-import { setBodyScrollLock } from '../../utils/scrollLock';
-import { showToast, showError } from '../../utils/toast';
-import './ShareAnalysisModal.css';
+import { useState, useEffect } from "react";
+import { Client } from "../../types";
+import { useDashboard } from "../../context/DashboardContext";
+import { sendSMSNotification } from "../../services/api";
+import { formatProviderDisplayName } from "../../utils/providerHelpers";
+import {
+  isValidPhone,
+  formatPhoneInput,
+  cleanPhoneNumber,
+} from "../../utils/validation";
+import { showToast, showError } from "../../utils/toast";
+import "./ShareAnalysisModal.css";
 
 interface ShareAnalysisModalProps {
   client: Client;
@@ -15,12 +19,16 @@ interface ShareAnalysisModalProps {
   onSuccess: () => void;
 }
 
-export default function ShareAnalysisModal({ client, onClose, onSuccess }: ShareAnalysisModalProps) {
+export default function ShareAnalysisModal({
+  client,
+  onClose,
+  onSuccess,
+}: ShareAnalysisModalProps) {
   const { provider } = useDashboard();
   const [formData, setFormData] = useState({
-    name: client.name || '',
-    phone: client.phone || '',
-    message: '',
+    name: client.name || "",
+    phone: client.phone || "",
+    message: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
@@ -28,47 +36,41 @@ export default function ShareAnalysisModal({ client, onClose, onSuccess }: Share
   // Handle Escape key to close modal
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onClose();
       }
     };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
-
-  // Lock body scroll when modal is open (prevents iOS background scroll)
-  useEffect(() => {
-    setBodyScrollLock(true);
-    return () => setBodyScrollLock(false);
-  }, []);
 
   useEffect(() => {
     // Set default message
-    const providerName = provider?.name || 'We';
+    const providerName = formatProviderDisplayName(provider?.name) || "We";
     const defaultMessage = `${providerName}: Your facial analysis results are ready! Access your personalized analysis and self-review at patients.ponce.ai. Log in with your email address to view your results.`;
-    setFormData(prev => ({ ...prev, message: defaultMessage }));
+    setFormData((prev) => ({ ...prev, message: defaultMessage }));
   }, [provider]);
 
   const handleSend = async () => {
     setErrors({});
 
     if (!formData.name.trim()) {
-      setErrors({ name: 'Name is required' });
+      setErrors({ name: "Name is required" });
       return;
     }
 
     if (!formData.phone.trim()) {
-      setErrors({ phone: 'Phone number is required' });
+      setErrors({ phone: "Phone number is required" });
       return;
     }
 
     if (!isValidPhone(formData.phone)) {
-      setErrors({ phone: 'Please enter a valid phone number' });
+      setErrors({ phone: "Please enter a valid phone number" });
       return;
     }
 
     if (!formData.message.trim()) {
-      setErrors({ message: 'Message is required' });
+      setErrors({ message: "Message is required" });
       return;
     }
 
@@ -76,14 +78,19 @@ export default function ShareAnalysisModal({ client, onClose, onSuccess }: Share
     try {
       const finalMessage = formData.message;
       const cleanedPhone = cleanPhoneNumber(formData.phone);
-      
-      await sendSMSNotification(cleanedPhone, finalMessage, client.id, client.tableSource);
-      
+
+      await sendSMSNotification(
+        cleanedPhone,
+        finalMessage,
+        client.id,
+        client.tableSource,
+      );
+
       showToast(`SMS notification sent to ${formData.name}`);
       onSuccess();
       onClose();
     } catch (error: any) {
-      showError(error.message || 'Failed to send SMS');
+      showError(error.message || "Failed to send SMS");
     } finally {
       setSending(false);
     }
@@ -93,15 +100,21 @@ export default function ShareAnalysisModal({ client, onClose, onSuccess }: Share
 
   return (
     <div className="modal-overlay active" onClick={onClose}>
-      <div className="modal-content add-lead-modal-content modal-content-narrow" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content add-lead-modal-content modal-content-narrow share-analysis-modal-content"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div className="modal-header-info">
             <h2 className="modal-title">Share Analysis with Patient</h2>
             <p className="modal-subtitle">
-              Lets patient access their analysis results and self-review via their mobile device
+              Lets patient access their analysis results and self-review via
+              their mobile device
             </p>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={onClose}>
+            ×
+          </button>
         </div>
 
         <div className="modal-body">
@@ -116,10 +129,14 @@ export default function ShareAnalysisModal({ client, onClose, onSuccess }: Share
                 required
                 placeholder="Enter patient's name..."
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 className="form-input-base"
               />
-              {errors.name && <span className="field-error">{errors.name}</span>}
+              {errors.name && (
+                <span className="field-error">{errors.name}</span>
+              )}
             </div>
 
             <div className="form-group form-group-spacing">
@@ -134,14 +151,35 @@ export default function ShareAnalysisModal({ client, onClose, onSuccess }: Share
                 value={formData.phone}
                 onInput={(e) => {
                   formatPhoneInput(e.target as HTMLInputElement);
-                  setFormData({ ...formData, phone: (e.target as HTMLInputElement).value });
+                  setFormData({
+                    ...formData,
+                    phone: (e.target as HTMLInputElement).value,
+                  });
                 }}
                 onChange={(e) => {
                   setFormData({ ...formData, phone: e.target.value });
                 }}
                 className="form-input-base"
               />
-              {errors.phone && <span className="field-error">{errors.phone}</span>}
+              {errors.phone && (
+                <span className="field-error">{errors.phone}</span>
+              )}
+            </div>
+
+            <div className="form-group form-group-spacing share-analysis-checkbox-row">
+              <label className="share-analysis-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked
+                  disabled
+                  readOnly
+                  aria-label="Include link for patient to access"
+                  className="share-analysis-include-link-checkbox"
+                />
+                <span className="share-analysis-checkbox-text">
+                  Include link for patient to access
+                </span>
+              </label>
             </div>
 
             <div className="form-group form-group-spacing-lg">
@@ -154,13 +192,19 @@ export default function ShareAnalysisModal({ client, onClose, onSuccess }: Share
                 required
                 placeholder="Enter your message..."
                 value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, message: e.target.value })
+                }
                 className="form-textarea-base"
               />
-              <div className={`character-count ${characterCount > 160 ? 'character-count-error' : characterCount > 140 ? 'character-count-warning' : 'character-count-normal'}`}>
+              <div
+                className={`character-count ${characterCount > 160 ? "character-count-error" : characterCount > 140 ? "character-count-warning" : "character-count-normal"}`}
+              >
                 {characterCount} characters
               </div>
-              {errors.message && <span className="field-error">{errors.message}</span>}
+              {errors.message && (
+                <span className="field-error">{errors.message}</span>
+              )}
             </div>
           </div>
         </div>
@@ -184,7 +228,15 @@ export default function ShareAnalysisModal({ client, onClose, onSuccess }: Share
                 </>
               ) : (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="modal-icon-spacing">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="modal-icon-spacing"
+                  >
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                   </svg>

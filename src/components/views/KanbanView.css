@@ -61,6 +61,10 @@
   background: #f57c00;
 }
 
+.column-dot.requested-consult {
+  background: #3949ab;
+}
+
 .column-dot.scheduled {
   background: #388e3c;
 }
@@ -150,8 +154,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
   padding-top: 8px;
   border-top: 1px solid var(--theme-border);
 }
@@ -159,23 +161,6 @@
 .lead-date {
   font-size: 11px;
   color: var(--theme-text-muted);
-}
-
-.coupon-pill {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.coupon-pill-available {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--theme-text-secondary);
-}
-
-.coupon-pill-claimed {
-  background: var(--theme-accent);
-  color: var(--theme-text-primary);
 }
 
 .empty-state {

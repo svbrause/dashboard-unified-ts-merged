@@ -15,8 +15,8 @@ export function formatDate(dateString: string | null): string {
   }
 }
 
-/** Format as explicit date and time (e.g. "Feb 9, 2025, 3:45 PM") for detail views */
-export function formatDateTime(dateString: string | null): string {
+/** Format ISO date string as date and time (e.g. "Jan 15, 2025 at 2:30 PM"). */
+export function formatDateTime(dateString: string | null | undefined): string {
   if (!dateString) return '—';
   try {
     const date = new Date(dateString);
@@ -26,10 +26,9 @@ export function formatDateTime(dateString: string | null): string {
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true,
     });
   } catch (e) {
-    return 'Invalid date';
+    return '—';
   }
 }
 

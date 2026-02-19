@@ -31,7 +31,7 @@ if (posthogKey) {
   if (import.meta.env.DEV) console.log("[PostHog] initialized");
 } else {
   console.warn(
-    "[PostHog] Not loaded: VITE_POSTHOG_KEY was not set at build time. Add it in Vercel → Project → Settings → Environment Variables, then redeploy."
+    "[PostHog] Not loaded: VITE_POSTHOG_KEY was not set at build time. Add it in Vercel → Project → Settings → Environment Variables, then redeploy.",
   );
 }
 

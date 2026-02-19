@@ -6,12 +6,12 @@ import ClientDetailPanel from "./ClientDetailPanel";
 import Pagination from "../common/Pagination";
 import { formatRelativeDate } from "../../utils/dateFormatting";
 import {
-  formatFacialStatus,
-  getFacialStatusColor,
+  formatFacialStatusForDisplay,
+  getFacialStatusColorForDisplay,
+  hasInterestedTreatments,
 } from "../../utils/statusFormatting";
 import { applyFilters, applySorting } from "../../utils/filtering";
 import { showToast, showError } from "../../utils/toast";
-import { updateClientStatus } from "../../services/contactHistory";
 import "./ListView.css";
 
 export default function ListView() {
@@ -21,7 +21,6 @@ export default function ListView() {
     loading,
     error,
     refreshClients,
-    updateClient,
     filters,
     sort,
     setSort,
@@ -54,7 +53,7 @@ export default function ListView() {
   }, [processedClients, pagination]);
 
   const totalPages = Math.ceil(
-    processedClients.length / pagination.itemsPerPage
+    processedClients.length / pagination.itemsPerPage,
   );
 
   const handleRowClick = (client: (typeof clients)[0]) => {
@@ -66,6 +65,8 @@ export default function ListView() {
     if (!client) return;
 
     try {
+      const { updateClientStatus } =
+        await import("../../services/contactHistory");
       await updateClientStatus(client, newStatus as any);
       showToast(`Status updated to ${newStatus}`);
       refreshClients();
@@ -136,7 +137,7 @@ export default function ListView() {
                 >
                   Client{getSortIndicator("name")}
                 </th>
-                <th>Interests</th>
+                <th>Interested Treatments</th>
                 <th
                   onClick={() => handleColumnSort("facialAnalysisStatus")}
                   className="table-header-sortable"
@@ -158,21 +159,20 @@ export default function ListView() {
                 >
                   Last Activity{getSortIndicator("lastContact")}
                 </th>
-                <th>Coupon</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="table-cell-center">
+                  <td colSpan={6} className="table-cell-center">
                     <div className="spinner spinner-with-margin"></div>
                     Loading clients...
                   </td>
                 </tr>
               ) : processedClients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-cell-center">
+                  <td colSpan={6} className="table-cell-center">
                     {clients.length === 0
                       ? "No clients found"
                       : "No clients match your search"}
@@ -211,15 +211,24 @@ export default function ListView() {
                       <span
                         className="status-badge status-badge-base"
                         style={{
-                          background: getFacialStatusColor(
-                            client.facialAnalysisStatus || null
+                          background: getFacialStatusColorForDisplay(
+                            client.facialAnalysisStatus || null,
+                            hasInterestedTreatments(client),
                           ),
                         }}
                       >
-                        {formatFacialStatus(
-                          client.facialAnalysisStatus || null
+                        {formatFacialStatusForDisplay(
+                          client.facialAnalysisStatus || null,
+                          hasInterestedTreatments(client),
                         )}
                       </span>
+                      {client.offerClaimed && (
+                        <div className="status-badge-offer">
+                          <span className="status-badge-offer-content">
+                            ✓ Offer Claimed
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <select
@@ -230,30 +239,18 @@ export default function ListView() {
                         }
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <option value="new">New Client</option>
+                        <option value="new">New Lead</option>
                         <option value="contacted">Contacted</option>
+                        <option value="requested-consult">
+                          Requested Consult
+                        </option>
                         <option value="scheduled">Scheduled</option>
                         <option value="converted">Converted</option>
                       </select>
                     </td>
                     <td className="text-sm text-muted">
                       {formatRelativeDate(
-                        client.lastContact || client.createdAt
-                      )}
-                    </td>
-                    <td>
-                      {client.tableSource === "Web Popup Leads" ? (
-                        client.offerClaimed ? (
-                          <span className="coupon-badge coupon-badge-claimed">
-                            Claimed
-                          </span>
-                        ) : (
-                          <span className="coupon-badge coupon-badge-available">
-                            Available
-                          </span>
-                        )
-                      ) : (
-                        <span className="text-muted table-coupon-na">—</span>
+                        client.lastContact || client.createdAt,
                       )}
                     </td>
                     <td>
@@ -289,23 +286,11 @@ export default function ListView() {
 
       {selectedClient && (
         <ClientDetailPanel
-          client={selectedClient}
+          client={
+            clients.find((c) => c.id === selectedClient.id) ?? selectedClient
+          }
           onClose={() => setSelectedClient(null)}
-          onCouponMarkedClaimed={() => {
-            if (selectedClient) {
-              updateClient(selectedClient.id, { offerClaimed: true });
-              setSelectedClient((prev) =>
-                prev ? { ...prev, offerClaimed: true } : null
-              );
-            }
-          }}
-          onUpdate={async () => {
-            const next = await refreshClients();
-            if (next?.length && selectedClient) {
-              const updated = next.find((c) => c.id === selectedClient.id);
-              if (updated) setSelectedClient(updated);
-            }
-          }}
+          onUpdate={() => refreshClients(true)}
         />
       )}
     </section>

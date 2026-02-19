@@ -37,6 +37,37 @@
   gap: 12px;
 }
 
+.client-detail-panel-back {
+  align-self: flex-start;
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  color: var(--theme-text-secondary, #616161);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.client-detail-panel-back:hover {
+  background: var(--theme-bg-hover, #f5f5f5);
+  color: var(--theme-text-primary, #212121);
+}
+
+.client-detail-panel-header-subtitle {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--theme-text-muted, #757575);
+  margin-left: 0;
+}
+
+.client-detail-panel-header-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .client-detail-panel-title {
   font-size: 20px;
   font-weight: 700;
@@ -63,13 +94,39 @@
   background: rgba(0, 0, 0, 0.05);
 }
 
-.client-detail-panel-body {
+/* Full-width scroll container so scrolling on left/right margins scrolls content, not the layer behind */
+.client-detail-panel-scroll {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  width: 100%;
+}
+
+.client-detail-panel-body {
   padding: 32px;
   max-width: 900px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* When showing treatment recommender: fill height so left column can stay fixed and right column scrolls */
+.client-detail-panel-body--recommender {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  max-width: none;
+}
+
+.client-detail-panel-body--recommender > .treatment-recommender-by-treatment,
+.client-detail-panel-body--recommender > .treatment-recommender-by-suggestion {
+  flex: 1;
+  min-height: 0;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 /* Left-align photo and contact info section in panel */
@@ -155,14 +212,7 @@
   margin: 0;
 }
 
-/* Header layout - name and last activity inline */
-.client-detail-panel-header-name-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
+/* Header layout - name, subtitle or last activity inline */
 .client-detail-panel-activity-inline {
   margin: 0;
 }
@@ -182,169 +232,6 @@
   align-items: flex-start;
 }
 
-/* Contact subsection (label + Call/Email/SMS) */
-.contact-actions-subsection.contact-actions-bar {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--theme-border);
-  width: 100%;
-}
-
-.contact-subsection-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--theme-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 10px;
-}
-
-.contact-info-block {
-  flex: 1;
-  min-width: 0;
-}
-
-/* Online Treatment Finder section: always visible for all clients (Web Popup Leads and Patients) */
-.client-detail-panel-body .detail-section {
-  margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--theme-border);
-}
-.client-detail-panel-body .detail-section-with-border {
-  border-top: 2px solid var(--theme-border);
-  padding-top: 20px;
-  margin-top: 20px;
-  background: var(--theme-bg-card, #fafafa);
-  padding: 20px;
-  border-radius: 8px;
-  border-left: 4px solid var(--theme-accent);
-}
-.client-detail-panel-body .online-treatment-finder-section {
-  display: block !important;
-  visibility: visible !important;
-}
-
-/* Lead submitted timestamp in Online Treatment Finder */
-.lead-submitted-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.lead-submitted-row .detail-label-small {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--theme-text-muted);
-  margin-bottom: 0;
-}
-.lead-submitted-row .detail-value {
-  font-size: 13px;
-  color: var(--theme-text);
-}
-
-/* Coupon section - always visible in Online Treatment Finder */
-.coupon-redemption-section.coupon-always-visible {
-  display: block !important;
-  visibility: visible !important;
-}
-.coupon-mark-claimed-actions {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--theme-border);
-}
-.coupon-helper-text {
-  font-size: 12px;
-  color: var(--theme-text-muted);
-  margin: 0 0 10px 0;
-  line-height: 1.4;
-  max-width: 420px;
-}
-.coupon-redemption-section {
-  margin-bottom: 20px;
-  padding: 20px;
-  background: var(--theme-bg-card);
-  border: 1px solid var(--theme-border);
-  border-radius: 10px;
-  border-left: 4px solid var(--theme-accent);
-  box-shadow: 0 2px 6px var(--theme-shadow);
-}
-
-.coupon-redemption-section .detail-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--theme-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--theme-border);
-}
-
-.detail-grid-coupon {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px 24px;
-  max-width: none;
-  margin-bottom: 4px;
-}
-
-.coupon-redemption-section .detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.coupon-redemption-section .detail-label-small {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--theme-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0;
-}
-
-.coupon-redemption-section .detail-value-small {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--theme-text-primary);
-}
-
-.coupon-redemption-section .coupon-status-earned,
-.coupon-redemption-section .coupon-status-claimed {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  width: fit-content;
-}
-
-.coupon-redemption-section .coupon-status-earned.yes {
-  background: rgba(217, 200, 189, 0.35);
-  color: var(--theme-text-primary);
-}
-
-.coupon-redemption-section .coupon-status-earned.no {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--theme-text-muted);
-}
-
-.coupon-redemption-section .coupon-status-claimed.claimed {
-  background: var(--theme-accent);
-  color: var(--theme-text-primary);
-}
-
-.coupon-redemption-section .coupon-status-claimed.available {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--theme-text-secondary);
-}
-
-.coupon-mark-claimed-btn {
-  margin-top: 16px;
-}
-
 /* Contact actions bar - positioned below contact section */
 .contact-actions-bar {
   margin-top: 16px;
@@ -352,6 +239,9 @@
   border-top: 1px solid var(--theme-border);
   border-bottom: 1px solid var(--theme-border);
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 /* Legacy class for backward compatibility */
@@ -372,11 +262,248 @@
   letter-spacing: 0.5px;
 }
 
+.contact-actions-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .contact-actions-buttons {
   display: flex;
   flex-direction: row;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Treatments discussed in clinic – inside Facial Analysis section */
+.discussed-treatments-in-facial-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--theme-border);
+  width: 100%;
+}
+
+.discussed-treatments-in-facial-title-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.discussed-treatments-in-facial-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.discussed-treatments-in-facial-heading-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.discussed-treatments-in-facial-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.discussed-treatments-in-facial-subheading {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--theme-text-muted);
+}
+
+.discussed-treatments-in-facial-summary-row {
+  margin-top: 4px;
+}
+
+.discussed-treatments-in-facial-summary {
+  font-size: 13px;
+  color: var(--theme-text-muted);
+}
+
+.discussed-treatments-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+}
+
+.discussed-treatments-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--theme-border);
+  min-height: 36px;
+}
+
+.discussed-treatments-row:last-child {
+  border-bottom: none;
+}
+
+.discussed-treatments-row-treatment-name {
+  flex-shrink: 0;
+  min-width: 90px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--theme-text-primary);
+}
+
+.discussed-treatments-row-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+
+.discussed-treatments-row-interest {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.discussed-treatments-row-treatment {
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.discussed-treatments-row-meta {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+/* Treatment Plan sections matching popup design */
+.discussed-treatments-plan-sections-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.discussed-treatments-plan-section-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.discussed-treatments-plan-section-title-outer {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--theme-text-muted);
+  margin: 0;
+  padding: 0 2px 2px 0;
+}
+
+.discussed-treatments-records-list-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(79, 70, 229, 0.15);
+  background: rgba(99, 102, 241, 0.03);
+}
+
+.discussed-treatments-record-row-outer {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(79, 70, 229, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.discussed-treatments-record-row-outer:last-child {
+  border-bottom: none;
+}
+
+/* Single line with bullet separators: Treatment • Area • Product • Timeline • Qty */
+.discussed-treatments-record-row-one-line .discussed-treatments-record-line-outer {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-text-primary);
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Treatment name as heading, metadata below */
+.discussed-treatments-record-row-heading-meta .discussed-treatments-record-treatment-heading-outer {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+  line-height: 1.3;
+}
+
+.discussed-treatments-record-row-heading-meta .discussed-treatments-record-meta-line-outer {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--theme-text-secondary);
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.discussed-treatments-record-heading-block-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.discussed-treatments-record-primary-outer {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  line-height: 1.4;
+}
+
+.discussed-treatments-record-area-subheading-outer {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--theme-text-secondary, #666);
+  line-height: 1.3;
+}
+
+.discussed-treatments-record-meta-outer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  line-height: 1.35;
+}
+
+.discussed-treatments-record-product-outer,
+.discussed-treatments-record-for-outer,
+.discussed-treatments-record-region-outer {
+  display: inline-flex;
+  align-items: center;
+}
+
+.discussed-treatments-record-for-outer::before {
+  content: "For: ";
+  opacity: 0.7;
+  margin-right: 3px;
+}
+
+.discussed-treatments-record-quantity-outer {
+  display: inline-flex;
+  align-items: center;
 }
 
 .client-detail-panel-footer {
@@ -432,6 +559,71 @@
 .client-detail-panel .scan-client-option:hover {
   background: #f5f5f5;
   transform: translateY(-1px);
+}
+
+/* Redeemed Offers section (same as ClientDetailModal) */
+.modal-contact-section-with-offers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.modal-contact-section-with-offers .detail-section-relative {
+  flex: 1;
+  min-width: 200px;
+}
+
+.client-detail-panel .redeemed-offers-section {
+  flex-shrink: 0;
+  min-width: 180px;
+}
+
+.client-detail-panel .redeemed-offers-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--theme-text-muted);
+  margin-bottom: 8px;
+}
+
+.client-detail-panel .redeemed-offers-card {
+  padding: 14px;
+  background: #f7f4f1;
+  border-radius: 10px;
+  border-left: 4px solid #7fa882;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.client-detail-panel .redeemed-offers-coupon {
+  font-weight: 700;
+  font-size: 16px;
+  color: #222;
+}
+
+.client-detail-panel .redeemed-offers-expiry {
+  font-size: 13px;
+  color: var(--theme-text-muted);
+}
+
+.client-detail-panel .redeemed-offers-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #388e3c;
+}
+
+.client-detail-panel .redeemed-offers-icon {
+  font-size: 16px;
+}
+
+.client-detail-panel .redeemed-offers-mark-btn {
+  margin-top: 4px;
 }
 
 @media (max-width: 768px) {

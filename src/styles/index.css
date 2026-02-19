@@ -1,6 +1,7 @@
 /* Dashboard Styles - Aligned with STYLE_GUIDE.md */
 @import "./utilities.css";
 @import "./forms.css";
+@import "./pastel-teal-theme.css";
 
 * {
   margin: 0;
@@ -28,19 +29,9 @@
 }
 
 body {
-  font-family:
-    "Montserrat",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Roboto",
-    "Oxygen",
-    "Ubuntu",
-    "Cantarell",
-    "Fira Sans",
-    "Droid Sans",
-    "Helvetica Neue",
-    sans-serif;
+  font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--theme-bg-gradient);
@@ -51,7 +42,123 @@ body {
   transition: background 0.3s ease;
 }
 
-/* Login screen styles live in components/auth/ProviderLoginScreen.css */
+/* Login Screen Styles - Overridden by ProviderLoginScreen.css */
+.login-screen {
+  min-height: 100vh;
+  height: 100vh;
+  background: var(--theme-bg-gradient);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.login-banner {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  height: 50vh;
+  min-height: 50vh;
+  max-height: 50vh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+.banner-image {
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.login-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: var(--theme-bg-gradient);
+}
+
+.login-container {
+  background: var(--theme-bg-card);
+  border-radius: 20px;
+  padding: 48px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--theme-border);
+}
+
+/* Responsive: Stack on narrow screens */
+@media (max-width: 968px) {
+  .login-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .login-banner {
+    min-height: 300px;
+    max-height: 400px;
+  }
+
+  .login-content {
+    padding: 20px;
+  }
+}
+
+/* Wide: banner left, form right */
+@media (min-width: 969px) {
+  .login-layout {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .login-banner {
+    flex: 0 0 50%;
+    max-width: 55%;
+    width: auto;
+    height: 100%;
+    min-height: 100vh;
+    max-height: none;
+  }
+
+  .login-content {
+    flex: 1 0 50%;
+    min-width: 320px;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    overflow-y: auto;
+  }
+}
 
 .login-header {
   text-align: center;
@@ -220,9 +327,7 @@ h3,
   position: fixed;
   height: 100vh;
   z-index: 10;
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .sidebar-header {
@@ -372,9 +477,7 @@ h3,
   position: sticky;
   top: 0;
   z-index: 5;
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .page-title {
@@ -639,9 +742,7 @@ h3,
   display: flex;
   flex-direction: column;
   box-shadow: 0 2px 8px var(--theme-shadow);
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .kanban-column-header {
@@ -677,6 +778,9 @@ h3,
 body.theme-warm .column-dot.contacted {
   background: #90caf9; /* Blue for warm theme */
 }
+.column-dot.requested-consult {
+  background: #7986cb;
+}
 .column-dot.scheduled {
   background: #a5d6a7;
 }
@@ -691,9 +795,7 @@ body.theme-warm .column-dot.contacted {
   font-size: 12px;
   font-weight: 600;
   color: var(--theme-text-muted);
-  transition:
-    background 0.3s ease,
-    color 0.3s ease;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .kanban-cards {
@@ -805,19 +907,20 @@ body.theme-warm .kanban-cards.drag-over {
 
 .interest-tag {
   padding: 4px 10px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
+  font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
-  color: var(--theme-text-secondary);
-  transition:
-    background 0.3s ease,
-    color 0.3s ease;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .interest-tag.primary {
-  background: var(--theme-accent);
-  color: var(--theme-text-primary);
+  font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
 }
 
 .lead-card-footer {
@@ -954,15 +1057,14 @@ body.theme-warm .kanban-cards.drag-over {
   background: white;
   border-radius: 16px;
   border: 1px solid #e8e8e8;
+  /* allow horizontal scroll when table is wider than viewport */
   overflow-x: auto;
   overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .leads-table {
   width: 100%;
-  min-width: 900px;
   border-collapse: collapse;
 }
 
@@ -983,47 +1085,6 @@ body.theme-warm .kanban-cards.drag-over {
   border-bottom: 1px solid #e8e8e8;
   font-size: 14px;
   color: #424242;
-}
-
-/* iPad / tablet: narrower columns and padding so table fits better in landscape; container scrolls horizontally */
-@media (max-width: 1024px) {
-  .leads-table {
-    min-width: 720px;
-  }
-
-  .leads-table th {
-    padding: 10px 12px;
-    font-size: 11px;
-  }
-
-  .leads-table td {
-    padding: 10px 12px;
-    font-size: 13px;
-  }
-
-  .table-lead-name {
-    font-size: 14px;
-  }
-
-  .table-lead-email {
-    font-size: 11px;
-  }
-
-  .status-select-inline {
-    min-width: 100px;
-    padding: 5px 8px;
-    font-size: 11px;
-  }
-
-  .interest-tag {
-    font-size: 10px;
-    padding: 2px 6px;
-  }
-
-  .leads-table .btn-secondary.btn-view {
-    padding: 6px 10px;
-    font-size: 12px;
-  }
 }
 
 .leads-table tbody tr {
@@ -1068,6 +1129,11 @@ body.theme-warm .kanban-cards.drag-over {
   color: #1976d2;
 }
 
+.status-badge.requested-consult {
+  background: #e8eaf6;
+  color: #3949ab;
+}
+
 .status-badge.scheduled {
   background: #e8f5e9;
   color: #2e7d32;
@@ -1076,6 +1142,154 @@ body.theme-warm .kanban-cards.drag-over {
 .status-badge.converted {
   background: #2e7d32;
   color: white;
+}
+
+.facial-analysis-date {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-text-muted);
+}
+
+/* Facial Analysis card: title + badge on one line, date below – align date with heading */
+.detail-section-facial-analysis .detail-section-title-facial {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+.detail-section-facial-analysis
+  .detail-section-title-facial
+  .facial-analysis-heading-row {
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.detail-section-facial-analysis
+  .detail-section-title-facial
+  .facial-analysis-date {
+  display: block;
+  margin-left: 0;
+  margin-top: 2px;
+  padding-left: 0;
+  font-size: 12px;
+  font-weight: 400;
+  text-indent: 0;
+}
+
+.facial-analysis-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Treatments discussed in clinic – inside Facial Analysis section (panel + modal) */
+.discussed-treatments-in-facial-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--theme-border);
+  width: 100%;
+}
+
+.discussed-treatments-in-facial-title-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.discussed-treatments-in-facial-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.discussed-treatments-in-facial-heading-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.discussed-treatments-in-facial-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.discussed-treatments-in-facial-subheading {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--theme-text-muted);
+}
+
+.discussed-treatments-in-facial-summary-row {
+  margin-top: 4px;
+}
+
+.discussed-treatments-in-facial-summary {
+  font-size: 13px;
+  color: var(--theme-text-muted);
+}
+
+/* Treatments discussed – one row per item (panel + modal) */
+.discussed-treatments-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+}
+
+.discussed-treatments-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--theme-border);
+  min-height: 36px;
+}
+
+.discussed-treatments-row:last-child {
+  border-bottom: none;
+}
+
+.discussed-treatments-row-treatment-name {
+  flex-shrink: 0;
+  min-width: 90px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--theme-text-primary);
+}
+
+.discussed-treatments-row-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+
+.discussed-treatments-row-interest {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.discussed-treatments-row-treatment {
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.discussed-treatments-row-meta {
+  font-size: 12px;
+  color: var(--theme-text-muted);
 }
 
 /* Analytics View */
@@ -1165,9 +1379,7 @@ body.theme-warm .kanban-cards.drag-over {
   background: #1a1a1a;
   border-radius: 40px;
   padding: 12px;
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.25),
-    inset 0 0 0 2px #333,
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), inset 0 0 0 2px #333,
     inset 0 0 0 4px #1a1a1a;
   position: relative;
   overflow: hidden;
@@ -1268,9 +1480,7 @@ body.theme-warm .kanban-cards.drag-over {
   border: 1px solid var(--theme-border);
   margin-bottom: 24px;
   box-shadow: 0 2px 8px var(--theme-shadow);
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .funnel-stage {
@@ -1325,9 +1535,7 @@ body.theme-warm .kanban-cards.drag-over {
   padding: 24px;
   border: 1px solid var(--theme-border);
   box-shadow: 0 2px 8px var(--theme-shadow);
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .analytics-card h4 {
@@ -1337,9 +1545,7 @@ body.theme-warm .kanban-cards.drag-over {
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 2px solid rgba(0, 0, 0, 0.05);
-  transition:
-    color 0.3s ease,
-    border-color 0.3s ease;
+  transition: color 0.3s ease, border-color 0.3s ease;
 }
 
 .analytics-list {
@@ -1416,15 +1622,10 @@ body.theme-warm .kanban-cards.drag-over {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  overflow: hidden;
-  -webkit-overflow-scrolling: auto;
-  overscroll-behavior: contain;
 }
 
 .modal-overlay.active {
   display: flex;
-  /* Allow modal-body to scroll on iOS; body scroll is already locked by JS */
-  overflow: visible;
 }
 
 /* Full-screen modal for lead details */
@@ -1514,7 +1715,6 @@ body.theme-warm .kanban-cards.drag-over {
   border-radius: 20px;
   max-width: 800px;
   width: 100%;
-  height: 85vh;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
@@ -1587,16 +1787,8 @@ body.theme-warm .kanban-cards.drag-over {
 .modal-body {
   padding: 24px;
   overflow-y: auto;
-  overflow-x: hidden;
   flex: 1;
   min-height: 0;
-  /* Explicit max-height so the scroll container is bounded (fixes iOS + body scroll lock) */
-  max-height: calc(85vh - 100px);
-  /* iOS Safari touch scrolling; position for correct stacking/scroll context */
-  position: relative;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
 }
 
 /* Responsive padding for modal body on wider screens */
@@ -1699,6 +1891,33 @@ body.theme-warm .kanban-cards.drag-over {
   align-items: center;
 }
 
+.modal-contact-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-contact-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal-contact-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.modal-discussed-summary {
+  font-size: 13px;
+  color: var(--theme-text-muted, #888);
+}
+
 .modal-actions-right {
   display: flex;
   gap: 12px;
@@ -1745,6 +1964,7 @@ body.theme-warm .kanban-cards.drag-over {
 
 .modal-header-with-photo {
   display: flex;
+  flex-direction: row;
   gap: 24px;
   align-items: flex-start;
   margin-bottom: 24px;
@@ -1755,6 +1975,12 @@ body.theme-warm .kanban-cards.drag-over {
   border-bottom: 1px solid var(--theme-border);
   background: #fafafa;
   border-radius: 8px;
+}
+
+/* Contact info block takes remaining space to the right of the photo */
+.modal-header-with-photo .detail-section-relative {
+  flex: 1;
+  min-width: 0;
 }
 
 .modal-contact-section {
@@ -1933,18 +2159,19 @@ body.theme-warm .kanban-cards.drag-over {
 
 .detail-tag {
   padding: 6px 14px;
-  background: #f5f5f5;
-  color: #222222;
-  border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
+  border-radius: 999px;
   font-size: 13px;
-  font-weight: 500;
 }
 
 .detail-tag.secondary {
-  background: #f5f5f5;
-  color: #222222;
-  border: 1px solid var(--theme-border);
+  font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
 }
 
 .engagement-grid {
@@ -2382,11 +2609,12 @@ body.theme-warm .kanban-cards.drag-over {
 .focus-area-pill {
   display: inline-block;
   padding: 4px 10px;
-  background: #8b7fa8;
-  color: white;
-  border-radius: 12px;
-  font-size: 11px;
   font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
+  border-radius: 999px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2460,11 +2688,12 @@ body.theme-warm .kanban-cards.drag-over {
 .issue-chip-interest-item {
   display: inline-block;
   padding: 4px 8px;
-  background: #8b7fa8;
-  color: white;
+  font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
   margin-right: 4px;
   margin-top: 4px;
 }
@@ -2532,4 +2761,64 @@ body.theme-warm .kanban-cards.drag-over {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 12px;
+}
+
+/* Debug pages (no provider login, dummy data) */
+.debug-page {
+  min-height: 100vh;
+  background: var(--bg-secondary, #f5f5f5);
+}
+.debug-page-header {
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+}
+.debug-page-header h1 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+}
+.debug-page-header p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+.debug-page-header a {
+  color: var(--theme-accent, #b8860b);
+}
+.debug-index-list {
+  list-style: none;
+  margin: 1.5rem;
+  padding: 0;
+  max-width: 32rem;
+}
+.debug-index-list li {
+  margin-bottom: 0.75rem;
+}
+.debug-index-list a {
+  font-weight: 500;
+}
+.debug-index-desc {
+  display: block;
+  margin-top: 0.25rem;
+  color: #666;
+  font-size: 0.875rem;
+}
+.debug-modal-wrap {
+  /* Contain the fixed-position modal overlay within this wrapper */
+  position: relative;
+  min-height: 90vh;
+}
+/* Debug pages: the modal overlay stays fixed but we make it visible */
+.debug-treatment-plan .debug-modal-wrap .modal-overlay {
+  /* Keep default fixed positioning so modal CSS works correctly */
+  background: rgba(0, 0, 0, 0.1);
+}
+.debug-treatment-plan .debug-modal-wrap .discussed-treatments-modal-content {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Debug: photos overlay in normal flow so header stays visible; same inner modal as live */
+.debug-photos-overlay {
+  position: relative;
+  padding: 1rem;
 }

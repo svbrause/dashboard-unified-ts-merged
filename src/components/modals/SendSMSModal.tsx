@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Client } from '../../types';
 import { sendSMSNotification } from '../../services/api';
 import { isValidPhone, cleanPhoneNumber } from '../../utils/validation';
-import { setBodyScrollLock } from '../../utils/scrollLock';
 import { showToast, showError } from '../../utils/toast';
 import './SendSMSModal.css';
 
@@ -29,12 +28,6 @@ export default function SendSMSModal({ client, onClose, onSuccess }: SendSMSModa
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose]);
-
-  // Lock body scroll when modal is open (prevents iOS background scroll)
-  useEffect(() => {
-    setBodyScrollLock(true);
-    return () => setBodyScrollLock(false);
-  }, []);
 
   const handleSend = async () => {
     setErrors({});

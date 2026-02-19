@@ -1,7 +1,6 @@
 // Welcome Modal Component
 
 import { useEffect } from "react";
-import { setBodyScrollLock } from "../../utils/scrollLock";
 import ponceLogo from "../../assets/images/ponce logo.png";
 import "./WelcomeModal.css";
 
@@ -20,12 +19,6 @@ export default function WelcomeModal({ onClose }: WelcomeModalProps) {
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
-
-  // Lock body scroll when modal is open (prevents iOS background scroll)
-  useEffect(() => {
-    setBodyScrollLock(true);
-    return () => setBodyScrollLock(false);
-  }, []);
 
   return (
     <div className="modal-overlay active" onClick={onClose}>

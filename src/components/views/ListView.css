@@ -2,14 +2,24 @@
 
 .list-view {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--theme-bg-gradient);
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-/* No margin adjustment needed - panel overlays content */
+/* Constrain width so table container can scroll horizontally */
 .list-view-content {
-  /* Panel overlays, so no margin needed */
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .leads-table-container {
@@ -18,14 +28,43 @@
   margin: 0;
   overflow-x: auto;
   overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
   box-shadow: 0 2px 8px var(--theme-shadow);
+  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
 }
 
 .leads-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 1000px;
   border-collapse: collapse;
+}
+
+/* Column min-widths so table doesn't scrunch on narrow screens */
+.leads-table th:nth-child(1),
+.leads-table td:nth-child(1) {
+  min-width: 220px;
+}
+.leads-table th:nth-child(2),
+.leads-table td:nth-child(2) {
+  min-width: 180px;
+}
+.leads-table th:nth-child(3),
+.leads-table td:nth-child(3) {
+  min-width: 180px;
+}
+.leads-table th:nth-child(4),
+.leads-table td:nth-child(4) {
+  min-width: 180px;
+}
+.leads-table th:nth-child(5),
+.leads-table td:nth-child(5) {
+  min-width: 130px;
+}
+.leads-table th:nth-child(6),
+.leads-table td:nth-child(6) {
+  min-width: 100px;
 }
 
 .leads-table thead {
@@ -71,11 +110,12 @@
 
 .interest-tag {
   padding: 3px 8px;
-  background: var(--theme-accent);
-  color: var(--theme-text-primary);
-  border-radius: 4px;
+  font-weight: 600;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid rgba(206, 147, 216, 0.35);
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
 }
 
 .status-select-inline {
@@ -94,27 +134,4 @@
 .status-select-inline:focus {
   outline: none;
   border-color: var(--theme-accent);
-}
-
-/* Coupon column badges - theme-aligned */
-.coupon-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.coupon-badge-available {
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--theme-text-secondary);
-}
-
-.coupon-badge-claimed {
-  background: var(--theme-accent);
-  color: var(--theme-text-primary);
-}
-
-.table-coupon-na {
-  font-size: 13px;
 }

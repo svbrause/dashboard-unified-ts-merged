@@ -1,12 +1,34 @@
 // Header Component
 
-import { useState, useEffect, useRef } from 'react';
-import { useDashboard } from '../../context/DashboardContext';
-import AddClientModal from '../modals/AddClientModal';
-import NewClientSMSModal from '../modals/NewClientSMSModal';
-import { getJotformUrl } from '../../utils/providerHelpers';
-import { showToast } from '../../utils/toast';
-import './Header.css';
+import { useState, useEffect, useRef } from "react";
+import { useDashboard } from "../../context/DashboardContext";
+import AddClientModal from "../modals/AddClientModal";
+import NewClientSMSModal from "../modals/NewClientSMSModal";
+import {
+  getJotformUrl,
+  formatProviderDisplayName,
+} from "../../utils/providerHelpers";
+import { showToast } from "../../utils/toast";
+import "./Header.css";
+
+/** Provider codes that share one dashboard title and merged client list */
+const THE_TREATMENT_CODES = ["TheTreatment250", "TheTreatment447"];
+const THE_TREATMENT_DISPLAY_NAMES = [
+  "The Treatment",
+  "San Clemente, Henderson, and Newport Beach",
+];
+
+function isTheTreatmentProvider(provider: {
+  code?: string;
+  name?: string;
+}): boolean {
+  const codeMatch = THE_TREATMENT_CODES.some(
+    (c) => c.toLowerCase() === (provider.code || "").toLowerCase(),
+  );
+  const nameTrimmed = (provider.name || "").trim();
+  const nameMatch = THE_TREATMENT_DISPLAY_NAMES.some((n) => n === nameTrimmed);
+  return codeMatch || nameMatch;
+}
 
 export default function Header() {
   const { provider, refreshClients } = useDashboard();
@@ -14,36 +36,43 @@ export default function Header() {
   const [showScanDropdown, setShowScanDropdown] = useState(false);
   const [showNewClientSMS, setShowNewClientSMS] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const pageTitle = provider ? `${provider.name} Provider Dashboard` : 'All Clients';
+  const pageTitle = provider
+    ? isTheTreatmentProvider(provider)
+      ? "The Treatment Provider Dashboard"
+      : `${formatProviderDisplayName(provider.name)} Provider Dashboard`
+    : "All Clients";
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowScanDropdown(false);
       }
     };
 
     if (showScanDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showScanDropdown]);
 
   const handleScanInClinic = () => {
     setShowScanDropdown(false);
     if (!provider) {
-      showToast('Provider information not available');
+      showToast("Provider information not available");
       return;
     }
-    
-    const providerName = provider.name || 'We';
-    const formUrl = `${getJotformUrl(provider)}?provider=${encodeURIComponent(providerName)}&source=${encodeURIComponent('Provider Dashboard - In-Clinic Scan')}`;
-    window.open(formUrl, '_blank');
-    showToast('Opening scan form for in-clinic scan');
+
+    const providerName = formatProviderDisplayName(provider.name) || "We";
+    const formUrl = `${getJotformUrl(provider)}?provider=${encodeURIComponent(providerName)}&source=${encodeURIComponent("Provider Dashboard - In-Clinic Scan")}`;
+    window.open(formUrl, "_blank");
+    showToast("Opening scan form for in-clinic scan");
   };
 
   return (
@@ -52,12 +81,13 @@ export default function Header() {
         <div className="header-left">
           <h2 className="page-title">{pageTitle}</h2>
           <p className="page-subtitle">
-            Manage your prospective patients from first touch to booked appointment
+            Manage your prospective patients from first touch to booked
+            appointment
           </p>
         </div>
         <div className="header-right">
           <div className="scan-client-dropdown" ref={dropdownRef}>
-            <button 
+            <button
               className="btn-secondary scan-client-btn"
               onClick={() => setShowScanDropdown(!showScanDropdown)}
             >
@@ -83,7 +113,7 @@ export default function Header() {
               </div>
             )}
           </div>
-          <button 
+          <button
             className="btn-secondary"
             onClick={() => setShowAddClient(true)}
           >
@@ -91,7 +121,7 @@ export default function Header() {
           </button>
         </div>
       </header>
-      
+
       {showAddClient && provider && (
         <AddClientModal
           onClose={() => setShowAddClient(false)}
@@ -99,7 +129,7 @@ export default function Header() {
           providerId={provider.id}
         />
       )}
-      
+
       {showNewClientSMS && (
         <NewClientSMSModal
           onClose={() => setShowNewClientSMS(false)}

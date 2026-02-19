@@ -1,26 +1,36 @@
 // Client Detail Panel Component - Side panel version (non-modal)
 
 import { useState, useEffect, useRef } from "react";
-import { Client } from "../../types";
-import { formatDate, formatDateTime, formatRelativeDate } from "../../utils/dateFormatting";
+import { Client, DiscussedItem } from "../../types";
+import { formatDate, formatRelativeDate } from "../../utils/dateFormatting";
 import {
-  formatFacialStatus,
-  getFacialStatusColor,
+  formatFacialStatusForDisplay,
+  getFacialStatusColorForDisplay,
+  hasInterestedTreatments,
 } from "../../utils/statusFormatting";
-import {
-  updateLeadRecord,
-  updateWebPopupLeadCouponClaimed,
-} from "../../services/api";
+import { updateLeadRecord } from "../../services/api";
 import { archiveClient } from "../../services/contactHistory";
 import { showToast, showError } from "../../utils/toast";
 import ContactHistorySection from "../modals/ContactHistorySection";
 import AnalysisResultsSection from "../modals/AnalysisResultsSection";
 import TelehealthSMSModal from "../modals/TelehealthSMSModal";
 import ShareAnalysisModal from "../modals/ShareAnalysisModal";
+import ShareTreatmentPlanModal from "../modals/ShareTreatmentPlanModal";
 import PhotoViewerModal from "../modals/PhotoViewerModal";
 import NewClientSMSModal from "../modals/NewClientSMSModal";
 import SendSMSModal from "../modals/SendSMSModal";
-import { getJotformUrl } from "../../utils/providerHelpers";
+import DiscussedTreatmentsModal from "../modals/DiscussedTreatmentsModal";
+import TreatmentPhotosModal from "../modals/TreatmentPhotosModal";
+import AnalysisOverviewModal, { type DetailView } from "../modals/AnalysisOverviewModal";
+import type { TreatmentPlanPrefill } from "../modals/DiscussedTreatmentsModal/TreatmentPhotos";
+import TreatmentRecommenderByTreatment from "../treatmentRecommender/TreatmentRecommenderByTreatment";
+import TreatmentRecommenderBySuggestion from "../treatmentRecommender/TreatmentRecommenderBySuggestion";
+import { formatTreatmentPlanRecordMetaLine, getTreatmentDisplayName, generateId } from "../modals/DiscussedTreatmentsModal/utils";
+import { PLAN_SECTIONS, AIRTABLE_FIELD } from "../modals/DiscussedTreatmentsModal/constants";
+import {
+  getJotformUrl,
+  formatProviderDisplayName,
+} from "../../utils/providerHelpers";
 import { splitName, cleanPhoneNumber } from "../../utils/validation";
 import {
   mapAreasToFormFields,
@@ -38,15 +48,12 @@ interface ClientDetailPanelProps {
   client: Client | null;
   onClose: () => void;
   onUpdate: () => void;
-  /** When provided, called after coupon is marked claimed so parent can update in place and keep panel open */
-  onCouponMarkedClaimed?: () => void;
 }
 
 export default function ClientDetailPanel({
   client,
   onClose,
   onUpdate,
-  onCouponMarkedClaimed,
 }: ClientDetailPanelProps) {
   const { provider } = useDashboard();
   const [isEditMode, setIsEditMode] = useState(false);
@@ -57,6 +64,7 @@ export default function ClientDetailPanel({
   // const [status, setStatus] = useState<Client["status"]>("new");
   const [showTelehealthSMS, setShowTelehealthSMS] = useState(false);
   const [showShareAnalysis, setShowShareAnalysis] = useState(false);
+  const [showShareTreatmentPlan, setShowShareTreatmentPlan] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [photoViewerType, setPhotoViewerType] = useState<"front" | "side">(
     "front"
@@ -66,8 +74,22 @@ export default function ClientDetailPanel({
   const [showScanDropdown, setShowScanDropdown] = useState(false);
   const [showNewClientSMS, setShowNewClientSMS] = useState(false);
   const [showSendSMS, setShowSendSMS] = useState(false);
+  const [showDiscussedTreatments, setShowDiscussedTreatments] = useState(false);
+  const [showAnalysisOverview, setShowAnalysisOverview] = useState(false);
+  const [returnToOverviewView, setReturnToOverviewView] = useState<DetailView | null>(null);
+  const [initialAddFormPrefill, setInitialAddFormPrefill] =
+    useState<TreatmentPlanPrefill | null>(null);
+  const [initialEditingItem, setInitialEditingItem] = useState<DiscussedItem | null>(null);
+  const [issuePhotosContext, setIssuePhotosContext] = useState<{
+    issue?: string;
+    region?: string;
+    interest?: string;
+  } | null>(null);
+  const [recommenderMode, setRecommenderMode] = useState<"by-treatment" | "by-suggestion" | null>(null);
   const scanDropdownRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  /** Called when treatment plan modal closes so recommenders can clear "just added" state */
+  const treatmentPlanModalClosedRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (client) {
@@ -141,9 +163,12 @@ export default function ClientDetailPanel({
         if (
           !showTelehealthSMS &&
           !showShareAnalysis &&
+          !showAnalysisOverview &&
           !showPhotoViewer &&
           !showNewClientSMS &&
-          !showSendSMS
+          !showSendSMS &&
+          !showDiscussedTreatments &&
+          !issuePhotosContext
         ) {
           onClose();
         }
@@ -162,9 +187,12 @@ export default function ClientDetailPanel({
     onClose,
     showTelehealthSMS,
     showShareAnalysis,
+    showAnalysisOverview,
     showPhotoViewer,
     showNewClientSMS,
     showSendSMS,
+    showDiscussedTreatments,
+    issuePhotosContext,
   ]);
 
   if (!client) return null;
@@ -252,7 +280,7 @@ export default function ClientDetailPanel({
   };
 
   const handleScanPatientNow = () => {
-    const providerName = provider?.name || "We";
+    const providerName = formatProviderDisplayName(provider?.name) || "We";
     const { first, last } = splitName(client.name);
     const phoneNumber = cleanPhoneNumber(client.phone);
     const { whatAreas, faceRegions } = mapAreasToFormFields(client);
@@ -342,16 +370,32 @@ export default function ClientDetailPanel({
       <div className="client-detail-panel" ref={panelRef}>
         <div className="client-detail-panel-header">
           <div className="client-detail-panel-header-info">
+            {recommenderMode && (
+              <button
+                type="button"
+                className="client-detail-panel-back"
+                onClick={() => setRecommenderMode(null)}
+              >
+                ← Back to client
+              </button>
+            )}
             <div className="client-detail-panel-header-name-row">
               <h2 className="client-detail-panel-title">{client.name}</h2>
-              <div className="modal-header-activity-badge client-detail-panel-activity-inline">
-                <span className="modal-header-activity-label">
-                  Last Activity:
+              {recommenderMode && (
+                <span className="client-detail-panel-header-subtitle">
+                  Treatment recommender ({recommenderMode === "by-treatment" ? "by treatment" : "by suggestion"})
                 </span>
-                <span className="modal-header-activity-value">
-                  {lastActivityRelative}
-                </span>
-              </div>
+              )}
+              {!recommenderMode && (
+                <div className="modal-header-activity-badge client-detail-panel-activity-inline">
+                  <span className="modal-header-activity-label">
+                    Last Activity:
+                  </span>
+                  <span className="modal-header-activity-value">
+                    {lastActivityRelative}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <button className="client-detail-panel-close" onClick={onClose}>
@@ -359,14 +403,114 @@ export default function ClientDetailPanel({
           </button>
         </div>
 
-        <div className="client-detail-panel-body">
+        <div className="client-detail-panel-scroll">
+          <div className={`client-detail-panel-body${recommenderMode ? " client-detail-panel-body--recommender" : ""}`}>
+          {recommenderMode === "by-treatment" && client && (
+            <TreatmentRecommenderByTreatment
+              client={client}
+              onBack={() => setRecommenderMode(null)}
+              onUpdate={onUpdate}
+              onAddToPlanDirect={async (prefill) => {
+                const newItem: DiscussedItem = {
+                  id: generateId(),
+                  addedAt: new Date().toISOString(),
+                  interest: prefill.interest?.trim() || undefined,
+                  findings: prefill.findings?.length ? prefill.findings : undefined,
+                  treatment: prefill.treatment?.trim() || "",
+                  product: prefill.treatmentProduct?.trim() || undefined,
+                  region: prefill.region?.trim() || undefined,
+                  timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+                  quantity: prefill.quantity?.trim() || undefined,
+                  notes: prefill.notes?.trim() || undefined,
+                };
+                const nextItems = [...(client.discussedItems || []), newItem];
+                try {
+                  await updateLeadRecord(client.id, client.tableSource, {
+                    [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+                  });
+                  showToast("Added to treatment plan");
+                  onUpdate();
+                  return newItem;
+                } catch (e) {
+                  showError(e instanceof Error ? e.message : "Failed to add to plan");
+                  throw e;
+                }
+              }}
+              onOpenTreatmentPlan={() => {
+                setShowDiscussedTreatments(true);
+                setInitialAddFormPrefill(null);
+                setInitialEditingItem(null);
+              }}
+              onOpenTreatmentPlanWithPrefill={(prefill) => {
+                setInitialAddFormPrefill(prefill);
+                setInitialEditingItem(null);
+                setShowDiscussedTreatments(true);
+              }}
+              onOpenTreatmentPlanWithItem={(item) => {
+                setInitialEditingItem(item);
+                setInitialAddFormPrefill(null);
+                setShowDiscussedTreatments(true);
+              }}
+              treatmentPlanModalClosedRef={treatmentPlanModalClosedRef}
+            />
+          )}
+          {recommenderMode === "by-suggestion" && client && (
+            <TreatmentRecommenderBySuggestion
+              client={client}
+              onBack={() => setRecommenderMode(null)}
+              onUpdate={onUpdate}
+              onAddToPlanDirect={async (prefill) => {
+                const newItem: DiscussedItem = {
+                  id: generateId(),
+                  addedAt: new Date().toISOString(),
+                  interest: prefill.interest?.trim() || undefined,
+                  findings: prefill.findings?.length ? prefill.findings : undefined,
+                  treatment: prefill.treatment?.trim() || "",
+                  product: prefill.treatmentProduct?.trim() || undefined,
+                  region: prefill.region?.trim() || undefined,
+                  timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+                  quantity: prefill.quantity?.trim() || undefined,
+                  notes: prefill.notes?.trim() || undefined,
+                };
+                const nextItems = [...(client.discussedItems || []), newItem];
+                try {
+                  await updateLeadRecord(client.id, client.tableSource, {
+                    [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+                  });
+                  showToast("Added to treatment plan");
+                  onUpdate();
+                  return newItem;
+                } catch (e) {
+                  showError(e instanceof Error ? e.message : "Failed to add to plan");
+                  throw e;
+                }
+              }}
+              onOpenTreatmentPlan={() => {
+                setShowDiscussedTreatments(true);
+                setInitialAddFormPrefill(null);
+                setInitialEditingItem(null);
+              }}
+              onOpenTreatmentPlanWithPrefill={(prefill) => {
+                setInitialAddFormPrefill(prefill);
+                setInitialEditingItem(null);
+                setShowDiscussedTreatments(true);
+              }}
+              onOpenTreatmentPlanWithItem={(item) => {
+                setInitialEditingItem(item);
+                setInitialAddFormPrefill(null);
+                setShowDiscussedTreatments(true);
+              }}
+              treatmentPlanModalClosedRef={treatmentPlanModalClosedRef}
+            />
+          )}
+          {!recommenderMode ? (
+            <div className="client-detail-panel-main">
           {/* Contact Information Section */}
           <div
             className={`detail-section modal-contact-section ${
               frontPhotoUrl ||
-              (!frontPhotoUrl &&
-                !photoLoading &&
-                client.tableSource === "Web Popup Leads")
+              client.tableSource === "Patients" ||
+              client.tableSource === "Web Popup Leads"
                 ? "modal-header-with-photo"
                 : "modal-contact-section-base"
             }`}
@@ -412,31 +556,38 @@ export default function ClientDetailPanel({
                       <circle cx="12" cy="7" r="4"></circle>
                     </svg>
                     <p className="photo-placeholder-text">
-                      No profile photo available. Share the facial analysis link
-                      to help this patient complete their analysis.
+                      {client.facialAnalysisStatus &&
+                      client.facialAnalysisStatus.toLowerCase().trim() ===
+                        "pending"
+                        ? "Photo will become available once the analysis is complete."
+                        : "No profile photo available. Share the facial analysis link to help this patient complete their analysis."}
                     </p>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-sm photo-placeholder-button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowShareAnalysis(true);
-                      }}
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
+                    {(!client.facialAnalysisStatus ||
+                      client.facialAnalysisStatus.toLowerCase().trim() !==
+                        "pending") && (
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm photo-placeholder-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowShareAnalysis(true);
+                        }}
                       >
-                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
-                        <polyline points="16 6 12 2 8 6"></polyline>
-                        <line x1="12" y1="2" x2="12" y2="15"></line>
-                      </svg>
-                      Share Analysis
-                    </button>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                          <polyline points="16 6 12 2 8 6"></polyline>
+                          <line x1="12" y1="2" x2="12" y2="15"></line>
+                        </svg>
+                        Share Analysis
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -454,7 +605,7 @@ export default function ClientDetailPanel({
                   </div>
                 </div>
               )}
-            <div className="detail-section-relative contact-top-right">
+            <div className="detail-section-relative">
               {!isEditMode && (
                 <button
                   className="edit-toggle-btn"
@@ -473,7 +624,7 @@ export default function ClientDetailPanel({
                   </svg>
                 </button>
               )}
-              <div className="contact-info-block">
+              <div className="contact-info-with-actions">
                 <div className="detail-grid">
                   <div className="detail-item">
                     <label>Email</label>
@@ -563,6 +714,29 @@ export default function ClientDetailPanel({
                       )}
                     </div>
                   )}
+                  {client.tableSource === "Patients" &&
+                    (client.locationName || client.appointmentStaffName) && (
+                      <>
+                        {client.locationName && (
+                          <div className="detail-item">
+                            <label>Location</label>
+                            <div className="detail-value">
+                              {client.locationName}
+                            </div>
+                          </div>
+                        )}
+                        {client.appointmentStaffName && (
+                          <div className="detail-item">
+                            <label>Provider name</label>
+                            <div className="detail-value">
+                              {formatProviderDisplayName(
+                                client.appointmentStaffName
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   {client.zipCode && (
                     <div className="detail-item">
                       <label>Zip Code</label>
@@ -594,10 +768,8 @@ export default function ClientDetailPanel({
                 </div>
               </div>
               {!isEditMode && (
-                <div className="contact-actions-subsection contact-actions-bar">
-                  <div className="detail-section-title contact-subsection-label">
-                    Contact
-                  </div>
+                <div className="contact-actions-bar">
+                  <div className="contact-actions-heading">Contact</div>
                   <div className="contact-actions-buttons">
                     <button
                       className="btn-secondary btn-sm"
@@ -639,208 +811,190 @@ export default function ClientDetailPanel({
             </div>
           </div>
 
-          {/* Online Treatment Finder: below contact; coupon state from Airtable "Coupons Claimed" for Web Popup Leads */}
-          <div
-            className="detail-section detail-section-with-border online-treatment-finder-section"
-            data-debug-section="online-treatment-finder"
-          >
-            <div className="detail-section-title detail-section-title-flex">
-              <span>Online Treatment Finder</span>
-            </div>
-            <div className="detail-section-spacing lead-submitted-row">
-              <label className="detail-label-small">Lead submitted</label>
-              <span className="detail-value">{formatDateTime(client.createdAt)}</span>
-            </div>
-            <div
-              className="detail-section-spacing coupon-redemption-section coupon-always-visible"
-              data-section="coupon"
-            >
-              <div className="detail-label">$50 Coupon</div>
-              <div className="detail-grid detail-grid-coupon">
-                <div className="detail-item">
-                  <label className="detail-label-small">Earned</label>
-                  <span
-                    className={`coupon-status-earned ${
-                      client.offerEarned ? "yes" : "no"
-                    }`}
-                  >
-                    {client.offerEarned ? "✓ Yes" : "No"}
-                  </span>
-                </div>
-                <div className="detail-item">
-                  <label className="detail-label-small">Claimed</label>
-                  <span
-                    className={`coupon-status-claimed ${
-                      client.offerClaimed ? "claimed" : "available"
-                    }`}
-                  >
-                    {client.offerClaimed ? "✓ Redeemed" : "Available"}
-                  </span>
-                </div>
+          {/* Web Popup Leads Form Section */}
+          {webPopupFormHasData && (
+            <div className="detail-section detail-section-with-border">
+              <div className="detail-section-title detail-section-title-flex">
+                <span>Online Treatment Finder</span>
               </div>
-              {client.tableSource === "Web Popup Leads" &&
-                !client.offerClaimed && (
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm coupon-mark-claimed-btn"
-                    onClick={async () => {
-                      try {
-                        await updateWebPopupLeadCouponClaimed(client.id, true);
-                        showToast("Coupon marked as claimed");
-                        if (onCouponMarkedClaimed) {
-                          onCouponMarkedClaimed();
-                        } else {
-                          onUpdate();
-                        }
-                      } catch (e: any) {
-                        showError(e.message || "Failed to update coupon");
-                      }
-                    }}
-                  >
-                    Mark as claimed
-                  </button>
-                )}
-            </div>
-            {client.tableSource === "Web Popup Leads" &&
-              webPopupFormHasData && (
-                <>
+
+              {((typeof client.concerns === "string" &&
+                client.concerns.trim()) ||
+                (Array.isArray(client.concerns) &&
+                  client.concerns.length > 0) ||
+                (client.areas && client.areas.length > 0)) && (
+                <div className="detail-grid-custom">
                   {((typeof client.concerns === "string" &&
                     client.concerns.trim()) ||
                     (Array.isArray(client.concerns) &&
-                      client.concerns.length > 0) ||
-                    (client.areas && client.areas.length > 0)) && (
-                    <div className="detail-grid-custom">
-                      {((typeof client.concerns === "string" &&
-                        client.concerns.trim()) ||
-                        (Array.isArray(client.concerns) &&
-                          client.concerns.length > 0)) && (
-                        <div>
-                          <div className="detail-label">Concerns</div>
-                          <div className="detail-tags-container">
-                            {(typeof client.concerns === "string"
-                              ? client.concerns
-                                  .split(",")
-                                  .map((c) => c.trim())
-                                  .filter((c) => c)
-                              : Array.isArray(client.concerns)
-                              ? client.concerns
-                              : []
-                            ).map((c, i) => (
-                              <span key={i} className="detail-tag">
-                                {c}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {client.areas && client.areas.length > 0 && (
-                        <div>
-                          <div className="detail-label">Focus Areas</div>
-                          <div className="detail-tags-container">
-                            {(Array.isArray(client.areas)
-                              ? client.areas
-                              : [client.areas]
-                            ).map((a, i) => (
-                              <span key={i} className="detail-tag">
-                                {a}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {(client.skinType ||
-                    client.skinTone ||
-                    client.ethnicBackground) && (
-                    <div className="detail-section-spacing">
-                      <div className="detail-label">Demographics</div>
-                      <div className="detail-grid detail-grid-demographics">
-                        {client.skinType && (
-                          <div className="detail-item">
-                            <label className="detail-label-small">Skin Type</label>
-                            <div className="detail-value detail-value-small">
-                              {client.skinType && client.skinType.length > 0
-                                ? client.skinType.charAt(0).toUpperCase() +
-                                  client.skinType.slice(1)
-                                : client.skinType}
-                            </div>
-                          </div>
-                        )}
-                        {client.skinTone && (
-                          <div className="detail-item">
-                            <label className="detail-label-small">Skin Tone</label>
-                            <div className="detail-value detail-value-small">
-                              {client.skinTone && client.skinTone.length > 0
-                                ? client.skinTone.charAt(0).toUpperCase() +
-                                  client.skinTone.slice(1)
-                                : client.skinTone}
-                            </div>
-                          </div>
-                        )}
-                        {client.ethnicBackground && (
-                          <div className="detail-item">
-                            <label className="detail-label-small">Ethnic Background</label>
-                            <div className="detail-value detail-value-small">
-                              {client.ethnicBackground &&
-                              client.ethnicBackground.length > 0
-                                ? client.ethnicBackground
-                                    .charAt(0)
-                                    .toUpperCase() +
-                                  client.ethnicBackground.slice(1)
-                                : client.ethnicBackground}
-                            </div>
-                          </div>
-                        )}
+                      client.concerns.length > 0)) && (
+                    <div>
+                      <div className="detail-label">Concerns</div>
+                      <div className="detail-tags-container">
+                        {(typeof client.concerns === "string"
+                          ? client.concerns
+                              .split(",")
+                              .map((c) => c.trim())
+                              .filter((c) => c)
+                          : Array.isArray(client.concerns)
+                          ? client.concerns
+                          : []
+                        ).map((c, i) => (
+                          <span key={i} className="detail-tag">
+                            {c}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
-                  {client.aestheticGoals &&
-                    (typeof client.aestheticGoals === "string"
-                      ? client.aestheticGoals.trim()
-                      : String(client.aestheticGoals).trim()) &&
-                    client.tableSource === "Web Popup Leads" && (
-                      <div className="detail-section-spacing">
-                        <div className="detail-label">Patient Goals</div>
-                        <div className="detail-goals-box">
-                          "{client.aestheticGoals}"
+                  {client.areas && client.areas.length > 0 && (
+                    <div>
+                      <div className="detail-label">Focus Areas</div>
+                      <div className="detail-tags-container">
+                        {(Array.isArray(client.areas)
+                          ? client.areas
+                          : [client.areas]
+                        ).map((a, i) => (
+                          <span key={i} className="detail-tag">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(client.skinType ||
+                client.skinTone ||
+                client.ethnicBackground) && (
+                <div className="detail-section-spacing">
+                  <div className="detail-label">Demographics</div>
+                  <div className="detail-grid detail-grid-demographics">
+                    {client.skinType && (
+                      <div className="detail-item">
+                        <label className="detail-label-small">Skin Type</label>
+                        <div className="detail-value detail-value-small">
+                          {client.skinType && client.skinType.length > 0
+                            ? client.skinType.charAt(0).toUpperCase() +
+                              client.skinType.slice(1)
+                            : client.skinType}
                         </div>
                       </div>
                     )}
-                </>
+                    {client.skinTone && (
+                      <div className="detail-item">
+                        <label className="detail-label-small">Skin Tone</label>
+                        <div className="detail-value detail-value-small">
+                          {client.skinTone && client.skinTone.length > 0
+                            ? client.skinTone.charAt(0).toUpperCase() +
+                              client.skinTone.slice(1)
+                            : client.skinTone}
+                        </div>
+                      </div>
+                    )}
+                    {client.ethnicBackground && (
+                      <div className="detail-item">
+                        <label className="detail-label-small">
+                          Ethnic Background
+                        </label>
+                        <div className="detail-value detail-value-small">
+                          {client.ethnicBackground &&
+                          client.ethnicBackground.length > 0
+                            ? client.ethnicBackground.charAt(0).toUpperCase() +
+                              client.ethnicBackground.slice(1)
+                            : client.ethnicBackground}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-          </div>
+
+              {client.aestheticGoals &&
+                (typeof client.aestheticGoals === "string"
+                  ? client.aestheticGoals.trim()
+                  : String(client.aestheticGoals).trim()) &&
+                client.tableSource === "Web Popup Leads" && (
+                  <div className="detail-section-spacing">
+                    <div className="detail-label">Patient Goals</div>
+                    <div className="detail-goals-box">
+                      "{client.aestheticGoals}"
+                    </div>
+                  </div>
+                )}
+
+              {client.offerClaimed && (
+                <div className="detail-section-spacing">
+                  <div className="detail-label">Offer Status</div>
+                  <div className="detail-offer-claimed-box">
+                    <div className="detail-offer-claimed-content">
+                      <span className="detail-offer-claimed-icon">✓</span>
+                      <strong className="detail-offer-claimed-text">
+                        $50 Off Offer Claimed
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Facial Analysis Section */}
           <div className="detail-section detail-section-facial-analysis">
             <div className="detail-section-header-flex">
-              <div className="detail-section-title detail-section-title-inline">
-                <span>Facial Analysis</span>
+              <div className="detail-section-title detail-section-title-inline detail-section-title-facial">
+                <div className="facial-analysis-heading-row">
+                  <span>Facial Analysis</span>
+                  {facialAnalysisFormHasData && client.facialAnalysisStatus && (
+                    <span
+                      className="status-badge detail-status-badge-dynamic"
+                      style={{
+                        background: getFacialStatusColorForDisplay(
+                          client.facialAnalysisStatus,
+                          hasInterestedTreatments(client)
+                        ),
+                      }}
+                    >
+                      {formatFacialStatusForDisplay(
+                        client.facialAnalysisStatus,
+                        hasInterestedTreatments(client)
+                      )}
+                    </span>
+                  )}
+                </div>
+                {client.tableSource === "Patients" &&
+                  facialAnalysisFormHasData &&
+                  client.createdAt && (
+                    <span className="facial-analysis-date">
+                      Analysis date: {formatDate(client.createdAt)}
+                    </span>
+                  )}
               </div>
               <div className="detail-actions-inline">
-                {facialAnalysisFormHasData && client.facialAnalysisStatus && (
-                  <span
-                    className="status-badge detail-status-badge-dynamic"
-                    style={{
-                      background: getFacialStatusColor(
-                        client.facialAnalysisStatus
-                      ),
-                    }}
-                  >
-                    {formatFacialStatus(client.facialAnalysisStatus)}
-                  </span>
-                )}
                 {facialAnalysisFormHasData && (
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowShareAnalysis(true);
-                    }}
-                  >
-                    Share with Patient
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAnalysisOverview(true);
+                      }}
+                    >
+                      Overview
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowShareAnalysis(true);
+                      }}
+                    >
+                      Share with Patient
+                    </button>
+                  </>
                 )}
                 {hasWebPopupForm && (
                   <div className="scan-client-dropdown" ref={scanDropdownRef}>
@@ -881,7 +1035,15 @@ export default function ClientDetailPanel({
               </div>
             </div>
             {facialAnalysisFormHasData ? (
-              <AnalysisResultsSection client={client} />
+              <AnalysisResultsSection
+                client={client}
+                onViewExamples={(issue, region) =>
+                  setIssuePhotosContext({ issue, region })
+                }
+                onTreatmentInterestClick={(interest) =>
+                  setIssuePhotosContext({ interest })
+                }
+              />
             ) : (
               <div className="detail-empty-state">
                 {hasWebPopupForm ? (
@@ -896,6 +1058,115 @@ export default function ClientDetailPanel({
                 )}
               </div>
             )}
+
+            {/* Treatments discussed in clinic (in reference to analysis findings & interests) */}
+            <div className="discussed-treatments-in-facial-section">
+              <div className="discussed-treatments-in-facial-title-row">
+                <div className="discussed-treatments-in-facial-heading-block">
+                  <span className="discussed-treatments-in-facial-heading">
+                    Treatment plan
+                  </span>
+                  <span className="discussed-treatments-in-facial-subheading">
+                    In reference to analysis findings & interests
+                  </span>
+                </div>
+                <div className="discussed-treatments-in-facial-actions">
+                  {facialAnalysisFormHasData && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => setShowShareTreatmentPlan(true)}
+                      >
+                        Share with Patient
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRecommenderMode("by-treatment");
+                        }}
+                      >
+                        Recommender (by treatment)
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRecommenderMode("by-suggestion");
+                        }}
+                      >
+                        Recommender (by suggestion)
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={() => setShowDiscussedTreatments(true)}
+                  >
+                    {client.discussedItems && client.discussedItems.length > 0
+                      ? "Manage"
+                      : "Add"}
+                  </button>
+                </div>
+              </div>
+              <div className="discussed-treatments-in-facial-summary-row">
+                {client.discussedItems && client.discussedItems.length > 0 ? (
+                  <div className="discussed-treatments-plan-sections-outer">
+                    {PLAN_SECTIONS.map((sectionLabel) => {
+                        const sectionItems = (client.discussedItems || [])
+                          .filter((item) => {
+                            const t = item.timeline?.trim();
+                            if (sectionLabel === "Now") return t === "Now";
+                            if (sectionLabel === "Add next visit")
+                              return t === "Add next visit";
+                            if (sectionLabel === "Completed") return t === "Completed";
+                            return t === "Wishlist" || !t; // Wishlist or empty
+                          })
+                          .sort((a, b) =>
+                            (a.treatment || "").localeCompare(b.treatment || "")
+                          );
+                        if (sectionItems.length === 0) return null;
+                        return (
+                          <div
+                            key={sectionLabel}
+                            className="discussed-treatments-plan-section-outer"
+                          >
+                            <h4 className="discussed-treatments-plan-section-title-outer">
+                              {sectionLabel}
+                            </h4>
+                            <div className="discussed-treatments-records-list-outer">
+                              {sectionItems.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="discussed-treatments-record-row-outer discussed-treatments-record-row-heading-meta"
+                                >
+                                  <div className="discussed-treatments-record-treatment-heading-outer">
+                                    {getTreatmentDisplayName(item)}
+                                  </div>
+                                  {formatTreatmentPlanRecordMetaLine(item) ? (
+                                    <div className="discussed-treatments-record-meta-line-outer">
+                                      {formatTreatmentPlanRecordMetaLine(item)}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                ) : (
+                  <span className="discussed-treatments-in-facial-summary">
+                    None
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Appointment Info */}
@@ -961,9 +1232,13 @@ export default function ClientDetailPanel({
             </div>
           </div>
         </div>
+          ) : null}
+          </div>
+        </div>
       </div>
 
       {/* Modals */}
+
       {showTelehealthSMS && (
         <TelehealthSMSModal
           client={client}
@@ -980,6 +1255,32 @@ export default function ClientDetailPanel({
           onClose={() => setShowShareAnalysis(false)}
           onSuccess={() => {
             setShowShareAnalysis(false);
+            onUpdate();
+          }}
+        />
+      )}
+      {showAnalysisOverview && client && (
+        <AnalysisOverviewModal
+          client={client}
+          onClose={() => {
+            setShowAnalysisOverview(false);
+            setReturnToOverviewView(null);
+          }}
+          initialDetailView={returnToOverviewView ?? undefined}
+          onAddToPlan={(prefill, detailView) => {
+            setShowAnalysisOverview(false);
+            setReturnToOverviewView(detailView ?? null);
+            setInitialAddFormPrefill(prefill);
+            setShowDiscussedTreatments(true);
+          }}
+        />
+      )}
+      {showShareTreatmentPlan && client && (
+        <ShareTreatmentPlanModal
+          client={client}
+          onClose={() => setShowShareTreatmentPlan(false)}
+          onSuccess={() => {
+            setShowShareTreatmentPlan(false);
             onUpdate();
           }}
         />
@@ -1008,6 +1309,57 @@ export default function ClientDetailPanel({
             setShowSendSMS(false);
             onUpdate();
           }}
+        />
+      )}
+      {showDiscussedTreatments && client && (
+        <DiscussedTreatmentsModal
+          client={client}
+          onClose={() => {
+            setShowDiscussedTreatments(false);
+            setInitialAddFormPrefill(null);
+            setInitialEditingItem(null);
+            treatmentPlanModalClosedRef.current?.();
+            onUpdate();
+            if (returnToOverviewView !== null) {
+              setShowAnalysisOverview(true);
+            }
+          }}
+          onUpdate={onUpdate}
+          initialAddFormPrefill={initialAddFormPrefill}
+          onClearInitialPrefill={() => setInitialAddFormPrefill(null)}
+          initialEditingItem={initialEditingItem}
+        />
+      )}
+      {issuePhotosContext && client && (
+        <TreatmentPhotosModal
+          client={client}
+          issue={issuePhotosContext.issue}
+          region={issuePhotosContext.region}
+          interest={issuePhotosContext.interest}
+          onClose={() => setIssuePhotosContext(null)}
+          onUpdate={onUpdate}
+          onAddToPlanDirect={async (prefill) => {
+            const newItem: DiscussedItem = {
+              id: generateId(),
+              addedAt: new Date().toISOString(),
+              interest: prefill.interest?.trim() || undefined,
+              findings: prefill.findings?.length ? prefill.findings : undefined,
+              treatment: prefill.treatment?.trim() || "",
+              product: prefill.treatmentProduct?.trim() || undefined,
+              region: prefill.region?.trim() || undefined,
+              timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+              quantity: prefill.quantity?.trim() || undefined,
+              notes: prefill.notes?.trim() || undefined,
+            };
+            const nextItems = [...(client.discussedItems || []), newItem];
+            await updateLeadRecord(client.id, client.tableSource, {
+              [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+            });
+            showToast("Added to treatment plan");
+            setIssuePhotosContext(null);
+            onUpdate();
+          }}
+          planItems={client.discussedItems ?? []}
         />
       )}
     </>
