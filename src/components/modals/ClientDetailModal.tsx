@@ -34,7 +34,7 @@ import {
   getJotformUrl,
   formatProviderDisplayName,
 } from "../../utils/providerHelpers";
-import { splitName, cleanPhoneNumber } from "../../utils/validation";
+import { splitName, cleanPhoneNumber, formatPhoneDisplay, formatPhoneInput } from "../../utils/validation";
 import {
   mapAreasToFormFields,
   parseDateOfBirthForForm,
@@ -43,7 +43,7 @@ import {
   shouldLoadPhotoForClient,
   fetchClientFrontPhoto,
 } from "../../utils/photoLoading";
-import { formatPhoneInput, formatZipCodeInput } from "../../utils/validation";
+import { formatZipCodeInput } from "../../utils/validation";
 import { useDashboard } from "../../context/DashboardContext";
 import "./ClientDetailModal.css";
 
@@ -93,7 +93,10 @@ export default function ClientDetailModal({
 
   useEffect(() => {
     if (client) {
-      setEditedClient({ ...client });
+      setEditedClient({
+        ...client,
+        phone: client.phone ? formatPhoneDisplay(client.phone) : "",
+      });
       setStatus(client.status);
 
       // Load front photo if available and should be loaded
@@ -186,12 +189,14 @@ export default function ClientDetailModal({
           client.tableSource === "Web Popup Leads"
             ? editedClient.email
             : undefined,
-        Phone:
+        "Phone Number":
           client.tableSource === "Web Popup Leads"
-            ? editedClient.phone
+            ? (editedClient.phone ? cleanPhoneNumber(editedClient.phone) : undefined)
             : undefined,
         "Patient Phone Number":
-          client.tableSource === "Patients" ? editedClient.phone : undefined,
+          client.tableSource === "Patients"
+            ? (editedClient.phone ? cleanPhoneNumber(editedClient.phone) : undefined)
+            : undefined,
         "Zip Code": editedClient.zipCode || null,
         Age: editedClient.age || null,
         Source: editedClient.source || undefined,
@@ -606,18 +611,19 @@ export default function ClientDetailModal({
                     {isEditMode ? (
                       <input
                         type="tel"
-                        value={editedClient?.phone || ""}
-                        onChange={(e) => {
-                          formatPhoneInput(e.target);
+                        value={editedClient?.phone ?? ""}
+                        onInput={(e) => {
+                          const input = e.target as HTMLInputElement;
+                          formatPhoneInput(input);
                           setEditedClient({
                             ...editedClient,
-                            phone: e.target.value,
+                            phone: input.value,
                           });
                         }}
                         className="edit-input"
                       />
                     ) : (
-                      <div className="detail-value">{client.phone}</div>
+                      <div className="detail-value">{formatPhoneDisplay(client.phone)}</div>
                     )}
                   </div>
                 )}

@@ -40,6 +40,14 @@ function mergeLeadAndPatient(lead: Client, patient: Client): Client {
     notes: prefer(patient.notes, lead.notes) || "",
     source: prefer(patient.source, lead.source),
     linkedLeadId: lead.id,
+    // Prefer patient's analysis data so merged row shows correct status (not lead's empty/pending)
+    facialAnalysisStatus: prefer(patient.facialAnalysisStatus, lead.facialAnalysisStatus),
+    allIssues: prefer(patient.allIssues, lead.allIssues),
+    interestedIssues: prefer(patient.interestedIssues, lead.interestedIssues),
+    whichRegions: prefer(patient.whichRegions, lead.whichRegions),
+    skinComplaints: prefer(patient.skinComplaints, lead.skinComplaints),
+    processedAreasOfInterest: prefer(patient.processedAreasOfInterest, lead.processedAreasOfInterest),
+    frontPhoto: patient.frontPhoto ?? lead.frontPhoto,
   };
 }
 
