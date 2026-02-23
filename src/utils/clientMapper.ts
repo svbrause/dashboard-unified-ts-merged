@@ -149,7 +149,7 @@ export function mapRecordToClient(
     dateOfBirth:
       tableName === "Patients"
         ? fields["Birthday (from Form Submissions)"] || null
-        : null,
+        : fields["Date of Birth"] || null,
     goals:
       tableName === "Patients"
         ? Array.isArray(fields["Name (from Interest Items)"])

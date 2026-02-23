@@ -28,6 +28,7 @@ export default function AddClientModal({
     email: "",
     phone: "",
     age: "",
+    dateOfBirth: "",
     zipCode: "",
     source: "Walk-in",
     notes: "",
@@ -79,7 +80,7 @@ export default function AddClientModal({
     setLoading(true);
 
     try {
-      const fields = {
+      const fields: Record<string, unknown> = {
         Name: formData.name.trim(),
         "Email Address": formData.email.trim(),
         "Phone Number": formData.phone ? formData.phone.replace(/\D/g, "") : "",
@@ -92,6 +93,9 @@ export default function AddClientModal({
         // Link to provider if providerId is available
         ...(providerId ? { Providers: [providerId] } : {}),
       };
+      if (formData.dateOfBirth.trim()) {
+        fields["Date of Birth"] = formData.dateOfBirth.trim();
+      }
 
       await createLeadRecord("Web Popup Leads", fields);
       showToast(`Added ${formData.name} as a new lead!`);
@@ -191,6 +195,18 @@ export default function AddClientModal({
                   value={formData.age}
                   onChange={(e) =>
                     setFormData({ ...formData, age: e.target.value })
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="new-lead-dob">Date of Birth</label>
+                <input
+                  type="date"
+                  id="new-lead-dob"
+                  placeholder="YYYY-MM-DD"
+                  value={formData.dateOfBirth}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dateOfBirth: e.target.value })
                   }
                 />
               </div>
