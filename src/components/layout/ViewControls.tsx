@@ -252,6 +252,7 @@ export default function ViewControls() {
                 <option value="requested-consult">Requested Consult</option>
                 <option value="scheduled">Scheduled</option>
                 <option value="converted">Converted</option>
+                <option value="current-client">Current Client</option>
               </select>
             </div>
             {locationOptions.length > 0 && (

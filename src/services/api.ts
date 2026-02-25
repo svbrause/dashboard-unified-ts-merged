@@ -287,6 +287,29 @@ export async function updateLeadRecord(
 }
 
 /**
+ * Submit skin quiz from the public standalone page (patient fills quiz via unique link).
+ * Backend should implement POST /api/skin-quiz/submit to update the Airtable record
+ * (and optionally linked lead) without requiring dashboard auth.
+ */
+export async function submitSkinQuizFromLink(
+  recordId: string,
+  tableName: string,
+  payload: { version: 1; completedAt: string; answers: Record<string, number>; result: string; recommendedProductNames: string[]; resultLabel?: string; resultDescription?: string }
+): Promise<boolean> {
+  const apiUrl = `${API_BASE_URL}/api/skin-quiz/submit`;
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recordId, tableName, payload }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.message || "Failed to save quiz");
+  }
+  return true;
+}
+
+/**
  * Send SMS notification. Backend SMS Notifications table has: Phone Number, Message, Name.
  */
 export async function sendSMSNotification(

@@ -8,7 +8,7 @@ import {
   getTelehealthScanLink,
   formatProviderDisplayName,
 } from "../../utils/providerHelpers";
-import { splitName, cleanPhoneNumber, formatPhoneDisplay } from "../../utils/validation";
+import { splitName, cleanPhoneNumber, formatPhoneDisplay, isValidPhone } from "../../utils/validation";
 import {
   mapAreasToFormFields,
   mapSkinComplaints,
@@ -85,11 +85,16 @@ export default function TelehealthSMSModal({
       showError("Please enter a message");
       return;
     }
+    const phoneStr = client.phone != null ? String(client.phone).trim() : "";
+    if (!phoneStr || !isValidPhone(phoneStr)) {
+      showError("A valid phone number is required to send SMS");
+      return;
+    }
 
     setSending(true);
     try {
       const finalMessage = `${message} ${smsLink}`;
-      const cleanedPhone = client.phone.replace(/\D/g, "");
+      const cleanedPhone = cleanPhoneNumber(phoneStr);
 
       await sendSMSNotification(
         cleanedPhone,
@@ -170,7 +175,12 @@ export default function TelehealthSMSModal({
               type="button"
               className="btn-primary"
               onClick={handleSend}
-              disabled={sending || !message.trim()}
+              disabled={
+                sending ||
+                !message.trim() ||
+                !client.phone ||
+                !isValidPhone(String(client.phone ?? "").trim())
+              }
             >
               {sending ? (
                 <>

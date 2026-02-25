@@ -30,6 +30,14 @@ import AnalysisOverviewModal, {
 import type { TreatmentPlanPrefill } from "./DiscussedTreatmentsModal/TreatmentPhotos";
 import TreatmentRecommenderByTreatment from "../treatmentRecommender/TreatmentRecommenderByTreatment";
 import TreatmentRecommenderBySuggestion from "../treatmentRecommender/TreatmentRecommenderBySuggestion";
+import SkinTypeQuizModal from "./SkinTypeQuizModal";
+import {
+  computeQuizScores,
+  computeQuizProfile,
+  SKIN_TYPE_DISPLAY_LABELS,
+  SKIN_TYPE_SCORE_ORDER,
+  GEMSTONE_BY_SKIN_TYPE,
+} from "../../data/skinTypeQuiz";
 import {
   formatTreatmentPlanRecordMetaLine,
   getTreatmentDisplayName,
@@ -38,7 +46,9 @@ import {
 import {
   PLAN_SECTIONS,
   AIRTABLE_FIELD,
+  getSkincareCarouselItems,
 } from "./DiscussedTreatmentsModal/constants";
+import { getSkinQuizMessage } from "../../utils/skinQuizLink";
 import {
   getJotformUrl,
   formatProviderDisplayName,
@@ -90,6 +100,7 @@ export default function ClientDetailModal({
   const [showScanDropdown, setShowScanDropdown] = useState(false);
   const [showNewClientSMS, setShowNewClientSMS] = useState(false);
   const [showSendSMS, setShowSendSMS] = useState(false);
+  const [smsInitialMessage, setSMSInitialMessage] = useState<string | null>(null);
   const [showDiscussedTreatments, setShowDiscussedTreatments] = useState(false);
   const [showAnalysisOverview, setShowAnalysisOverview] = useState(false);
   const [returnToOverviewView, setReturnToOverviewView] =
@@ -106,6 +117,7 @@ export default function ClientDetailModal({
   const [recommenderMode, setRecommenderMode] = useState<
     "by-treatment" | "by-suggestion" | null
   >(null);
+  const [showSkinTypeQuiz, setShowSkinTypeQuiz] = useState(false);
   const scanDropdownRef = useRef<HTMLDivElement>(null);
   const treatmentPlanModalClosedRef = useRef<(() => void) | null>(null);
 
@@ -780,6 +792,7 @@ export default function ClientDetailModal({
                           Consultation Scheduled
                         </option>
                         <option value="converted">Converted</option>
+                        <option value="current-client">Current Client</option>
                       </select>
                     </div>
                     <div className="detail-item">
@@ -851,7 +864,7 @@ export default function ClientDetailModal({
                               : [client.areas]
                             ).map((a, i) => (
                               <span key={i} className="detail-tag">
-                                {a}
+                                {String(a).replace(/\+/g, " ")}
                               </span>
                             ))}
                           </div>
@@ -1186,6 +1199,163 @@ export default function ClientDetailModal({
                 </div>
               </div>
 
+              {/* Skin Quiz Section */}
+              <div className="detail-section detail-section-skin-analysis">
+                <div className="detail-section-header-flex skin-analysis-header">
+                  <div className="detail-section-title detail-section-title-inline skin-analysis-heading-block">
+                    <span>Skin Quiz</span>
+                    {client.skincareQuiz && (
+                      <span className="skin-analysis-result-badge">
+                        {client.skincareQuiz.resultLabel ??
+                          (client.skincareQuiz.result
+                            ? client.skincareQuiz.result.charAt(0).toUpperCase() +
+                              client.skincareQuiz.result.slice(1)
+                            : "Completed")}
+                        {client.skincareQuiz.completedAt && (
+                          <span className="detail-value-muted">
+                            {" "}
+                            · {formatDate(client.skincareQuiz.completedAt)}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <div className="skin-analysis-quiz-actions">
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      onClick={() => setShowSkinTypeQuiz(true)}
+                    >
+                      {client.skincareQuiz ? "View Results" : "Take now"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      onClick={() => {
+                        setSMSInitialMessage(getSkinQuizMessage(client));
+                        setShowSendSMS(true);
+                      }}
+                      disabled={!client.phone && !client.email}
+                      title={
+                        client.phone
+                          ? "Send quiz link via SMS"
+                          : client.email
+                            ? "Send quiz link via email"
+                            : "Add phone or email to send to patient"
+                      }
+                    >
+                      Send to Patient
+                    </button>
+                  </div>
+                </div>
+                <p className="skin-analysis-description">
+                  {client.skincareQuiz
+                    ? "Skin type and product recommendations from the completed quiz."
+                    : "Complete the skin type quiz to get a personalized result and product recommendations for this client."}
+                </p>
+                {client.skincareQuiz && (
+                  <div className="skin-analysis-details">
+                    <div className="skin-analysis-summary">
+                      <span className="skin-analysis-summary-type">
+                        {client.skincareQuiz.resultLabel ??
+                          (client.skincareQuiz.result
+                            ? client.skincareQuiz.result.charAt(0).toUpperCase() +
+                              client.skincareQuiz.result.slice(1)
+                            : "Completed")}
+                      </span>
+                      {client.skincareQuiz.result &&
+                        GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
+                          <span className="skin-analysis-summary-gemstone">
+                            {" "}
+                            · {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].name} 💎{" "}
+                            {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].tagline}
+                          </span>
+                        )}
+                    </div>
+                    {client.skincareQuiz.resultDescription && (
+                      <p className="skin-analysis-result-description">
+                        {client.skincareQuiz.resultDescription}
+                      </p>
+                    )}
+                    {client.skincareQuiz.recommendedProductNames &&
+                      client.skincareQuiz.recommendedProductNames.length > 0 && (() => {
+                        const carouselItems = getSkincareCarouselItems();
+                        const products = client.skincareQuiz!.recommendedProductNames!
+                          .map((name) => {
+                            const item = carouselItems.find((p) => p.name === name);
+                            return item ? { name, imageUrl: item.imageUrl, productUrl: item.productUrl } : null;
+                          })
+                          .filter(Boolean) as { name: string; imageUrl?: string; productUrl?: string }[];
+                        return (
+                          <div className="skin-analysis-products">
+                            <span className="skin-analysis-products-label">Recommended products</span>
+                            <div className="skin-analysis-product-chips">
+                              {products.map((p, idx) => (
+                                <a
+                                  key={idx}
+                                  href={p.productUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="skin-analysis-product-chip"
+                                >
+                                  {p.imageUrl ? (
+                                    <img src={p.imageUrl} alt="" className="skin-analysis-product-chip-thumb" />
+                                  ) : (
+                                    <span className="skin-analysis-product-chip-placeholder">◆</span>
+                                  )}
+                                  <span className="skin-analysis-product-chip-name">
+                                    {p.name.split("|")[0]?.trim() ?? p.name}
+                                  </span>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    {client.skincareQuiz.answers &&
+                      Object.keys(client.skincareQuiz.answers).length > 0 &&
+                      (() => {
+                        const scores = computeQuizScores(client.skincareQuiz!.answers);
+                        const profile = computeQuizProfile(client.skincareQuiz!.answers);
+                        const maxScore = Math.max(...Object.values(scores), 1);
+                        return (
+                          <div className="skin-analysis-score-bars">
+                            <span className="skin-analysis-score-bars-title">
+                              Score breakdown
+                            </span>
+                            {SKIN_TYPE_SCORE_ORDER.map((type) => {
+                              const value = scores[type] ?? 0;
+                              const pct = maxScore > 0 ? (value / maxScore) * 100 : 0;
+                              const isPrimary = profile.primary === type;
+                              const isSecondary = profile.secondary === type;
+                              return (
+                                <div key={type} className="skin-analysis-score-row">
+                                  <span className="skin-analysis-score-label">
+                                    {SKIN_TYPE_DISPLAY_LABELS[type]}
+                                    {isPrimary && (
+                                      <span className="skin-analysis-score-tag"> primary</span>
+                                    )}
+                                    {isSecondary && (
+                                      <span className="skin-analysis-score-tag"> tendency</span>
+                                    )}
+                                  </span>
+                                  <div className="skin-analysis-score-bar-wrap">
+                                    <div
+                                      className={`skin-analysis-score-bar ${isPrimary ? "skin-analysis-score-bar-primary" : ""} ${isSecondary ? "skin-analysis-score-bar-secondary" : ""}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="skin-analysis-score-value">{value}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                  </div>
+                )}
+              </div>
+
               {/* Appointment Info */}
               {client.appointmentDate && (
                 <div className="detail-section detail-section-contact-history">
@@ -1275,7 +1445,10 @@ export default function ClientDetailModal({
                 </button>
                 <button
                   className="btn-secondary"
-                  onClick={() => setShowSendSMS(true)}
+                  onClick={() => {
+                    setSMSInitialMessage(null);
+                    setShowSendSMS(true);
+                  }}
                   disabled={!client.phone}
                 >
                   SMS
@@ -1356,11 +1529,24 @@ export default function ClientDetailModal({
       {showSendSMS && client && (
         <SendSMSModal
           client={client}
-          onClose={() => setShowSendSMS(false)}
+          onClose={() => {
+            setShowSendSMS(false);
+            setSMSInitialMessage(null);
+          }}
           onSuccess={() => {
             setShowSendSMS(false);
+            setSMSInitialMessage(null);
             onUpdate();
           }}
+          initialMessage={smsInitialMessage ?? undefined}
+        />
+      )}
+      {showSkinTypeQuiz && client && (
+        <SkinTypeQuizModal
+          client={client}
+          onClose={() => setShowSkinTypeQuiz(false)}
+          onSuccess={onUpdate}
+          savedQuiz={client.skincareQuiz ?? undefined}
         />
       )}
       {showDiscussedTreatments && client && (

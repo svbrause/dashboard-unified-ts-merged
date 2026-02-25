@@ -33,7 +33,10 @@ import { getTreatmentsForInterest } from "../modals/DiscussedTreatmentsModal/uti
 import {
   REGION_OPTIONS,
   TIMELINE_OPTIONS,
+  getSkincareCarouselItems,
 } from "../modals/DiscussedTreatmentsModal/constants";
+import { GEMSTONE_BY_SKIN_TYPE, RECOMMENDED_PRODUCT_REASONS } from "../../data/skinTypeQuiz";
+import { showToast } from "../../utils/toast";
 import { groupIssuesByConcern } from "../../config/issueToConcernMapping";
 import type { TreatmentPlanPrefill } from "../modals/DiscussedTreatmentsModal/TreatmentPhotos";
 import TreatmentRecommenderFilters from "./TreatmentRecommenderFilters";
@@ -402,6 +405,105 @@ export default function TreatmentRecommenderBySuggestion({
           state={filterState}
           onStateChange={(next) => setFilterState((s) => ({ ...s, ...next }))}
         />
+
+        {client.skincareQuiz && (
+          <div className="treatment-recommender-skin-analysis">
+            <h3 className="treatment-recommender-skin-analysis__title">Recommended for you</h3>
+            {client.skincareQuiz.completedAt && (
+              <p className="treatment-recommender-skin-analysis__completed">
+                Completed on{" "}
+                {new Date(client.skincareQuiz.completedAt).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+            )}
+            <div className="treatment-recommender-skin-analysis__summary">
+              <span className="treatment-recommender-skin-analysis__type">
+                {client.skincareQuiz.resultLabel ??
+                  (client.skincareQuiz.result
+                    ? client.skincareQuiz.result.charAt(0).toUpperCase() +
+                      client.skincareQuiz.result.slice(1)
+                    : "Completed")}
+              </span>
+              {client.skincareQuiz.result &&
+                GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
+                  <span className="treatment-recommender-skin-analysis__gemstone">
+                    {" "}
+                    · {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].name} 💎{" "}
+                    {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].tagline}
+                  </span>
+                )}
+            </div>
+            {client.skincareQuiz.recommendedProductNames &&
+              client.skincareQuiz.recommendedProductNames.length > 0 &&
+              (() => {
+                const carouselItems = getSkincareCarouselItems();
+                const products = client.skincareQuiz!.recommendedProductNames!.map((name) => {
+                  const item = carouselItems.find((p) => p.name === name);
+                  const context = RECOMMENDED_PRODUCT_REASONS[name] ?? "";
+                  return item
+                    ? { name, imageUrl: item.imageUrl, context }
+                    : { name, imageUrl: undefined, context: RECOMMENDED_PRODUCT_REASONS[name] ?? "" };
+                });
+                return (
+                  <div className="treatment-recommender-skin-analysis__products">
+                    <span className="treatment-recommender-skin-analysis__products-label">
+                      Skincare (from skin quiz)
+                    </span>
+                    <div className="treatment-recommender-skin-analysis__chips">
+                      {products.map((p, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="treatment-recommender-skin-analysis__chip treatment-recommender-skin-analysis__chip--add"
+                          onClick={async () => {
+                            if (!onAddToPlanDirect) return;
+                            const prefill: TreatmentPlanPrefill = {
+                              interest: "",
+                              region: "",
+                              treatment: "Skincare",
+                              treatmentProduct: p.name.split("|")[0]?.trim() ?? p.name,
+                              timeline: TIMELINE_OPTIONS[0],
+                              notes: p.context || undefined,
+                            };
+                            try {
+                              await onAddToPlanDirect(prefill);
+                              showToast("Added to treatment plan");
+                            } catch {
+                              showToast("Could not add to plan");
+                            }
+                          }}
+                          title={p.context ? `Add to plan – ${p.context}` : "Add to treatment plan"}
+                        >
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt=""
+                              className="treatment-recommender-skin-analysis__chip-thumb"
+                            />
+                          ) : (
+                            <span className="treatment-recommender-skin-analysis__chip-placeholder">
+                              ◆
+                            </span>
+                          )}
+                          <span className="treatment-recommender-skin-analysis__chip-name">
+                            {p.name.split("|")[0]?.trim() ?? p.name}
+                          </span>
+                          {p.context && (
+                            <span className="treatment-recommender-skin-analysis__chip-context">
+                              {p.context}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+          </div>
+        )}
 
         <h2 className="treatment-recommender-by-suggestion__results-heading">
           {viewItems.length} suggestion{viewItems.length !== 1 ? "s" : ""}

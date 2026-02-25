@@ -246,6 +246,7 @@ export default function ListView() {
                         </option>
                         <option value="scheduled">Scheduled</option>
                         <option value="converted">Converted</option>
+                        <option value="current-client">Current Client</option>
                       </select>
                     </td>
                     <td className="text-sm text-muted">

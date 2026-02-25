@@ -3,7 +3,7 @@
  * Full-width treatment cards with feature breakdown and Add to plan.
  */
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useDashboard } from "../../context/DashboardContext";
 import { Client, TreatmentPhoto, DiscussedItem } from "../../types";
 import {
@@ -43,6 +43,7 @@ import {
   OTHER_PRODUCT_LABEL,
   SKINCARE_CATEGORY_OPTIONS,
 } from "../modals/DiscussedTreatmentsModal/constants";
+import { GEMSTONE_BY_SKIN_TYPE, RECOMMENDED_PRODUCT_REASONS } from "../../data/skinTypeQuiz";
 import { showToast } from "../../utils/toast";
 import type { TreatmentPlanPrefill } from "../modals/DiscussedTreatmentsModal/TreatmentPhotos";
 import TreatmentRecommenderFilters from "./TreatmentRecommenderFilters";
@@ -335,7 +336,6 @@ export default function TreatmentRecommenderByTreatment({
     notes?: string;
   } | null>(null);
   /** Notion-style: type to create a new option for Where/What. */
-  const [customOptionInput, setCustomOptionInput] = useState("");
   /** When set, show the Edit options modal for this treatment/optionType (iPad-friendly add/remove/rename). */
   const [editOptionsContext, setEditOptionsContext] = useState<{
     treatment: string;
@@ -355,6 +355,8 @@ export default function TreatmentRecommenderByTreatment({
   const [frontPhotoUrl, setFrontPhotoUrl] = useState<string | null>(null);
   const [sidePhotoUrl, setSidePhotoUrl] = useState<string | null>(null);
   const [showClientPhotoModal, setShowClientPhotoModal] = useState(false);
+  /** Refs to treatment cards for scroll-into-view when opening Add to plan from recommended section */
+  const cardRefsMap = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (!showClientPhotoModal) return;
@@ -571,7 +573,14 @@ export default function TreatmentRecommenderByTreatment({
 
   const suggestedTreatments = useMemo(() => {
     const withGoals = getSuggestedTreatmentsForFindings(combinedFindings);
-    const names = Array.from(new Set(withGoals.map((s) => s.treatment)));
+    let names = Array.from(new Set(withGoals.map((s) => s.treatment)));
+    // When client has skin quiz recommendations, include Skincare so "Add to plan" from top section has a card to open
+    const hasSkinQuizProducts =
+      client.skincareQuiz?.recommendedProductNames &&
+      client.skincareQuiz.recommendedProductNames.length > 0;
+    if (hasSkinQuizProducts && !names.includes("Skincare")) {
+      names = ["Skincare", ...names];
+    }
     const sameDay = filterTreatmentsBySameDay(names, filterState.sameDayAddOn);
     const filtered = filterTreatmentsByRegion(
       sameDay,
@@ -582,7 +591,62 @@ export default function TreatmentRecommenderByTreatment({
     const skincare = filtered.filter((t) => t === "Skincare");
     const rest = filtered.filter((t) => t !== "Skincare");
     return [...skincare, ...rest];
-  }, [combinedFindings, filterState.sameDayAddOn, filterState.region]);
+  }, [combinedFindings, filterState.sameDayAddOn, filterState.region, client.skincareQuiz?.recommendedProductNames]);
+
+  /** Suggestions from facial analysis (for top "Recommended for you" section). */
+  const facialAnalysisSuggestions = useMemo(
+    () => getSuggestedTreatmentsForFindings(combinedFindings),
+    [combinedFindings]
+  );
+
+  /** Group facial analysis suggestions by treatment (one card per treatment with multiple findings). */
+  const facialAnalysisByTreatment = useMemo(() => {
+    const map = new Map<
+      string,
+      { findings: string[]; goal: string; region: string }
+    >();
+    for (const s of facialAnalysisSuggestions) {
+      const existing = map.get(s.treatment);
+      if (!existing) {
+        map.set(s.treatment, {
+          findings: [s.exampleFinding],
+          goal: s.goal,
+          region: s.region,
+        });
+      } else {
+        if (!existing.findings.includes(s.exampleFinding)) {
+          existing.findings.push(s.exampleFinding);
+        }
+      }
+    }
+    return Array.from(map.entries()).map(([treatment, data]) => ({
+      treatment,
+      ...data,
+    }));
+  }, [facialAnalysisSuggestions]);
+
+  const openAddToPlanAndScroll = (treatment: string, prefill?: Partial<{
+    skincareWhat: string[];
+    where: string[];
+  }>) => {
+    setAddToPlanForTreatment({
+      treatment,
+      where: prefill?.where ?? [],
+      skincareWhat: treatment === "Skincare" ? (prefill?.skincareWhat ?? []) : undefined,
+      skincareCategoryFilter: treatment === "Skincare" ? [] : undefined,
+      laserWhat: treatment === "Laser" ? [] : undefined,
+      biostimulantWhat: treatment === "Biostimulants" ? [] : undefined,
+      when: TIMELINE_OPTIONS[0],
+      detailsExpanded: false,
+      product: "",
+      quantity: "",
+      notes: "",
+    });
+    requestAnimationFrame(() => {
+      const el = cardRefsMap.current[treatment];
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   const handleAddToPlanConfirm = async () => {
     if (!addToPlanForTreatment || !onAddToPlanDirect) return;
@@ -615,47 +679,9 @@ export default function TreatmentRecommenderByTreatment({
     try {
       const newItem = await onAddToPlanDirect(prefill);
       setAddToPlanForTreatment(null);
-      setCustomOptionInput("");
       if (newItem) setLastAddedItem(newItem);
     } catch {
       /* parent shows error */
-    }
-  };
-
-  /** Notion-style: add a custom option (typed by user) to Where or What; persist to Airtable when provider is set. */
-  const addCustomOption = async () => {
-    const val = customOptionInput.trim();
-    if (!val || !addToPlanForTreatment) return;
-    const treatment = addToPlanForTreatment.treatment;
-    let optionType: TreatmentRecommenderOptionType = "where";
-    if (treatment === "Skincare") {
-      const current = addToPlanForTreatment.skincareWhat ?? [];
-      if (current.includes(val)) return;
-      optionType = "skincare_what";
-      setAddToPlanForTreatment((prev) => prev ? { ...prev, skincareWhat: [...current, val] } : null);
-    } else if (treatment === "Laser") {
-      const current = addToPlanForTreatment.laserWhat ?? [];
-      if (current.includes(val)) return;
-      optionType = "laser_what";
-      setAddToPlanForTreatment((prev) => prev ? { ...prev, laserWhat: [...current, val] } : null);
-    } else if (treatment === "Biostimulants") {
-      const current = addToPlanForTreatment.biostimulantWhat ?? [];
-      if (current.includes(val)) return;
-      optionType = "biostimulant_what";
-      setAddToPlanForTreatment((prev) => prev ? { ...prev, biostimulantWhat: [...current, val] } : null);
-    } else {
-      const current = addToPlanForTreatment.where;
-      if (current.includes(val)) return;
-      setAddToPlanForTreatment((prev) => prev ? { ...prev, where: [...current, val] } : null);
-    }
-    setCustomOptionInput("");
-    if (provider?.id) {
-      try {
-        await createTreatmentRecommenderCustomOption(provider.id, optionType, val);
-        setOptionRecordsVersion((v) => v + 1);
-      } catch {
-        showToast("Option added here; could not save for future use.");
-      }
     }
   };
 
@@ -731,7 +757,7 @@ export default function TreatmentRecommenderByTreatment({
           : `Filler can address volume loss and contour concerns. Based on this client's profile, it's a recommended option for today's visit.`;
       case "Skincare":
         return relevant.length > 0
-          ? `Their skin analysis points to ${findingsText}. A tailored skincare regimen can complement today's visit and support longer-term results.`
+          ? `Their skin quiz points to ${findingsText}. A tailored skincare regimen can complement today's visit and support longer-term results.`
           : `Skincare can target texture, tone, and hydration. A personalized regimen is a good complement to in-office treatments.`;
       default:
         return relevant.length > 0
@@ -892,6 +918,84 @@ export default function TreatmentRecommenderByTreatment({
           onStateChange={(next) => setFilterState((s) => ({ ...s, ...next }))}
         />
 
+        {client.skincareQuiz && (
+          <div className="treatment-recommender-skin-analysis">
+            <h3 className="treatment-recommender-skin-analysis__title">Recommended for you</h3>
+            {client.skincareQuiz?.completedAt && (
+              <p className="treatment-recommender-skin-analysis__completed">
+                Completed on{" "}
+                {new Date(client.skincareQuiz.completedAt).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+            )}
+            <div className="treatment-recommender-skin-analysis__summary">
+              <span className="treatment-recommender-skin-analysis__type">
+                {client.skincareQuiz.resultLabel ??
+                  (client.skincareQuiz.result
+                    ? client.skincareQuiz.result.charAt(0).toUpperCase() +
+                      client.skincareQuiz.result.slice(1)
+                    : "Completed")}
+              </span>
+              {client.skincareQuiz.result &&
+                GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
+                  <span className="treatment-recommender-skin-analysis__gemstone">
+                    {" "}
+                    · {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].name} 💎{" "}
+                    {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].tagline}
+                  </span>
+                )}
+            </div>
+            {client.skincareQuiz?.recommendedProductNames &&
+              client.skincareQuiz.recommendedProductNames.length > 0 &&
+              onAddToPlanDirect && (() => {
+                const products = client.skincareQuiz!.recommendedProductNames!.map((name) => ({
+                  name,
+                  context: RECOMMENDED_PRODUCT_REASONS[name] ?? "",
+                }));
+                return (
+                  <div className="treatment-recommender-skin-analysis__products">
+                    <span className="treatment-recommender-skin-analysis__products-label">
+                      Skincare (from skin quiz)
+                    </span>
+                    <div className="treatment-recommender-skin-analysis__cards-row">
+                      {products.map((p, idx) => (
+                        <div
+                          key={idx}
+                          className="treatment-recommender-skin-analysis__rec-card treatment-recommender-skin-analysis__rec-card--no-photo"
+                        >
+                          <div className="treatment-recommender-skin-analysis__rec-card-body">
+                            <span className="treatment-recommender-skin-analysis__rec-card-product-name">
+                              {p.name}
+                            </span>
+                            {p.context && (
+                              <span className="treatment-recommender-skin-analysis__chip-context">
+                                {p.context}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              className="treatment-recommender-skin-analysis__rec-add-btn"
+                              onClick={() =>
+                                openAddToPlanAndScroll("Skincare", {
+                                  skincareWhat: [p.name],
+                                })
+                              }
+                            >
+                              Add to plan
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+          </div>
+        )}
+
         <h2 className="treatment-recommender-by-treatment__results-heading">
           {suggestedTreatments.length} treatment option{suggestedTreatments.length !== 1 ? "s" : ""}
         </h2>
@@ -908,6 +1012,9 @@ export default function TreatmentRecommenderByTreatment({
               return (
               <div
                 key={treatment}
+                ref={(el) => {
+                  cardRefsMap.current[treatment] = el;
+                }}
                 className="treatment-recommender-by-treatment__card"
               >
                 <div className="treatment-recommender-by-treatment__card-top">
@@ -1018,15 +1125,29 @@ export default function TreatmentRecommenderByTreatment({
                                   aria-label="Select skincare products (multiple)"
                                 >
                                   <div className="discussed-treatments-product-carousel-track">
-                                  {skincareCarouselItemsFiltered.map((item) => {
+                                  {(() => {
+                                    const recommended = client.skincareQuiz?.recommendedProductNames ?? [];
+                                    const recommendedSet = new Set(recommended);
+                                    const sorted = [...skincareCarouselItemsFiltered].sort((a, b) => {
+                                      const aRec = recommendedSet.has(a.name);
+                                      const bRec = recommendedSet.has(b.name);
+                                      if (aRec && !bRec) return -1;
+                                      if (!aRec && bRec) return 1;
+                                      if (aRec && bRec) return recommended.indexOf(a.name) - recommended.indexOf(b.name);
+                                      return 0;
+                                    });
+                                    return sorted.map((item) => {
                                     const selected = (addToPlanForTreatment.skincareWhat ?? []).includes(item.name);
+                                    const isQuizRecommended = recommendedSet.has(item.name);
                                     return (
                                       <button
                                         key={item.name}
                                         type="button"
                                         className={`discussed-treatments-product-carousel-item ${
                                           selected ? "selected" : ""
-                                        } ${item.name === OTHER_PRODUCT_LABEL ? "other-chip" : ""}`}
+                                        } ${item.name === OTHER_PRODUCT_LABEL ? "other-chip" : ""} ${
+                                          isQuizRecommended ? "treatment-recommender-by-treatment__carousel-item--quiz-recommended" : ""
+                                        }`}
                                         onClick={() =>
                                           setAddToPlanForTreatment((prev) => {
                                             if (!prev) return null;
@@ -1058,9 +1179,15 @@ export default function TreatmentRecommenderByTreatment({
                                         <span className="discussed-treatments-product-carousel-label">
                                           {item.name}
                                         </span>
+                                        {isQuizRecommended && (
+                                          <span className="treatment-recommender-by-treatment__carousel-quiz-badge" aria-label="Recommended from skin quiz">
+                                            Recommended
+                                          </span>
+                                        )}
                                       </button>
                                     );
-                                  })}
+                                    });
+                                  })()}
                                   </div>
                                 </div>
                               </div>
@@ -1069,7 +1196,38 @@ export default function TreatmentRecommenderByTreatment({
                         )}
                         {treatment !== "Skincare" && (
                           <div className="treatment-recommender-by-treatment__add-row">
-                            <span>{treatment === "Laser" || treatment === "Biostimulants" ? "What:" : "Where:"}</span>
+                            <span className="treatment-recommender-by-treatment__add-row-label">
+                              {treatment === "Laser" || treatment === "Biostimulants" ? "What:" : "Where:"}
+                            </span>
+                            {optionsFromTable && (
+                              <span className="treatment-recommender-by-treatment__edit-options-wrap">
+                                <button
+                                  type="button"
+                                  className="treatment-recommender-by-treatment__edit-options-btn treatment-recommender-by-treatment__edit-options-btn--with-label"
+                                  onClick={() => {
+                                    setEditingRecordId(null);
+                                    setEditingValue("");
+                                    setEditModalNewOptionInput("");
+                                    setEditOptionsContext({
+                                      treatment: addToPlanForTreatment.treatment,
+                                      optionType:
+                                        treatment === "Skincare"
+                                          ? "skincare_what"
+                                          : treatment === "Laser"
+                                            ? "laser_what"
+                                            : treatment === "Biostimulants"
+                                              ? "biostimulant_what"
+                                              : "where",
+                                    });
+                                  }}
+                                  title="Edit options"
+                                  aria-label="Edit options"
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                                  <span className="treatment-recommender-by-treatment__edit-options-label">Edit options</span>
+                                </button>
+                              </span>
+                            )}
                             <div className="treatment-recommender-by-treatment__chips">
                               {treatment === "Laser"
                                 ? (optionsFromTable ? laserWhatOptionRecords : laserWhatOptions.map((v) => ({ id: "", value: v }))).map((rec) => {
@@ -1250,58 +1408,6 @@ export default function TreatmentRecommenderByTreatment({
                             </div>
                           </div>
                         )}
-                        {optionsFromTable && (
-                          <div className="treatment-recommender-by-treatment__add-row treatment-recommender-by-treatment__add-row--edit-options">
-                            <button
-                              type="button"
-                              className="treatment-recommender-by-treatment__edit-options-btn treatment-recommender-by-treatment__edit-options-btn--subtle"
-                                onClick={() => {
-                                  setEditingRecordId(null);
-                                  setEditingValue("");
-                                  setEditModalNewOptionInput("");
-                                  setEditOptionsContext({
-                                    treatment: addToPlanForTreatment.treatment,
-                                    optionType:
-                                      treatment === "Skincare"
-                                        ? "skincare_what"
-                                        : treatment === "Laser"
-                                          ? "laser_what"
-                                          : treatment === "Biostimulants"
-                                            ? "biostimulant_what"
-                                            : "where",
-                                  });
-                                }}
-                              >
-                                Edit options
-                              </button>
-                            </div>
-                          )}
-                          <p className="treatment-recommender-by-treatment__add-hint" aria-live="polite">
-                            Click to add; click a selected item (×) to remove it.
-                          </p>
-                          <div className="treatment-recommender-by-treatment__add-custom">
-                            <input
-                              type="text"
-                              className="treatment-recommender-by-treatment__custom-input"
-                              placeholder="Type to add option..."
-                              value={customOptionInput}
-                              onChange={(e) => setCustomOptionInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  addCustomOption();
-                                }
-                              }}
-                              aria-label="Add custom option"
-                            />
-                            <button
-                              type="button"
-                              className="treatment-recommender-by-treatment__custom-add-btn"
-                              onClick={addCustomOption}
-                            >
-                              Add
-                            </button>
-                          </div>
                         <div className="treatment-recommender-by-treatment__add-row">
                           <span>When:</span>
                           <div className="treatment-recommender-by-treatment__chips">
@@ -1383,10 +1489,7 @@ export default function TreatmentRecommenderByTreatment({
                           <button
                             type="button"
                             className="treatment-recommender-by-treatment__cancel-btn"
-                            onClick={() => {
-                              setAddToPlanForTreatment(null);
-                              setCustomOptionInput("");
-                            }}
+                            onClick={() => setAddToPlanForTreatment(null)}
                           >
                             Cancel
                           </button>

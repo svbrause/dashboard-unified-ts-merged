@@ -11,12 +11,20 @@ interface SendSMSModalProps {
   client: Client;
   onClose: () => void;
   onSuccess: () => void;
+  /** When set (e.g. when sending skin quiz link), prefill the message. */
+  initialMessage?: string;
 }
 
-export default function SendSMSModal({ client, onClose, onSuccess }: SendSMSModalProps) {
-  const [message, setMessage] = useState('');
+export default function SendSMSModal({ client, onClose, onSuccess, initialMessage }: SendSMSModalProps) {
+  const [message, setMessage] = useState(initialMessage ?? '');
   const [sending, setSending] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (initialMessage != null && initialMessage !== '') {
+      setMessage(initialMessage);
+    }
+  }, [initialMessage]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -37,19 +45,20 @@ export default function SendSMSModal({ client, onClose, onSuccess }: SendSMSModa
       return;
     }
 
-    if (!client.phone) {
+    const phoneStr = client.phone != null ? String(client.phone).trim() : '';
+    if (!phoneStr) {
       setErrors({ phone: 'Phone number is required' });
       return;
     }
 
-    if (!isValidPhone(client.phone)) {
+    if (!isValidPhone(phoneStr)) {
       setErrors({ phone: 'Please enter a valid phone number' });
       return;
     }
 
     setSending(true);
     try {
-      const cleanedPhone = cleanPhoneNumber(client.phone);
+      const cleanedPhone = cleanPhoneNumber(phoneStr);
       await sendSMSNotification(cleanedPhone, message, client.name || undefined);
       
       showToast(`SMS sent to ${client.name}`);
@@ -121,7 +130,12 @@ export default function SendSMSModal({ client, onClose, onSuccess }: SendSMSModa
               type="button"
               className="btn-primary"
               onClick={handleSend}
-              disabled={sending || !message.trim() || !client.phone}
+              disabled={
+                sending ||
+                !message.trim() ||
+                !client.phone ||
+                !isValidPhone(String(client.phone ?? '').trim())
+              }
             >
               {sending ? (
                 <>

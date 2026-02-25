@@ -1,15 +1,23 @@
 // Utility to map Airtable records to Client format
 
-import { Client, AirtableRecord, DiscussedItem } from "../types";
+import { Client, AirtableRecord, DiscussedItem, SkincareQuizData } from "../types";
 
 /**
  * Map Airtable status field to dashboard status
  */
 function mapAirtableStatus(
   fields: Record<string, any>,
-): "new" | "contacted" | "requested-consult" | "scheduled" | "converted" {
+): "new" | "contacted" | "requested-consult" | "scheduled" | "converted" | "current-client" {
   const status = (fields["Status"] || "").toLowerCase();
 
+  if (
+    status.includes("current client") ||
+    status.includes("current patient") ||
+    status.includes("current-client") ||
+    status.includes("current-patient")
+  ) {
+    return "current-client";
+  }
   if (
     status.includes("converted") ||
     status.includes("booked") ||
@@ -358,6 +366,34 @@ export function mapRecordToClient(
       }
     })(),
     contactHistory: [],
+    skincareQuiz: (() => {
+      const raw =
+        fields["Skincare Quiz"] ?? fields["Skincare quiz"] ?? null;
+      if (!raw || typeof raw !== "string" || !raw.trim()) return undefined;
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== "object") return undefined;
+        const o = parsed as Record<string, unknown>;
+        if (o.version !== 1 || typeof o.completedAt !== "string") return undefined;
+        if (!o.answers || typeof o.answers !== "object") return undefined;
+        const validResults = ["oily", "dry", "combination", "normal", "sensitive"];
+        if (typeof o.result !== "string" || !validResults.includes(o.result))
+          return undefined;
+        return {
+          version: 1 as const,
+          completedAt: o.completedAt,
+          answers: o.answers as Record<string, number>,
+          result: o.result as SkincareQuizData["result"],
+          recommendedProductNames: Array.isArray(o.recommendedProductNames)
+            ? o.recommendedProductNames.filter((x): x is string => typeof x === "string")
+            : undefined,
+          resultLabel: typeof o.resultLabel === "string" ? o.resultLabel : undefined,
+          resultDescription: typeof o.resultDescription === "string" ? o.resultDescription : undefined,
+        };
+      } catch {
+        return undefined;
+      }
+    })(),
   };
 
   return client;

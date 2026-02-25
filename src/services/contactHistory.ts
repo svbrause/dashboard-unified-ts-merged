@@ -95,6 +95,7 @@ export async function updateClientStatus(
     "requested-consult": "Requested Consult",
     scheduled: "Scheduled",
     converted: "Converted",
+    "current-client": "Current Client",
   };
 
   updateFields["Status"] = statusMap[newStatus] || newStatus;

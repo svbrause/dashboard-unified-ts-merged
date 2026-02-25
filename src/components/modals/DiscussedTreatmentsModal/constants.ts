@@ -1,5 +1,10 @@
 // Discussed Treatments Modal – static data and options
 
+import {
+  getPriceRange2025,
+  type DashboardTreatmentCategory,
+} from "../../../data/treatmentPricing2025";
+
 export const AIRTABLE_FIELD = "Treatments Discussed";
 export const OTHER_LABEL = "Other";
 /** Placeholder treatment when user adds only a goal (no specific treatments). */
@@ -720,41 +725,47 @@ export const ALL_TREATMENTS = ALL_TREATMENTS_RAW.filter(
 );
 export const OTHER_TREATMENT_LABEL = "Other";
 
-/** Longevity, downtime, and pricing for treatment examples. */
+/** Longevity, downtime, and pricing for treatment examples (pricing from The Treatment 2025 price list). */
+const _priceRange = (c: DashboardTreatmentCategory) => getPriceRange2025(c);
+
 export const TREATMENT_META: Record<
   string,
   { longevity?: string; downtime?: string; priceRange?: string }
 > = {
-  Skincare: { longevity: "Ongoing", downtime: "None", priceRange: "Varies" },
+  Skincare: {
+    longevity: "Ongoing",
+    downtime: "None",
+    priceRange: _priceRange("Skincare") ?? "Varies",
+  },
   Laser: {
     longevity: "6–12+ months",
     downtime: "3–7 days",
-    priceRange: "$200–$800+",
+    priceRange: _priceRange("Laser") ?? "$250–$3,900",
   },
   "Chemical Peel": {
     longevity: "1–3 months",
     downtime: "3–7 days",
-    priceRange: "$100–$300",
+    priceRange: _priceRange("Chemical Peel") ?? "$85–$900",
   },
   Microneedling: {
     longevity: "2–4 months",
     downtime: "1–3 days",
-    priceRange: "$200–$500",
+    priceRange: _priceRange("Microneedling") ?? "$250–$775",
   },
   Filler: {
     longevity: "6–18 months",
     downtime: "1–2 days",
-    priceRange: "$500–$2,000+",
+    priceRange: _priceRange("Filler") ?? "$750–$5,200",
   },
   Neurotoxin: {
     longevity: "3–4 months",
     downtime: "None",
-    priceRange: "$300–$600",
+    priceRange: _priceRange("Neurotoxin") ?? "$13/unit–$995",
   },
   Biostimulants: {
     longevity: "18–24+ months",
     downtime: "1–3 days",
-    priceRange: "$800–$1,500+",
+    priceRange: _priceRange("Biostimulants") ?? "$800–$5,200",
   },
   Kybella: {
     longevity: "Permanent",

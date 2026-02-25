@@ -225,6 +225,33 @@
   max-width: none; /* Take full width */
 }
 
+.client-detail-panel .detail-value-muted {
+  color: var(--theme-text-muted, #757575);
+  font-weight: 400;
+}
+
+.client-detail-panel .link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: var(--theme-accent, #1976d2);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.client-detail-panel .link-button:hover {
+  color: var(--theme-accent-hover, #1565c0);
+}
+
+.client-detail-panel .detail-value-with-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* Contact info with actions - side by side layout */
 .contact-info-with-actions {
   display: flex;
@@ -624,6 +651,203 @@
 
 .client-detail-panel .redeemed-offers-mark-btn {
   margin-top: 4px;
+}
+
+.client-detail-panel .detail-section-skin-analysis {
+  border-top: 2px solid var(--theme-border);
+  padding-top: 20px;
+  margin-top: 20px;
+  background: #fafafa;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid var(--theme-accent);
+}
+
+.client-detail-panel .skin-analysis-header {
+  align-items: center;
+}
+
+.client-detail-panel .skin-analysis-result-badge {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--theme-text-secondary);
+  margin-left: 8px;
+}
+
+.client-detail-panel .skin-analysis-description {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+  color: var(--theme-text-secondary);
+  line-height: 1.45;
+}
+
+.client-detail-panel .skin-analysis-details {
+  margin-top: 12px;
+}
+
+.client-detail-panel .skin-analysis-summary {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--theme-text-primary, #1a1a1a);
+  margin-bottom: 8px;
+}
+
+.client-detail-panel .skin-analysis-summary-gemstone {
+  font-weight: 500;
+  color: var(--theme-text-secondary, #616161);
+}
+
+.client-detail-panel .skin-analysis-products {
+  margin-top: 12px;
+}
+
+.client-detail-panel .skin-analysis-products-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-text-muted, #757575);
+  margin-bottom: 8px;
+}
+
+.client-detail-panel .skin-analysis-product-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-detail-panel .skin-analysis-product-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: #fff;
+  border: 1px solid var(--theme-border, #e0e0e0);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--theme-text-primary, #212121);
+  font-size: 0.75rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.client-detail-panel .skin-analysis-product-chip:hover {
+  border-color: var(--theme-accent, #1976d2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.client-detail-panel .skin-analysis-product-chip-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.client-detail-panel .skin-analysis-product-chip-placeholder {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--theme-bg-subtle, #f0f0f0);
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  color: var(--theme-text-muted, #757575);
+}
+
+.client-detail-panel .skin-analysis-product-chip-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-detail-panel .skin-analysis-result-description {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  color: var(--theme-text-secondary);
+  line-height: 1.5;
+}
+
+.client-detail-panel .skin-analysis-product-count {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--theme-text-muted);
+  font-style: italic;
+}
+
+.client-detail-panel .skin-analysis-score-bars {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.client-detail-panel .skin-analysis-score-bars-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-text-muted);
+  margin-bottom: 2px;
+}
+
+.client-detail-panel .skin-analysis-score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+}
+
+.client-detail-panel .skin-analysis-score-label {
+  flex: 0 0 10rem;
+  color: var(--theme-text-secondary);
+}
+
+.client-detail-panel .skin-analysis-score-tag {
+  font-size: 0.6875rem;
+  color: var(--theme-text-muted);
+  font-weight: 500;
+}
+
+.client-detail-panel .skin-analysis-score-bar-wrap {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  background: var(--theme-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.client-detail-panel .skin-analysis-score-bar {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 3px;
+  background: var(--theme-text-muted);
+  transition: width 0.2s ease;
+}
+
+.client-detail-panel .skin-analysis-score-bar-primary {
+  background: var(--theme-accent);
+}
+
+.client-detail-panel .skin-analysis-score-bar-secondary {
+  background: var(--theme-text-secondary);
+}
+
+.client-detail-panel .skin-analysis-score-value {
+  flex: 0 0 1.25rem;
+  text-align: right;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--theme-text-muted);
+}
+
+.client-detail-panel .skin-analysis-quiz-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 @media (max-width: 768px) {

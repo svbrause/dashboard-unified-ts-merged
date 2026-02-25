@@ -9,6 +9,7 @@ import {
   isValidPhone,
   formatPhoneInput,
   cleanPhoneNumber,
+  formatPhoneDisplay,
 } from "../../utils/validation";
 import { showToast, showError } from "../../utils/toast";
 import { getTreatmentDisplayName } from "./DiscussedTreatmentsModal/utils";
@@ -75,7 +76,7 @@ export default function ShareTreatmentPlanModal({
   );
   const [formData, setFormData] = useState({
     name: client.name || "",
-    phone: client.phone || "",
+    phone: client.phone ? formatPhoneDisplay(client.phone) : "",
     message: defaultMessageBody,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -89,26 +90,27 @@ export default function ShareTreatmentPlanModal({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
 
-  // Sync name/phone from client when they change (e.g. different client)
+  // Sync name/phone from client when they change (e.g. different client or async load)
   useEffect(() => {
     setFormData((prev) => ({
       ...prev,
       name: client.name || prev.name,
-      phone: client.phone || prev.phone,
+      phone: client.phone ? formatPhoneDisplay(client.phone) : prev.phone,
     }));
   }, [client.name, client.phone]);
 
   const handleSend = async () => {
     setErrors({});
+    const phoneStr = String(formData.phone ?? "").trim();
     if (!formData.name.trim()) {
       setErrors({ name: "Name is required" });
       return;
     }
-    if (!formData.phone.trim()) {
+    if (!phoneStr) {
       setErrors({ phone: "Phone number is required" });
       return;
     }
-    if (!isValidPhone(formData.phone)) {
+    if (!isValidPhone(phoneStr)) {
       setErrors({ phone: "Please enter a valid phone number" });
       return;
     }
@@ -119,7 +121,7 @@ export default function ShareTreatmentPlanModal({
     setSending(true);
     try {
       await sendSMSNotification(
-        cleanPhoneNumber(formData.phone),
+        cleanPhoneNumber(phoneStr),
         formData.message,
         formData.name.trim() || undefined,
       );
@@ -242,7 +244,13 @@ export default function ShareTreatmentPlanModal({
               type="button"
               className="btn-primary"
               onClick={handleSend}
-              disabled={sending}
+              disabled={
+                sending ||
+                !formData.name.trim() ||
+                !formData.phone.trim() ||
+                !isValidPhone(String(formData.phone).trim()) ||
+                !formData.message.trim()
+              }
             >
               {sending ? (
                 <>
