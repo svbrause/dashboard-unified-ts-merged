@@ -593,38 +593,6 @@ export default function TreatmentRecommenderByTreatment({
     return [...skincare, ...rest];
   }, [combinedFindings, filterState.sameDayAddOn, filterState.region, client.skincareQuiz?.recommendedProductNames]);
 
-  /** Suggestions from facial analysis (for top "Recommended for you" section). */
-  const facialAnalysisSuggestions = useMemo(
-    () => getSuggestedTreatmentsForFindings(combinedFindings),
-    [combinedFindings]
-  );
-
-  /** Group facial analysis suggestions by treatment (one card per treatment with multiple findings). */
-  const facialAnalysisByTreatment = useMemo(() => {
-    const map = new Map<
-      string,
-      { findings: string[]; goal: string; region: string }
-    >();
-    for (const s of facialAnalysisSuggestions) {
-      const existing = map.get(s.treatment);
-      if (!existing) {
-        map.set(s.treatment, {
-          findings: [s.exampleFinding],
-          goal: s.goal,
-          region: s.region,
-        });
-      } else {
-        if (!existing.findings.includes(s.exampleFinding)) {
-          existing.findings.push(s.exampleFinding);
-        }
-      }
-    }
-    return Array.from(map.entries()).map(([treatment, data]) => ({
-      treatment,
-      ...data,
-    }));
-  }, [facialAnalysisSuggestions]);
-
   const openAddToPlanAndScroll = (treatment: string, prefill?: Partial<{
     skincareWhat: string[];
     where: string[];

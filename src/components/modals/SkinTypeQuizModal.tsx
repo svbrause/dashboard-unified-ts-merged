@@ -11,7 +11,6 @@ import {
   SKIN_TYPE_QUIZ,
   buildSkincareQuizPayload,
   computeQuizProfile,
-  computeQuizScores,
   getResultSummary,
   SKIN_TYPE_SCORE_ORDER,
   SKIN_TYPE_DISPLAY_LABELS,
