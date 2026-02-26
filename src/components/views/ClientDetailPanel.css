@@ -729,6 +729,7 @@
   color: var(--theme-text-primary, #212121);
   font-size: 0.75rem;
   transition: border-color 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 
 .client-detail-panel .skin-analysis-product-chip:hover {
@@ -756,7 +757,7 @@
 }
 
 .client-detail-panel .skin-analysis-product-chip-name {
-  max-width: 120px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

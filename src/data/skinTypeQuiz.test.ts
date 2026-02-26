@@ -20,6 +20,7 @@ describe("skinTypeQuiz", () => {
         combination: 0,
         normal: 0,
         sensitive: 0,
+        pigmentation: 0,
       });
     });
 
@@ -54,7 +55,7 @@ describe("skinTypeQuiz", () => {
     it("returns primary and scores", () => {
       const profile = computeQuizProfile({});
       expect(profile.primary).toBeDefined();
-      expect(["oily", "dry", "combination", "normal", "sensitive"]).toContain(
+      expect(["oily", "dry", "combination", "normal", "sensitive", "pigmentation"]).toContain(
         profile.primary
       );
       expect(profile.scores).toHaveProperty("oily");
@@ -93,7 +94,7 @@ describe("skinTypeQuiz", () => {
 
   describe("getRecommendedProductsForSkinType", () => {
     it("returns array of product names for each type", () => {
-      const types: SkinTypeId[] = ["oily", "dry", "combination", "normal", "sensitive"];
+      const types: SkinTypeId[] = ["oily", "dry", "combination", "normal", "sensitive", "pigmentation"];
       for (const t of types) {
         const products = getRecommendedProductsForSkinType(t);
         expect(Array.isArray(products)).toBe(true);

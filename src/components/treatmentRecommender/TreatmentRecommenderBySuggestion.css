@@ -521,7 +521,7 @@
 }
 
 .treatment-recommender-skin-analysis__chip-name {
-  max-width: 120px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

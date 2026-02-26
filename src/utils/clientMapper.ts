@@ -376,7 +376,7 @@ export function mapRecordToClient(
         const o = parsed as Record<string, unknown>;
         if (o.version !== 1 || typeof o.completedAt !== "string") return undefined;
         if (!o.answers || typeof o.answers !== "object") return undefined;
-        const validResults = ["oily", "dry", "combination", "normal", "sensitive"];
+        const validResults = ["oily", "dry", "combination", "normal", "sensitive", "pigmentation"];
         if (typeof o.result !== "string" || !validResults.includes(o.result))
           return undefined;
         return {

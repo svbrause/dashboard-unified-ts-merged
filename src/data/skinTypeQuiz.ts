@@ -13,7 +13,8 @@ export type SkinTypeId =
   | "dry"
   | "combination"
   | "normal"
-  | "sensitive";
+  | "sensitive"
+  | "pigmentation";
 
 /** One answer option: label and how it affects each skin type score (optional weight, default 1). */
 export interface QuizAnswer {
@@ -211,11 +212,11 @@ export const SKIN_TYPE_QUIZ: SkinTypeQuizData = {
       answers: [
         {
           label: "Almost always get a dark mark that lasts months",
-          scores: { sensitive: 1 },
+          scores: { pigmentation: 2 },
         },
         {
           label: "Sometimes get marks that fade slowly",
-          scores: { normal: 2 },
+          scores: { pigmentation: 1, normal: 1 },
         },
         {
           label: "Occasionally get marks that fade within a few weeks",
@@ -231,11 +232,11 @@ export const SKIN_TYPE_QUIZ: SkinTypeQuizData = {
       answers: [
         {
           label: "Very uneven with many dark spots or patches",
-          scores: { sensitive: 1 },
+          scores: { pigmentation: 2 },
         },
         {
           label: "Somewhat uneven with some spots",
-          scores: { normal: 2 },
+          scores: { pigmentation: 1, normal: 1 },
         },
         {
           label: "Mostly even with few to no spots",
@@ -251,11 +252,11 @@ export const SKIN_TYPE_QUIZ: SkinTypeQuizData = {
       answers: [
         {
           label: "Many freckles, sun spots, or melasma",
-          scores: { sensitive: 1 },
+          scores: { pigmentation: 2 },
         },
         {
           label: "Some freckles or spots",
-          scores: { normal: 2 },
+          scores: { pigmentation: 1, normal: 1 },
         },
         {
           label: "Occasional light freckling",
@@ -271,11 +272,11 @@ export const SKIN_TYPE_QUIZ: SkinTypeQuizData = {
       answers: [
         {
           label: "Many relatives with melasma, sun spots, or uneven skin tone",
-          scores: { sensitive: 1 },
+          scores: { pigmentation: 2 },
         },
         {
           label: "Some relatives with pigmentation issues",
-          scores: { normal: 2 },
+          scores: { pigmentation: 1, normal: 1 },
         },
         {
           label: "Few relatives with these issues",
@@ -294,11 +295,11 @@ export const SKIN_TYPE_QUIZ: SkinTypeQuizData = {
       answers: [
         {
           label: "You burn and develop uneven pigmentation",
-          scores: { sensitive: 1 },
+          scores: { pigmentation: 2 },
         },
         {
           label: "You tan unevenly with some spots",
-          scores: { normal: 2 },
+          scores: { pigmentation: 1, normal: 1 },
         },
         {
           label: "You tan fairly evenly",
@@ -343,16 +344,22 @@ export const SKIN_TYPE_QUIZ: SkinTypeQuizData = {
       description:
         "Your skin reacts easily to new products, fragrance, or environmental factors (wind, cold, sun). Choose fragrance-free, soothing formulas and patch-test new products. Strengthening the barrier can help over time.",
     },
+    pigmentation: {
+      label: "Pigmentation",
+      description:
+        "Your skin is prone to dark spots, post-inflammatory marks, sun spots, or uneven tone. Daily broad-spectrum sunscreen, vitamin C or brightening antioxidants, and gentle exfoliation can help even and protect. Avoid picking and treat any inflammation gently to reduce lasting marks.",
+    },
   },
 };
 
-/** Display labels for the five score axes (used on results screen). */
+/** Display labels for the score axes (used on results screen). */
 export const SKIN_TYPE_DISPLAY_LABELS: Record<SkinTypeId, string> = {
   oily: "Oiliness",
   dry: "Dryness",
   combination: "T-zone / combination",
   normal: "Balance",
   sensitive: "Sensitivity",
+  pigmentation: "Pigmentation",
 };
 
 /** Gemstone Skin Type name and tagline for results hero (e.g. "QUARTZ 💎 Clear and resilient"). */
@@ -365,6 +372,7 @@ export const GEMSTONE_BY_SKIN_TYPE: Record<
   combination: { name: "Topaz", tagline: "Balanced and radiant" },
   normal: { name: "Diamond", tagline: "Clear and balanced" },
   sensitive: { name: "Rose Quartz", tagline: "Calm and soothed" },
+  pigmentation: { name: "Moonstone", tagline: "Even and luminous" },
 };
 
 /** One step in a routine: label shown to user + full product names for lookup in boutique. */
@@ -716,6 +724,74 @@ export const ROUTINE_NOTES_BY_SKIN_TYPE: Partial<
       ],
     },
   },
+  pigmentation: {
+    am: [
+      {
+        label: "Gentle Cleanser or Simply Clean",
+        productNames: [
+          "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+          "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
+        ],
+      },
+      {
+        label: "C E Ferulic or Phloretin CF",
+        productNames: [
+          "SkinCeuticals C E Ferulic | Antioxidant Vitamin C Serum for Brightening & Anti-Aging",
+          "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
+        ],
+      },
+      {
+        label: "Discoloration Defense or Phyto A+ (if needed)",
+        productNames: [
+          "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
+          "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin",
+        ],
+      },
+      {
+        label: "On The Daily SPF 45 or Let's Get Physical Tinted SPF 44",
+        productNames: [
+          "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+          "The Treatment Let's Get Physical Tinted SPF 44 | Lightweight Tinted Sunscreen with Broad Spectrum Protection",
+        ],
+      },
+    ],
+    pm: [
+      {
+        label: "Gentle Cleanser or Simply Clean",
+        productNames: [
+          "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+          "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
+        ],
+      },
+      {
+        label: "Retinol 0.3 or 0.5",
+        productNames: [
+          "SkinCeuticals Retinol 0.3% | Anti-Aging Serum for Wrinkles & Skin Renewal",
+          "SkinCeuticals Retinol 0.5% | Anti-Aging Serum for Wrinkles & Skin Renewal",
+        ],
+      },
+      {
+        label: "Discoloration Defense or Phyto A+",
+        productNames: [
+          "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
+          "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin",
+        ],
+      },
+      {
+        label: "Triple Lipid Restore or Daily Moisture",
+        productNames: [
+          "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
+          "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
+        ],
+      },
+    ],
+    optional: {
+      label: "Glycolic 10 Renew Overnight 1–2×/week",
+      productNames: [
+        "SkinCeuticals Glycolic 10 Renew Overnight | Exfoliating Night Serum for Smoother, Radiant Skin",
+      ],
+    },
+  },
 };
 
 /** In-person treatment recommendations per skin type for "Your personalized treatment recommendations" section. */
@@ -767,6 +843,15 @@ export const TREATMENT_RECOMMENDATIONS_BY_SKIN_TYPE: Partial<
       "PRP – Natural healing and rejuvenation",
     ],
   },
+  pigmentation: {
+    heading: "Even tone and brightening",
+    items: [
+      "Chemical peels – Brightening, pigment-correcting",
+      "BBL/IPL – Target sun damage and sun spots",
+      "Microneedling with brightening serums – Improve texture and tone",
+      "Hydrafacial – Gentle exfoliation and infusion of brightening ingredients",
+    ],
+  },
 };
 
 /** Short advice line when this type appears as a secondary tendency. */
@@ -776,6 +861,8 @@ export const SECONDARY_TENDENCY_ADVICE: Partial<Record<SkinTypeId, string>> = {
   combination: "You may benefit from using different products on the T-zone vs cheeks.",
   normal: "Keep a simple, consistent routine to maintain balance.",
   sensitive: "Patch-test new products and favor fragrance-free, soothing options.",
+  pigmentation:
+    "Wear daily broad-spectrum SPF and consider vitamin C or brightening serums to support even tone.",
 };
 
 // ---------------------------------------------------------------------------
@@ -789,6 +876,7 @@ export const SKIN_TYPE_SCORE_ORDER: SkinTypeId[] = [
   "combination",
   "normal",
   "sensitive",
+  "pigmentation",
 ];
 
 /**
@@ -805,6 +893,7 @@ export function computeQuizScores(
     combination: 0,
     normal: 0,
     sensitive: 0,
+    pigmentation: 0,
   };
   for (const q of SKIN_TYPE_QUIZ.questions) {
     const answerIndex = answersByQuestionId[q.id];
@@ -821,7 +910,7 @@ export function computeQuizScores(
 /**
  * Compute skin type result from quiz answers.
  * @param answersByQuestionId Map of question id → selected answer index (0-based)
- * @returns The skin type with the highest total score; ties broken by order: oily < dry < combination < normal < sensitive
+ * @returns The skin type with the highest total score; ties broken by order: oily < dry < combination < normal < sensitive < pigmentation
  */
 export function computeQuizResult(
   answersByQuestionId: Record<string, number>
@@ -930,6 +1019,15 @@ export const SKIN_TYPE_TO_PRODUCTS: Record<SkinTypeId, string[]> = {
     "SkinCeuticals Redness Neutralizer | Soothing Serum for Sensitive & Redness-Prone Skin",
     "SkinCeuticals Epidermal Repair | Calming Therapeutic Treatment for Compromised or Sensitive Skin",
   ],
+  pigmentation: [
+    "SkinCeuticals C E Ferulic | Antioxidant Vitamin C Serum for Brightening & Anti-Aging",
+    "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
+    "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
+    "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin",
+    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+    "SkinCeuticals Serum 10 AOX | Antioxidant Serum with 10% Vitamin C for Brightening & Protection",
+    "SkinCeuticals Glycolic 10 Renew Overnight | Exfoliating Night Serum for Smoother, Radiant Skin",
+  ],
 };
 
 /**
@@ -983,6 +1081,16 @@ export const RECOMMENDED_PRODUCT_REASONS: Record<string, string> = {
     "Redness & sensitivity",
   "SkinCeuticals Epidermal Repair | Calming Therapeutic Treatment for Compromised or Sensitive Skin":
     "Calming & barrier repair",
+  "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone":
+    "Even tone & environmental protection",
+  "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone":
+    "Dark spots & uneven tone",
+  "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin":
+    "Brightening & even tone",
+  "SkinCeuticals Serum 10 AOX | Antioxidant Serum with 10% Vitamin C for Brightening & Protection":
+    "Vitamin C brightening & protection",
+  "SkinCeuticals Glycolic 10 Renew Overnight | Exfoliating Night Serum for Smoother, Radiant Skin":
+    "Gentle exfoliation & radiance",
 };
 
 /**

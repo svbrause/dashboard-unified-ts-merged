@@ -19,7 +19,9 @@ import {
   RECOMMENDED_PRODUCT_REASONS,
 } from "../../data/skinTypeQuiz";
 import { getSkincareCarouselItems } from "../modals/DiscussedTreatmentsModal/constants";
+import SkinQuizProductModal, { type SkinQuizProduct } from "../modals/SkinQuizProductModal";
 import "../modals/SkinTypeQuizModal.css";
+import "../modals/SkinQuizProductModal.css";
 import "./SkinQuizStandalonePage.css";
 
 const TOTAL_QUESTIONS = SKIN_TYPE_QUIZ.questions.length;
@@ -32,6 +34,7 @@ export default function SkinQuizStandalonePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<SkinQuizProduct | null>(null);
 
   useEffect(() => {
     if (!params) setPhase("invalid");
@@ -93,10 +96,14 @@ export default function SkinQuizStandalonePage() {
         imageUrl: item?.imageUrl,
         productUrl: item?.productUrl,
         recommendedFor: RECOMMENDED_PRODUCT_REASONS[name] ?? "Recommended for your skin type",
+        description: item?.description,
+        price: item?.price,
+        imageUrls: item?.imageUrls,
       };
     }) ?? [];
 
   return (
+    <>
     <div className="skin-quiz-standalone">
       <div className="skin-quiz-standalone__card">
         {phase === "intro" && (
@@ -229,18 +236,20 @@ export default function SkinQuizStandalonePage() {
                             const stepProducts = step.productNames
                               .map((name) => {
                                 const item = carouselItems.find((p) => p.name === name);
-                                return item ? { name, imageUrl: item.imageUrl, productUrl: item.productUrl } : null;
+                                return item
+                                  ? { name, imageUrl: item.imageUrl, productUrl: item.productUrl, recommendedFor: RECOMMENDED_PRODUCT_REASONS[name], description: item.description, price: item.price, imageUrls: item.imageUrls }
+                                  : null;
                               })
-                              .filter(Boolean) as { name: string; imageUrl?: string; productUrl?: string }[];
+                              .filter(Boolean) as SkinQuizProduct[];
                             return (
                               <li key={i} className="skin-type-quiz-routine-step">
                                 <span className="skin-type-quiz-routine-step-label">{step.label}</span>
                                 <div className="skin-type-quiz-routine-step-products">
                                   {stepProducts.map((p, j) => (
-                                    <a key={j} href={p.productUrl} target="_blank" rel="noopener noreferrer" className="skin-type-quiz-routine-product-chip">
+                                    <button key={j} type="button" className="skin-type-quiz-routine-product-chip" onClick={() => setSelectedProduct(p)}>
                                       {p.imageUrl ? <img src={p.imageUrl} alt="" className="skin-type-quiz-routine-product-thumb" /> : <span className="skin-type-quiz-routine-product-placeholder">◆</span>}
                                       <span className="skin-type-quiz-routine-product-name">{p.name.split("|")[0]?.trim() ?? p.name}</span>
-                                    </a>
+                                    </button>
                                   ))}
                                 </div>
                               </li>
@@ -255,18 +264,20 @@ export default function SkinQuizStandalonePage() {
                             const stepProducts = step.productNames
                               .map((name) => {
                                 const item = carouselItems.find((p) => p.name === name);
-                                return item ? { name, imageUrl: item.imageUrl, productUrl: item.productUrl } : null;
+                                return item
+                                  ? { name, imageUrl: item.imageUrl, productUrl: item.productUrl, recommendedFor: RECOMMENDED_PRODUCT_REASONS[name], description: item.description, price: item.price, imageUrls: item.imageUrls }
+                                  : null;
                               })
-                              .filter(Boolean) as { name: string; imageUrl?: string; productUrl?: string }[];
+                              .filter(Boolean) as SkinQuizProduct[];
                             return (
                               <li key={i} className="skin-type-quiz-routine-step">
                                 <span className="skin-type-quiz-routine-step-label">{step.label}</span>
                                 <div className="skin-type-quiz-routine-step-products">
                                   {stepProducts.map((p, j) => (
-                                    <a key={j} href={p.productUrl} target="_blank" rel="noopener noreferrer" className="skin-type-quiz-routine-product-chip">
+                                    <button key={j} type="button" className="skin-type-quiz-routine-product-chip" onClick={() => setSelectedProduct(p)}>
                                       {p.imageUrl ? <img src={p.imageUrl} alt="" className="skin-type-quiz-routine-product-thumb" /> : <span className="skin-type-quiz-routine-product-placeholder">◆</span>}
                                       <span className="skin-type-quiz-routine-product-name">{p.name.split("|")[0]?.trim() ?? p.name}</span>
-                                    </a>
+                                    </button>
                                   ))}
                                 </div>
                               </li>
@@ -296,9 +307,13 @@ export default function SkinQuizStandalonePage() {
                           <div className="skin-type-quiz-product-card-body">
                             <div className="skin-type-quiz-product-card-reason">Recommended for: {product.recommendedFor}</div>
                             <div className="skin-type-quiz-product-card-name">{product.name}</div>
-                            {product.productUrl && (
-                              <a href={product.productUrl} target="_blank" rel="noopener noreferrer" className="skin-type-quiz-product-card-link">View product →</a>
-                            )}
+                            <button
+                              type="button"
+                              className="skin-type-quiz-product-card-link"
+                              onClick={() => setSelectedProduct(product)}
+                            >
+                              View product →
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -323,5 +338,12 @@ export default function SkinQuizStandalonePage() {
         )}
       </div>
     </div>
+    {selectedProduct && (
+      <SkinQuizProductModal
+        product={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+      />
+    )}
+    </>
   );
 }

@@ -155,7 +155,7 @@ export interface SkincareQuizData {
   /** Question id → selected answer index (0-based). */
   answers: Record<string, number>;
   /** Computed skin type from quiz scoring. */
-  result: "oily" | "dry" | "combination" | "normal" | "sensitive";
+  result: "oily" | "dry" | "combination" | "normal" | "sensitive" | "pigmentation";
   /** Recommended product names (optional; can be recomputed from result via getRecommendedProductsForSkinType). */
   recommendedProductNames?: string[];
   /** Human-readable result label (e.g. "Normal with sensitive tendency"). */

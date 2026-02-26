@@ -113,11 +113,14 @@ export const SKINCARE_PRODUCTS = [
   "Other",
 ];
 
-/** Skincare carousel items: name + optional image URL (same order as SKINCARE_PRODUCTS) */
+/** Skincare carousel items: name + optional image URL + optional description, price, imageUrls (same order as SKINCARE_PRODUCTS) */
 export function getSkincareCarouselItems(): {
   name: string;
   imageUrl?: string;
   productUrl?: string;
+  description?: string;
+  price?: string;
+  imageUrls?: string[];
 }[] {
   return [
     ...TREATMENT_BOUTIQUE_SKINCARE.map(
@@ -125,6 +128,9 @@ export function getSkincareCarouselItems(): {
         name: p.name,
         imageUrl: p.imageUrl,
         productUrl: p.productUrl,
+        description: p.description,
+        price: p.price,
+        imageUrls: p.imageUrls,
       })
     ),
     { name: "Other" },
@@ -852,8 +858,12 @@ export const REGION_OPTIONS = [
   "Other",
 ];
 export const TIMELINE_OPTIONS = ["Now", "Add next visit", "Wishlist", "Completed"];
-/** Plan sections in display order (Now top, Completed bottom). */
+/** Timeline value for skincare items; they are shown in a single "Skincare" section, not by visit timing. */
+export const TIMELINE_SKINCARE = "Skincare";
+/** Plan sections in display order (Now top, Completed bottom). Skincare is a separate category rendered first when present. */
 export const PLAN_SECTIONS = ["Now", "Add next visit", "Wishlist", "Completed"] as const;
+/** Section label for the dedicated skincare products block (all skincare items in one list). */
+export const SKINCARE_SECTION_LABEL = "Skincare";
 
 /** Skincare "What" options for treatment explorer quick-add (product/type selector). */
 export const SKINCARE_QUICK_ADD_WHAT_OPTIONS = [

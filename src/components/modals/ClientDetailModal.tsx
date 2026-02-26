@@ -31,12 +31,14 @@ import type { TreatmentPlanPrefill } from "./DiscussedTreatmentsModal/TreatmentP
 import TreatmentRecommenderByTreatment from "../treatmentRecommender/TreatmentRecommenderByTreatment";
 import TreatmentRecommenderBySuggestion from "../treatmentRecommender/TreatmentRecommenderBySuggestion";
 import SkinTypeQuizModal from "./SkinTypeQuizModal";
+import SkinQuizProductModal, { type SkinQuizProduct } from "./SkinQuizProductModal";
 import {
   computeQuizScores,
   computeQuizProfile,
   SKIN_TYPE_DISPLAY_LABELS,
   SKIN_TYPE_SCORE_ORDER,
   GEMSTONE_BY_SKIN_TYPE,
+  RECOMMENDED_PRODUCT_REASONS,
 } from "../../data/skinTypeQuiz";
 import {
   formatTreatmentPlanRecordMetaLine,
@@ -45,6 +47,7 @@ import {
 } from "./DiscussedTreatmentsModal/utils";
 import {
   PLAN_SECTIONS,
+  SKINCARE_SECTION_LABEL,
   AIRTABLE_FIELD,
   getSkincareCarouselItems,
 } from "./DiscussedTreatmentsModal/constants";
@@ -118,6 +121,7 @@ export default function ClientDetailModal({
     "by-treatment" | "by-suggestion" | null
   >(null);
   const [showSkinTypeQuiz, setShowSkinTypeQuiz] = useState(false);
+  const [selectedSkinProduct, setSelectedSkinProduct] = useState<SkinQuizProduct | null>(null);
   const scanDropdownRef = useRef<HTMLDivElement>(null);
   const treatmentPlanModalClosedRef = useRef<(() => void) | null>(null);
 
@@ -453,6 +457,18 @@ export default function ClientDetailModal({
                 setInitialEditingItem(item);
                 setInitialAddFormPrefill(null);
                 setShowDiscussedTreatments(true);
+              }}
+              onRemovePlanItem={async (itemId) => {
+                const nextItems = (client.discussedItems || []).filter((i) => i.id !== itemId);
+                try {
+                  await updateLeadRecord(client.id, client.tableSource, {
+                    [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+                  });
+                  showToast("Removed from plan");
+                  onUpdate();
+                } catch (e) {
+                  showError(e instanceof Error ? e.message : "Failed to remove");
+                }
               }}
               treatmentPlanModalClosedRef={treatmentPlanModalClosedRef}
             />
@@ -1142,53 +1158,45 @@ export default function ClientDetailModal({
                     {client.discussedItems &&
                     client.discussedItems.length > 0 ? (
                       <div className="discussed-treatments-plan-sections-outer">
-                        {PLAN_SECTIONS.map((sectionLabel) => {
-                          const sectionItems = (client.discussedItems || [])
-                            .filter((item) => {
-                              const t = item.timeline?.trim();
-                              if (sectionLabel === "Now") return t === "Now";
-                              if (sectionLabel === "Add next visit")
-                                return t === "Add next visit";
-                              if (sectionLabel === "Completed")
-                                return t === "Completed";
-                              return t === "Wishlist" || !t; // Wishlist or empty
-                            })
-                            .sort((a, b) =>
-                              (a.treatment || "").localeCompare(
-                                b.treatment || "",
-                              ),
-                            );
-                          if (sectionItems.length === 0) return null;
-                          return (
-                            <div
-                              key={sectionLabel}
-                              className="discussed-treatments-plan-section-outer"
-                            >
-                              <h4 className="discussed-treatments-plan-section-title-outer">
-                                {sectionLabel}
-                              </h4>
-                              <div className="discussed-treatments-records-list-outer">
-                                {sectionItems.map((item) => (
-                                  <div
-                                    key={item.id}
-                                    className="discussed-treatments-record-row-outer discussed-treatments-record-row-heading-meta"
-                                  >
-                                    <div className="discussed-treatments-record-treatment-heading-outer">
-                                      {getTreatmentDisplayName(item)}
-                                    </div>
-                                    {formatTreatmentPlanRecordMetaLine(item) ? (
-                                      <div className="discussed-treatments-record-meta-line-outer">
-                                        {formatTreatmentPlanRecordMetaLine(
-                                          item,
-                                        )}
+                        {(() => {
+                          const items = client.discussedItems || [];
+                          const skincareItems = items.filter((i) => i.treatment?.trim() === "Skincare").sort((a, b) => (a.product || "").localeCompare(b.product || ""));
+                          const hasSkincare = skincareItems.length > 0;
+                          const sectionLabels = hasSkincare ? [SKINCARE_SECTION_LABEL, ...PLAN_SECTIONS] : [...PLAN_SECTIONS];
+                          return sectionLabels.map((sectionLabel) => {
+                            const sectionItems =
+                              sectionLabel === SKINCARE_SECTION_LABEL
+                                ? skincareItems
+                                : (client.discussedItems || []).filter((item) => {
+                                    if (item.treatment?.trim() === "Skincare") return false;
+                                    const t = item.timeline?.trim();
+                                    if (sectionLabel === "Now") return t === "Now";
+                                    if (sectionLabel === "Add next visit") return t === "Add next visit";
+                                    if (sectionLabel === "Completed") return t === "Completed";
+                                    return t === "Wishlist" || !t;
+                                  }).sort((a, b) => (a.treatment || "").localeCompare(b.treatment || ""));
+                            if (sectionItems.length === 0) return null;
+                            return (
+                              <div key={sectionLabel} className="discussed-treatments-plan-section-outer">
+                                <h4 className="discussed-treatments-plan-section-title-outer">{sectionLabel}</h4>
+                                <div className="discussed-treatments-records-list-outer">
+                                  {sectionItems.map((item) => (
+                                    <div key={item.id} className="discussed-treatments-record-row-outer discussed-treatments-record-row-heading-meta">
+                                      <div className="discussed-treatments-record-treatment-heading-outer">
+                                        {getTreatmentDisplayName(item)}
                                       </div>
-                                    ) : null}
-                                  </div>
-                                ))}
+                                      {formatTreatmentPlanRecordMetaLine(item) ? (
+                                        <div className="discussed-treatments-record-meta-line-outer">
+                                          {formatTreatmentPlanRecordMetaLine(item)}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          });
+                        })()}
                       </div>
                     ) : (
                       <span className="discussed-treatments-in-facial-summary">
@@ -1280,23 +1288,32 @@ export default function ClientDetailModal({
                     {client.skincareQuiz.recommendedProductNames &&
                       client.skincareQuiz.recommendedProductNames.length > 0 && (() => {
                         const carouselItems = getSkincareCarouselItems();
-                        const products = client.skincareQuiz!.recommendedProductNames!
+                        const products: SkinQuizProduct[] = client.skincareQuiz!.recommendedProductNames!
                           .map((name) => {
                             const item = carouselItems.find((p) => p.name === name);
-                            return item ? { name, imageUrl: item.imageUrl, productUrl: item.productUrl } : null;
+                            return item
+                              ? {
+                                  name,
+                                  imageUrl: item.imageUrl,
+                                  productUrl: item.productUrl,
+                                  recommendedFor: RECOMMENDED_PRODUCT_REASONS[name],
+                                  description: item.description,
+                                  price: item.price,
+                                  imageUrls: item.imageUrls,
+                                }
+                              : null;
                           })
-                          .filter(Boolean) as { name: string; imageUrl?: string; productUrl?: string }[];
+                          .filter(Boolean) as SkinQuizProduct[];
                         return (
                           <div className="skin-analysis-products">
                             <span className="skin-analysis-products-label">Recommended products</span>
                             <div className="skin-analysis-product-chips">
                               {products.map((p, idx) => (
-                                <a
+                                <button
                                   key={idx}
-                                  href={p.productUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                  type="button"
                                   className="skin-analysis-product-chip"
+                                  onClick={() => setSelectedSkinProduct(p)}
                                 >
                                   {p.imageUrl ? (
                                     <img src={p.imageUrl} alt="" className="skin-analysis-product-chip-thumb" />
@@ -1306,7 +1323,7 @@ export default function ClientDetailModal({
                                   <span className="skin-analysis-product-chip-name">
                                     {p.name.split("|")[0]?.trim() ?? p.name}
                                   </span>
-                                </a>
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -1547,6 +1564,53 @@ export default function ClientDetailModal({
           onClose={() => setShowSkinTypeQuiz(false)}
           onSuccess={onUpdate}
           savedQuiz={client.skincareQuiz ?? undefined}
+          onAddToPlan={async (prefill) => {
+            const newItem: DiscussedItem = {
+              id: generateId(),
+              addedAt: new Date().toISOString(),
+              interest: prefill.interest?.trim() || undefined,
+              findings: prefill.findings?.length ? prefill.findings : undefined,
+              treatment: prefill.treatment?.trim() || "",
+              product: prefill.treatmentProduct?.trim() || undefined,
+              region: prefill.region?.trim() || undefined,
+              timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+              quantity: prefill.quantity?.trim() || undefined,
+              notes: prefill.notes?.trim() || undefined,
+            };
+            const nextItems = [...(client.discussedItems || []), newItem];
+            await updateLeadRecord(client.id, client.tableSource, {
+              [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+            });
+            showToast("Added to treatment plan");
+            onUpdate();
+          }}
+        />
+      )}
+      {selectedSkinProduct && client && (
+        <SkinQuizProductModal
+          product={selectedSkinProduct}
+          onClose={() => setSelectedSkinProduct(null)}
+          onAddToPlan={async (prefill) => {
+            const newItem: DiscussedItem = {
+              id: generateId(),
+              addedAt: new Date().toISOString(),
+              interest: prefill.interest?.trim() || undefined,
+              findings: prefill.findings?.length ? prefill.findings : undefined,
+              treatment: prefill.treatment?.trim() || "",
+              product: prefill.treatmentProduct?.trim() || undefined,
+              region: prefill.region?.trim() || undefined,
+              timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+              quantity: prefill.quantity?.trim() || undefined,
+              notes: prefill.notes?.trim() || undefined,
+            };
+            const nextItems = [...(client.discussedItems || []), newItem];
+            await updateLeadRecord(client.id, client.tableSource, {
+              [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+            });
+            showToast("Added to treatment plan");
+            setSelectedSkinProduct(null);
+            onUpdate();
+          }}
         />
       )}
       {showDiscussedTreatments && client && (

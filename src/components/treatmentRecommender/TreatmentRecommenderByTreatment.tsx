@@ -42,7 +42,9 @@ import {
 import {
   REGION_OPTIONS,
   TIMELINE_OPTIONS,
+  TIMELINE_SKINCARE,
   PLAN_SECTIONS,
+  SKINCARE_SECTION_LABEL,
   LASER_DEVICES,
   TREATMENT_PRODUCT_OPTIONS,
   getSkincareCarouselItems,
@@ -52,6 +54,10 @@ import {
 import {
   GEMSTONE_BY_SKIN_TYPE,
   RECOMMENDED_PRODUCT_REASONS,
+  computeQuizScores,
+  computeQuizProfile,
+  SKIN_TYPE_DISPLAY_LABELS,
+  SKIN_TYPE_SCORE_ORDER,
 } from "../../data/skinTypeQuiz";
 import { showToast } from "../../utils/toast";
 import type { TreatmentPlanPrefill } from "../modals/DiscussedTreatmentsModal/TreatmentPhotos";
@@ -340,6 +346,8 @@ export interface TreatmentRecommenderByTreatmentProps {
   onOpenTreatmentPlanWithPrefill?: (prefill: TreatmentPlanPrefill) => void;
   /** Open the treatment plan modal with this item selected for editing ("Add additional details"). */
   onOpenTreatmentPlanWithItem?: (item: DiscussedItem) => void;
+  /** Remove a plan item directly (e.g. from the left column X). Called with item id. */
+  onRemovePlanItem?: (itemId: string) => void | Promise<void>;
   /** Ref set by parent; when treatment plan modal closes, parent will call this so we clear "just added" state. */
   treatmentPlanModalClosedRef?: React.MutableRefObject<(() => void) | null>;
 }
@@ -352,6 +360,7 @@ export default function TreatmentRecommenderByTreatment({
   onOpenTreatmentPlan,
   onOpenTreatmentPlanWithPrefill,
   onOpenTreatmentPlanWithItem,
+  onRemovePlanItem,
   treatmentPlanModalClosedRef,
 }: TreatmentRecommenderByTreatmentProps) {
   const { provider } = useDashboard();
@@ -408,6 +417,14 @@ export default function TreatmentRecommenderByTreatment({
   const [frontPhotoUrl, setFrontPhotoUrl] = useState<string | null>(null);
   const [sidePhotoUrl, setSidePhotoUrl] = useState<string | null>(null);
   const [showClientPhotoModal, setShowClientPhotoModal] = useState(false);
+  /** Skincare recommendations section (quiz result + product cards) collapsed by default */
+  const [
+    skincareRecommendationsCollapsed,
+    setSkincareRecommendationsCollapsed,
+  ] = useState(true);
+  /** Score breakdown (skin quiz bars) inside skincare section – collapsed by default */
+  const [skincareScoreBreakdownCollapsed, setSkincareScoreBreakdownCollapsed] =
+    useState(true);
   /** Refs to treatment cards for scroll-into-view when opening Add to plan from recommended section */
   const cardRefsMap = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -720,6 +737,40 @@ export default function TreatmentRecommenderByTreatment({
     client.skincareQuiz?.recommendedProductNames,
   ]);
 
+  /** Treatment cards to show: exclude Skincare from the list when client has completed the skin quiz (Skincare lives only in the collapsible recommendations block). */
+  const treatmentsToShow = useMemo(() => {
+    const hasCompletedSkinQuiz = Boolean(
+      client.skincareQuiz?.completedAt ?? client.skincareQuiz?.result,
+    );
+    return hasCompletedSkinQuiz
+      ? suggestedTreatments.filter((t) => t !== "Skincare")
+      : suggestedTreatments;
+  }, [
+    suggestedTreatments,
+    client.skincareQuiz?.completedAt,
+    client.skincareQuiz?.result,
+  ]);
+
+  /** Skincare product details for the recommendations section (same shape as quiz modal cards) */
+  const skincareRecommendedWithDetails = useMemo(() => {
+    const names = client.skincareQuiz?.recommendedProductNames ?? [];
+    if (names.length === 0) return [];
+    const carouselItems = getSkincareCarouselItems();
+    return names.map((name) => {
+      const item = carouselItems.find((p) => p.name === name);
+      return {
+        name,
+        imageUrl: item?.imageUrl,
+        productUrl: item?.productUrl,
+        recommendedFor:
+          RECOMMENDED_PRODUCT_REASONS[name] ?? "Recommended for your skin type",
+        description: item?.description,
+        price: item?.price,
+        imageUrls: item?.imageUrls,
+      };
+    });
+  }, [client.skincareQuiz?.recommendedProductNames]);
+
   const openAddToPlanAndScroll = (
     treatment: string,
     prefill?: Partial<{
@@ -887,29 +938,45 @@ export default function TreatmentRecommenderByTreatment({
   const hasFront = frontPhotoUrl != null;
   const hasSide = sidePhotoUrl != null;
 
-  /** Plan items grouped by section (same order as treatment plan builder left column). */
+  /** Plan items grouped by section (Skincare first when present, then Now, Add next visit, Wishlist, Completed). */
   const planItemsBySection = useMemo(() => {
     const items = client.discussedItems ?? [];
+    const skincare: DiscussedItem[] = [];
     const now: DiscussedItem[] = [];
     const addNext: DiscussedItem[] = [];
     const wishlist: DiscussedItem[] = [];
     const completed: DiscussedItem[] = [];
     for (const item of items) {
-      const t = item.timeline?.trim();
-      if (t === "Now") now.push(item);
-      else if (t === "Add next visit") addNext.push(item);
-      else if (t === "Completed") completed.push(item);
-      else wishlist.push(item);
+      if (item.treatment?.trim() === "Skincare") {
+        skincare.push(item);
+      } else {
+        const t = item.timeline?.trim();
+        if (t === "Now") now.push(item);
+        else if (t === "Add next visit") addNext.push(item);
+        else if (t === "Completed") completed.push(item);
+        else wishlist.push(item);
+      }
     }
     const byTreatment = (a: DiscussedItem, b: DiscussedItem) =>
       (a.treatment || "").localeCompare(b.treatment || "");
+    const byProduct = (a: DiscussedItem, b: DiscussedItem) =>
+      (a.product || "").localeCompare(b.product || "");
     return {
+      [SKINCARE_SECTION_LABEL]: skincare.sort(byProduct),
       Now: now.sort(byTreatment),
       "Add next visit": addNext.sort(byTreatment),
       Wishlist: wishlist.sort(byTreatment),
       Completed: completed.sort(byTreatment),
     };
   }, [client.discussedItems]);
+
+  const planSectionLabels = useMemo(() => {
+    const hasSkincare =
+      (planItemsBySection[SKINCARE_SECTION_LABEL]?.length ?? 0) > 0;
+    return hasSkincare
+      ? [SKINCARE_SECTION_LABEL, ...PLAN_SECTIONS]
+      : [...PLAN_SECTIONS];
+  }, [planItemsBySection]);
 
   const planItemCount = (client.discussedItems ?? []).length;
   const firstName = client.name?.trim().split(/\s+/)[0] || "Patient";
@@ -984,7 +1051,7 @@ export default function TreatmentRecommenderByTreatment({
             </p>
           ) : (
             <div className="treatment-recommender-by-treatment__plan-list">
-              {PLAN_SECTIONS.map((sectionLabel) => {
+              {planSectionLabels.map((sectionLabel) => {
                 const sectionItems = planItemsBySection[sectionLabel] ?? [];
                 if (sectionItems.length === 0) return null;
                 return (
@@ -996,28 +1063,46 @@ export default function TreatmentRecommenderByTreatment({
                       {sectionLabel}
                     </h4>
                     {sectionItems.map((item) => (
-                      <button
+                      <div
                         key={item.id}
-                        type="button"
-                        className="treatment-recommender-by-treatment__plan-row"
-                        onClick={() => onOpenTreatmentPlanWithItem?.(item)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            onOpenTreatmentPlanWithItem?.(item);
-                          }
-                        }}
-                        aria-label={`Edit ${getTreatmentDisplayName(item)} in plan`}
+                        className="treatment-recommender-by-treatment__plan-row-wrap"
                       >
-                        <span className="treatment-recommender-by-treatment__plan-row-treatment">
-                          {getTreatmentDisplayName(item)}
-                        </span>
-                        {formatTreatmentPlanRecordMetaLine(item) ? (
-                          <span className="treatment-recommender-by-treatment__plan-row-meta">
-                            {formatTreatmentPlanRecordMetaLine(item)}
+                        <button
+                          type="button"
+                          className="treatment-recommender-by-treatment__plan-row"
+                          onClick={() => onOpenTreatmentPlanWithItem?.(item)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onOpenTreatmentPlanWithItem?.(item);
+                            }
+                          }}
+                          aria-label={`Edit ${getTreatmentDisplayName(item)} in plan`}
+                        >
+                          <span className="treatment-recommender-by-treatment__plan-row-treatment">
+                            {getTreatmentDisplayName(item)}
                           </span>
-                        ) : null}
-                      </button>
+                          {formatTreatmentPlanRecordMetaLine(item) ? (
+                            <span className="treatment-recommender-by-treatment__plan-row-meta">
+                              {formatTreatmentPlanRecordMetaLine(item)}
+                            </span>
+                          ) : null}
+                        </button>
+                        {onRemovePlanItem && (
+                          <button
+                            type="button"
+                            className="treatment-recommender-by-treatment__plan-row-remove"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemovePlanItem(item.id);
+                            }}
+                            aria-label={`Remove ${getTreatmentDisplayName(item)} from plan`}
+                            title="Remove from plan"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 );
@@ -1046,112 +1131,237 @@ export default function TreatmentRecommenderByTreatment({
           />
 
           {client.skincareQuiz && (
-            <div className="treatment-recommender-skin-analysis">
-              <h3 className="treatment-recommender-skin-analysis__title">
-                Recommended for you
-              </h3>
-              {client.skincareQuiz?.completedAt && (
-                <p className="treatment-recommender-skin-analysis__completed">
-                  Completed on{" "}
-                  {new Date(client.skincareQuiz.completedAt).toLocaleDateString(
-                    "en-US",
-                    {
+            <div
+              className={`treatment-recommender-skin-analysis treatment-recommender-skin-analysis--collapsible ${
+                skincareRecommendationsCollapsed
+                  ? "treatment-recommender-skin-analysis--collapsed"
+                  : ""
+              }`}
+            >
+              <button
+                type="button"
+                className="treatment-recommender-skin-analysis__header"
+                onClick={() => setSkincareRecommendationsCollapsed((c) => !c)}
+                aria-expanded={!skincareRecommendationsCollapsed}
+              >
+                <h3 className="treatment-recommender-skin-analysis__title">
+                  Skincare recommendations
+                </h3>
+                {client.skincareQuiz?.completedAt && (
+                  <span className="treatment-recommender-skin-analysis__completed">
+                    Quiz Completed{" "}
+                    {new Date(
+                      client.skincareQuiz.completedAt,
+                    ).toLocaleDateString("en-US", {
                       month: "long",
                       day: "numeric",
                       year: "numeric",
-                    },
-                  )}
-                </p>
-              )}
-              <div className="treatment-recommender-skin-analysis__summary">
-                <span className="treatment-recommender-skin-analysis__type">
-                  {client.skincareQuiz.resultLabel ??
-                    (client.skincareQuiz.result
-                      ? client.skincareQuiz.result.charAt(0).toUpperCase() +
-                        client.skincareQuiz.result.slice(1)
-                      : "Completed")}
+                    })}
+                  </span>
+                )}
+                <span
+                  className="treatment-recommender-skin-analysis__toggle"
+                  aria-hidden
+                >
+                  {skincareRecommendationsCollapsed ? "▼" : "▲"}
                 </span>
-                {client.skincareQuiz.result &&
-                  GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
-                    <span className="treatment-recommender-skin-analysis__gemstone">
-                      {" "}
-                      · {
-                        GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].name
-                      }{" "}
-                      💎{" "}
-                      {
-                        GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result]
-                          .tagline
-                      }
-                    </span>
-                  )}
-              </div>
-              {client.skincareQuiz?.recommendedProductNames &&
-                client.skincareQuiz.recommendedProductNames.length > 0 &&
-                onAddToPlanDirect &&
-                (() => {
-                  const products =
-                    client.skincareQuiz!.recommendedProductNames!.map(
-                      (name) => ({
-                        name,
-                        context: RECOMMENDED_PRODUCT_REASONS[name] ?? "",
-                      }),
-                    );
-                  return (
-                    <div className="treatment-recommender-skin-analysis__products">
-                      <span className="treatment-recommender-skin-analysis__products-label">
-                        Skincare (from skin quiz)
-                      </span>
-                      <div className="treatment-recommender-skin-analysis__cards-row">
-                        {products.map((p, idx) => (
-                          <div
-                            key={idx}
-                            className="treatment-recommender-skin-analysis__rec-card treatment-recommender-skin-analysis__rec-card--no-photo"
+              </button>
+              {!skincareRecommendationsCollapsed && (
+                <div className="treatment-recommender-skin-analysis__body">
+                  {client.skincareQuiz?.answers &&
+                    Object.keys(client.skincareQuiz.answers).length > 0 && (
+                      <div className="treatment-recommender-skin-analysis__score-breakdown-block">
+                        <div className="treatment-recommender-skin-analysis__score-breakdown-header">
+                          <span className="treatment-recommender-skin-analysis__score-bars-title">
+                            Score breakdown
+                          </span>
+                          <button
+                            type="button"
+                            className="treatment-recommender-skin-analysis__score-breakdown-toggle"
+                            onClick={() =>
+                              setSkincareScoreBreakdownCollapsed((c) => !c)
+                            }
+                            aria-expanded={!skincareScoreBreakdownCollapsed}
                           >
-                            <div className="treatment-recommender-skin-analysis__rec-card-body">
-                              <span className="treatment-recommender-skin-analysis__rec-card-product-name">
-                                {p.name}
-                              </span>
-                              {p.context && (
-                                <span className="treatment-recommender-skin-analysis__chip-context">
-                                  {p.context}
-                                </span>
-                              )}
-                              <button
-                                type="button"
-                                className="treatment-recommender-skin-analysis__rec-add-btn"
-                                onClick={() =>
-                                  openAddToPlanAndScroll("Skincare", {
-                                    skincareWhat: [p.name],
-                                  })
-                                }
-                              >
-                                Add to plan
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                            {skincareScoreBreakdownCollapsed ? "Show" : "Hide"}
+                          </button>
+                        </div>
+                        {!skincareScoreBreakdownCollapsed &&
+                          (() => {
+                            const scores = computeQuizScores(
+                              client.skincareQuiz!.answers,
+                            );
+                            const profile = computeQuizProfile(
+                              client.skincareQuiz!.answers,
+                            );
+                            const maxScore = Math.max(
+                              ...Object.values(scores),
+                              1,
+                            );
+                            return (
+                              <div className="treatment-recommender-skin-analysis__score-bars">
+                                {SKIN_TYPE_SCORE_ORDER.map((type) => {
+                                  const value = scores[type] ?? 0;
+                                  const pct =
+                                    maxScore > 0 ? (value / maxScore) * 100 : 0;
+                                  const isPrimary = profile.primary === type;
+                                  const isSecondary =
+                                    profile.secondary === type;
+                                  return (
+                                    <div
+                                      key={type}
+                                      className="treatment-recommender-skin-analysis__score-row"
+                                    >
+                                      <span className="treatment-recommender-skin-analysis__score-label">
+                                        {SKIN_TYPE_DISPLAY_LABELS[type]}
+                                        {isPrimary && (
+                                          <span className="treatment-recommender-skin-analysis__score-tag">
+                                            {" "}
+                                            primary
+                                          </span>
+                                        )}
+                                        {isSecondary && (
+                                          <span className="treatment-recommender-skin-analysis__score-tag">
+                                            {" "}
+                                            tendency
+                                          </span>
+                                        )}
+                                      </span>
+                                      <div className="treatment-recommender-skin-analysis__score-bar-wrap">
+                                        <div
+                                          className={`treatment-recommender-skin-analysis__score-bar${isPrimary ? " treatment-recommender-skin-analysis__score-bar--primary" : ""}${isSecondary ? " treatment-recommender-skin-analysis__score-bar--secondary" : ""}`}
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                      <span className="treatment-recommender-skin-analysis__score-value">
+                                        {value}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                       </div>
+                    )}
+                  <div className="treatment-recommender-skin-analysis__summary">
+                    <span className="treatment-recommender-skin-analysis__type">
+                      {client.skincareQuiz.resultLabel ??
+                        (client.skincareQuiz.result
+                          ? client.skincareQuiz.result.charAt(0).toUpperCase() +
+                            client.skincareQuiz.result.slice(1)
+                          : "Completed")}
+                    </span>
+                    {client.skincareQuiz.result &&
+                      GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
+                        <span className="treatment-recommender-skin-analysis__gemstone">
+                          {" "}
+                          ·{" "}
+                          {
+                            GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result]
+                              .name
+                          }{" "}
+                          💎{" "}
+                          {
+                            GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result]
+                              .tagline
+                          }
+                        </span>
+                      )}
+                  </div>
+                  {skincareRecommendedWithDetails.length > 0 && (
+                    <div className="treatment-recommender-skin-analysis__products-grid">
+                      {skincareRecommendedWithDetails.map((product, idx) => (
+                        <div
+                          key={idx}
+                          className="treatment-recommender-skin-analysis__product-card"
+                        >
+                          <div className="treatment-recommender-skin-analysis__product-card-image-wrap">
+                            {product.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt=""
+                                className="treatment-recommender-skin-analysis__product-card-image"
+                              />
+                            ) : (
+                              <div className="treatment-recommender-skin-analysis__product-card-placeholder">
+                                <span aria-hidden>◆</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="treatment-recommender-skin-analysis__product-card-body">
+                            <div className="treatment-recommender-skin-analysis__product-card-reason">
+                              Recommended for: {product.recommendedFor}
+                            </div>
+                            <div className="treatment-recommender-skin-analysis__product-card-name">
+                              {product.name.split("|")[0]?.trim() ??
+                                product.name}
+                            </div>
+                            {onAddToPlanDirect &&
+                              (() => {
+                                const displayName =
+                                  product.name.split("|")[0]?.trim() ??
+                                  product.name;
+                                const isInPlan = (
+                                  client.discussedItems ?? []
+                                ).some(
+                                  (item) =>
+                                    item.treatment?.trim() === "Skincare" &&
+                                    (item.product?.trim() === displayName ||
+                                      item.product?.trim() === product.name),
+                                );
+                                return (
+                                  <button
+                                    type="button"
+                                    className={`treatment-recommender-skin-analysis__product-card-add-btn${isInPlan ? " treatment-recommender-skin-analysis__product-card-add-btn--added" : ""}`}
+                                    onClick={async () => {
+                                      if (isInPlan) return;
+                                      const prefill: TreatmentPlanPrefill = {
+                                        interest: "",
+                                        region: "",
+                                        treatment: "Skincare",
+                                        treatmentProduct: displayName,
+                                        timeline: TIMELINE_SKINCARE,
+                                        notes:
+                                          product.recommendedFor ?? undefined,
+                                      };
+                                      try {
+                                        await onAddToPlanDirect(prefill);
+                                        showToast("Added to treatment plan");
+                                      } catch {
+                                        showToast("Could not add to plan");
+                                      }
+                                    }}
+                                    disabled={isInPlan}
+                                  >
+                                    {isInPlan ? "Added to plan" : "Add to plan"}
+                                  </button>
+                                );
+                              })()}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })()}
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           <h2 className="treatment-recommender-by-treatment__results-heading">
-            {suggestedTreatments.length} treatment option
-            {suggestedTreatments.length !== 1 ? "s" : ""}
+            {treatmentsToShow.length} treatment option
+            {treatmentsToShow.length !== 1 ? "s" : ""}
           </h2>
 
           <div className="treatment-recommender-by-treatment__cards">
-            {suggestedTreatments.length === 0 ? (
+            {treatmentsToShow.length === 0 ? (
               <p className="treatment-recommender-by-treatment__empty">
                 No treatments match the current filters. Select &quot;What are
                 you here for?&quot; and optionally findings, regions, or general
                 concerns.
               </p>
             ) : (
-              suggestedTreatments.map((treatment) => {
+              treatmentsToShow.map((treatment) => {
                 const cardPhotos = getPhotosForTreatment(treatment);
                 const cardPhoto = cardPhotos[0];
                 return (

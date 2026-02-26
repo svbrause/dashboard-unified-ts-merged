@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Client } from '../../types';
 import { sendSMSNotification } from '../../services/api';
-import { isValidPhone, cleanPhoneNumber, formatPhoneDisplay } from '../../utils/validation';
+import { isValidPhone, cleanPhoneNumber, formatPhoneDisplay, formatPhoneInput } from '../../utils/validation';
 import { showToast, showError } from '../../utils/toast';
 import './SendSMSModal.css';
 
@@ -16,9 +16,16 @@ interface SendSMSModalProps {
 }
 
 export default function SendSMSModal({ client, onClose, onSuccess, initialMessage }: SendSMSModalProps) {
+  const [phone, setPhone] = useState(() =>
+    client.phone ? formatPhoneDisplay(client.phone) : ''
+  );
   const [message, setMessage] = useState(initialMessage ?? '');
   const [sending, setSending] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setPhone(client.phone ? formatPhoneDisplay(client.phone) : '');
+  }, [client.phone]);
 
   useEffect(() => {
     if (initialMessage != null && initialMessage !== '') {
@@ -45,7 +52,7 @@ export default function SendSMSModal({ client, onClose, onSuccess, initialMessag
       return;
     }
 
-    const phoneStr = client.phone != null ? String(client.phone).trim() : '';
+    const phoneStr = String(phone ?? '').trim();
     if (!phoneStr) {
       setErrors({ phone: 'Phone number is required' });
       return;
@@ -90,12 +97,20 @@ export default function SendSMSModal({ client, onClose, onSuccess, initialMessag
         <div className="modal-body">
           <div className="form-container">
             <div className="form-group">
-              <label className="form-label">Phone Number</label>
-              <div className="patient-info-box">
-                <div className="patient-info-value">
-                  {client.phone ? formatPhoneDisplay(client.phone) : 'N/A'}
-                </div>
-              </div>
+              <label htmlFor="sms-phone" className="form-label">Phone Number *</label>
+              <input
+                type="tel"
+                id="sms-phone"
+                required
+                placeholder="(555) 555-5555"
+                value={phone}
+                onInput={(e) => {
+                  formatPhoneInput(e.target as HTMLInputElement);
+                  setPhone((e.target as HTMLInputElement).value);
+                }}
+                onChange={(e) => setPhone(e.target.value)}
+                className="form-input-base"
+              />
               {errors.phone && <span className="field-error">{errors.phone}</span>}
             </div>
 
@@ -133,8 +148,8 @@ export default function SendSMSModal({ client, onClose, onSuccess, initialMessag
               disabled={
                 sending ||
                 !message.trim() ||
-                !client.phone ||
-                !isValidPhone(String(client.phone ?? '').trim())
+                !phone.trim() ||
+                !isValidPhone(String(phone).trim())
               }
             >
               {sending ? (

@@ -24,6 +24,8 @@ import {
   REGION_OPTIONS,
   TIMELINE_OPTIONS,
   PLAN_SECTIONS,
+  SKINCARE_SECTION_LABEL,
+  TIMELINE_SKINCARE,
   QUANTITY_UNIT_OPTIONS,
   RECURRING_OPTIONS,
   OTHER_RECURRING_LABEL,
@@ -350,28 +352,44 @@ export default function DiscussedTreatmentsModal({
   );
   void goalsAndRegionsForTreatment;
 
-  /** Items grouped by plan section (Now, Add next visit, Wishlist, Completed). Empty/missing timeline → Wishlist. */
+  /** Items grouped by plan section. Skincare is its own section (all treatment === "Skincare"); others by timeline. */
   const itemsBySection = useMemo(() => {
+    const skincare: DiscussedItem[] = [];
     const now: DiscussedItem[] = [];
     const addNext: DiscussedItem[] = [];
     const wishlist: DiscussedItem[] = [];
     const completed: DiscussedItem[] = [];
     for (const item of items) {
-      const t = item.timeline?.trim();
-      if (t === "Now") now.push(item);
-      else if (t === "Add next visit") addNext.push(item);
-      else if (t === "Completed") completed.push(item);
-      else wishlist.push(item); // "Wishlist" or empty/other
+      if (item.treatment?.trim() === "Skincare") {
+        skincare.push(item);
+      } else {
+        const t = item.timeline?.trim();
+        if (t === "Now") now.push(item);
+        else if (t === "Add next visit") addNext.push(item);
+        else if (t === "Completed") completed.push(item);
+        else wishlist.push(item);
+      }
     }
     const byTreatment = (a: DiscussedItem, b: DiscussedItem) =>
       (a.treatment || "").localeCompare(b.treatment || "");
+    const byProduct = (a: DiscussedItem, b: DiscussedItem) =>
+      (a.product || "").localeCompare(b.product || "");
     return {
+      [SKINCARE_SECTION_LABEL]: skincare.sort(byProduct),
       Now: now.sort(byTreatment),
       "Add next visit": addNext.sort(byTreatment),
       Wishlist: wishlist.sort(byTreatment),
       Completed: completed.sort(byTreatment),
     };
   }, [items]);
+
+  /** Section labels: Skincare first when present, then Now, Add next visit, Wishlist, Completed. */
+  const sectionLabels = useMemo(() => {
+    const hasSkincare = (itemsBySection[SKINCARE_SECTION_LABEL]?.length ?? 0) > 0;
+    return hasSkincare
+      ? [SKINCARE_SECTION_LABEL, ...PLAN_SECTIONS]
+      : [...PLAN_SECTIONS];
+  }, [itemsBySection]);
 
   /** Preview for the "New item" row when add form is visible (left column stays connected). */
   const newItemPreview = useMemo(() => {
@@ -425,11 +443,12 @@ export default function DiscussedTreatmentsModal({
       findings: [],
     });
 
+    const isSkincare = treatment?.trim() === "Skincare";
     return {
       primary: treatment || "New item",
       product,
       interest: form.interest?.trim() || null,
-      timeline: form.timeline?.trim() || null,
+      timeline: isSkincare ? null : (form.timeline?.trim() || null),
       quantity,
       area: area || null,
     };
@@ -554,9 +573,7 @@ export default function DiscussedTreatmentsModal({
   const [photoBrowserRegion, setPhotoBrowserRegion] = useState<string>("");
   /** Drag and drop state for moving items between sections. */
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
-  const [dragOverSection, setDragOverSection] = useState<
-    (typeof PLAN_SECTIONS)[number] | null
-  >(null);
+  const [dragOverSection, setDragOverSection] = useState<string | null>(null);
 
   const handleComplete = (item: DiscussedItem, addNext: boolean) => {
     setCompleteItemId(null);
@@ -839,7 +856,7 @@ export default function DiscussedTreatmentsModal({
       form.region === "Other"
         ? form.regionOther.trim() || undefined
         : form.region?.trim() || undefined;
-    const timeline = form.timeline?.trim() || "Wishlist";
+    const timelineDefault = form.timeline?.trim() || "Wishlist";
     const productFor = (t: string): string | undefined => {
       const opts = TREATMENT_PRODUCT_OPTIONS[t];
       if (!opts) return undefined;
@@ -882,7 +899,6 @@ export default function DiscussedTreatmentsModal({
     const optional = {
       brand,
       region,
-      timeline,
       quantity: quantityForItem,
       recurring:
         form.recurring === OTHER_RECURRING_LABEL
@@ -901,6 +917,7 @@ export default function DiscussedTreatmentsModal({
           : addMode === "treatment"
           ? selectedFindingByTreatment
           : undefined;
+      const itemTimeline = treatment?.trim() === "Skincare" ? TIMELINE_SKINCARE : timelineDefault;
       if (products.length === 0) {
         newItems.push({
           id: generateId(),
@@ -909,6 +926,7 @@ export default function DiscussedTreatmentsModal({
             ? { findings: findingsForTreatment }
             : {}),
           treatment,
+          timeline: itemTimeline,
           ...optional,
         });
       } else {
@@ -921,6 +939,7 @@ export default function DiscussedTreatmentsModal({
               : {}),
             treatment,
             product,
+            timeline: itemTimeline,
             ...optional,
           });
         }
@@ -1071,7 +1090,7 @@ export default function DiscussedTreatmentsModal({
             ...f.treatmentProductOther,
             ...(customProduct && treatment ? { [treatment]: customProduct } : {}),
           },
-          timeline: prefilled.timeline || "Wishlist",
+          timeline: (prefilled.treatment?.trim() === "Skincare" ? TIMELINE_SKINCARE : prefilled.timeline) || "Wishlist",
           quantityUnit: treatment
             ? getQuantityContext(treatment).unitLabel
             : f.quantityUnit,
@@ -1139,7 +1158,7 @@ export default function DiscussedTreatmentsModal({
         ...f.treatmentProductOther,
         ...(customProduct && treatment ? { [treatment]: customProduct } : {}),
       },
-      timeline: prefilled.timeline || "Wishlist",
+      timeline: (prefilled.treatment?.trim() === "Skincare" ? TIMELINE_SKINCARE : prefilled.timeline) || "Wishlist",
       quantityUnit: treatment
         ? getQuantityContext(treatment).unitLabel
         : f.quantityUnit,
@@ -1275,18 +1294,19 @@ export default function DiscussedTreatmentsModal({
     setEditingId(null);
   };
 
-  /** Move an item to another plan section (Now / Add next visit / Wishlist). */
-  const handleMoveToSection = async (
-    itemId: string,
-    newTimeline: (typeof PLAN_SECTIONS)[number]
-  ) => {
+  /** Move an item to another plan section. Skincare items cannot be moved to timeline sections; non-Skincare cannot be moved to Skincare. */
+  const handleMoveToSection = async (itemId: string, newSection: string) => {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+    if (item.treatment?.trim() === "Skincare" && newSection !== SKINCARE_SECTION_LABEL) return;
+    if (item.treatment?.trim() !== "Skincare" && newSection === SKINCARE_SECTION_LABEL) return;
     const nextItems = items.map((i) =>
-      i.id === itemId ? { ...i, timeline: newTimeline } : i
+      i.id === itemId ? { ...i, timeline: newSection } : i
     );
     setItems(nextItems);
     try {
       await persistItems(nextItems);
-      showToast(`Moved to ${newTimeline}`);
+      showToast(`Moved to ${newSection}`);
       onUpdate();
     } catch (e: unknown) {
       setItems(items);
@@ -1308,7 +1328,7 @@ export default function DiscussedTreatmentsModal({
 
   const handleDragOver = (
     e: React.DragEvent<HTMLElement>,
-    section: (typeof PLAN_SECTIONS)[number]
+    section: string
   ) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -1325,7 +1345,7 @@ export default function DiscussedTreatmentsModal({
 
   const handleDrop = async (
     e: React.DragEvent<HTMLElement>,
-    targetSection: (typeof PLAN_SECTIONS)[number]
+    targetSection: string
   ) => {
     e.preventDefault();
     setDragOverSection(null);
@@ -1335,11 +1355,14 @@ export default function DiscussedTreatmentsModal({
     const item = items.find((i) => i.id === draggedItemId);
     if (!item) return;
 
-    const currentSection = item.timeline || "Wishlist";
+    const isSkincare = item.treatment?.trim() === "Skincare";
+    const currentSection = isSkincare ? SKINCARE_SECTION_LABEL : (item.timeline || "Wishlist");
     if (currentSection === targetSection) {
       setDraggedItemId(null);
       return;
     }
+    if (targetSection === SKINCARE_SECTION_LABEL && !isSkincare) return;
+    if (isSkincare && targetSection !== SKINCARE_SECTION_LABEL) return;
 
     await handleMoveToSection(draggedItemId, targetSection);
     setDraggedItemId(null);
@@ -1369,7 +1392,7 @@ export default function DiscussedTreatmentsModal({
       id: generateId(),
       treatment: "Skincare",
       product: productName,
-      timeline: "Wishlist",
+      timeline: TIMELINE_SKINCARE,
       notes: `Post care for ${treatmentContext}`,
       addedAt: new Date().toISOString(),
     };
@@ -1417,6 +1440,7 @@ export default function DiscussedTreatmentsModal({
         ? `${quantityVal} ${quantityUnitVal}`
         : quantityVal || undefined;
     const existing = items.find((x) => x.id === editingId);
+    const isSkincare = editForm.treatment.trim() === "Skincare";
     const updated: DiscussedItem = {
       id: editingId,
       ...(existing?.addedAt ? { addedAt: existing.addedAt } : {}),
@@ -1425,7 +1449,7 @@ export default function DiscussedTreatmentsModal({
       ...(productVal ? { product: productVal } : {}),
       brand: undefined,
       region: undefined,
-      timeline: timelineVal || undefined,
+      timeline: isSkincare ? TIMELINE_SKINCARE : (timelineVal || undefined),
       quantity: quantityForItem || undefined,
       notes: editForm.notes.trim() || undefined,
     };
@@ -1484,7 +1508,7 @@ export default function DiscussedTreatmentsModal({
                 clientName={client.name ?? ""}
                 items={items}
                 itemsBySection={itemsBySection}
-                sectionLabels={PLAN_SECTIONS}
+                sectionLabels={sectionLabels}
                 newItemPreview={newItemPreview}
                 selectedPlanItemId={selectedPlanItemId}
                 editingId={editingId}
@@ -1499,16 +1523,9 @@ export default function DiscussedTreatmentsModal({
                 }}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                onDragOver={(e, sectionLabel) =>
-                  handleDragOver(
-                    e,
-                    sectionLabel as (typeof PLAN_SECTIONS)[number]
-                  )
-                }
+                onDragOver={(e, sectionLabel) => handleDragOver(e, sectionLabel)}
                 onDragLeave={handleDragLeave}
-                onDrop={(e, sectionLabel) =>
-                  handleDrop(e, sectionLabel as (typeof PLAN_SECTIONS)[number])
-                }
+                onDrop={(e, sectionLabel) => handleDrop(e, sectionLabel)}
               />
             )}
             <div
@@ -2008,6 +2025,7 @@ export default function DiscussedTreatmentsModal({
                                 </div>
                               );
                             })()}
+                            {sel.treatment?.trim() !== "Skincare" && (
                             <div className="discussed-treatments-prefill-row">
                               <span className="discussed-treatments-prefill-label">
                                 Timeline
@@ -2039,6 +2057,7 @@ export default function DiscussedTreatmentsModal({
                                 ))}
                               </div>
                             </div>
+                            )}
                           </div>
                           <div className="form-group discussed-treatments-notes-row">
                             <label htmlFor="edit-notes" className="form-label">
@@ -5714,6 +5733,8 @@ export default function DiscussedTreatmentsModal({
                               </div>
                             );
                           })()}
+                          {!(addMode === "treatment" && selectedTreatmentFirst === "Skincare") &&
+                          !(addMode === "goal" && form.selectedTreatments.length > 0 && form.selectedTreatments.every((t) => t === "Skincare")) && (
                           <div className="discussed-treatments-prefill-row">
                             <span className="discussed-treatments-prefill-label">
                               Timeline
@@ -5740,6 +5761,7 @@ export default function DiscussedTreatmentsModal({
                               ))}
                             </div>
                           </div>
+                          )}
 
                           <div className="discussed-treatments-prefill-row">
                             <span className="discussed-treatments-prefill-label">
@@ -6019,6 +6041,8 @@ export default function DiscussedTreatmentsModal({
                             </div>
                           );
                         })()}
+                        {!(addMode === "treatment" && selectedTreatmentFirst === "Skincare") &&
+                        !(addMode === "goal" && form.selectedTreatments.length > 0 && form.selectedTreatments.every((t) => t === "Skincare")) && (
                         <div className="discussed-treatments-prefill-row">
                           <span className="discussed-treatments-prefill-label">
                             Timeline
@@ -6045,6 +6069,7 @@ export default function DiscussedTreatmentsModal({
                             ))}
                           </div>
                         </div>
+                        )}
                         <div className="discussed-treatments-prefill-row">
                           <span className="discussed-treatments-prefill-label">
                             Recurring (optional)

@@ -13,6 +13,12 @@ export interface TreatmentBoutiqueProduct {
   name: string;
   imageUrl?: string;
   productUrl?: string;
+  /** Short or full description from the shop (HTML or plain text). */
+  description?: string;
+  /** Display price e.g. "$47" or "$47.00". */
+  price?: string;
+  /** All product image URLs for gallery (first can match imageUrl). */
+  imageUrls?: string[];
 }
 
 /** All skincare products from The Treatment Skin Boutique – name, image, product page URL */
@@ -319,6 +325,12 @@ export const TREATMENT_BOUTIQUE_SKINCARE: TreatmentBoutiqueProduct[] = [
     name: "GM Collin Sensiderm Cleansing Milk | Gentle Cleanser for Sensitive & Irritated Skin",
     productUrl: "https://shop.getthetreatment.com/products/sensiderm-cleansing-milk",
     imageUrl: "https://cdn.shopify.com/s/files/1/2640/6190/files/gentle-cleanser.jpg?v=1762541166",
+    price: "$47",
+    description:
+      "A gentle, creamy cleanser enriched with argan oil and aloe vera that removes impurities, soothes irritation, and leaves sensitive skin soft, calm, and refreshed. Paraben-free and fragrance-free; ideal for twice-daily use. Skin types: Dry · Normal · Sensitive · Post-Procedure. Concerns: Sensitivity · Redness · Dehydration · Irritation · Post-Treatment.",
+    imageUrls: [
+      "https://cdn.shopify.com/s/files/1/2640/6190/files/gentle-cleanser.jpg?v=1762541166",
+    ],
   },
   /* Omnilux */
   {
