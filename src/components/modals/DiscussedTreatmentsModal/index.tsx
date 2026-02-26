@@ -2025,7 +2025,7 @@ export default function DiscussedTreatmentsModal({
                                 </div>
                               );
                             })()}
-                            {sel.treatment?.trim() !== "Skincare" && (
+                            {editForm.treatment?.trim() !== "Skincare" && (
                             <div className="discussed-treatments-prefill-row">
                               <span className="discussed-treatments-prefill-label">
                                 Timeline

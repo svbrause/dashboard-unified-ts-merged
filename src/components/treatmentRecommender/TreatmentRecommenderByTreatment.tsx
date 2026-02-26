@@ -771,33 +771,6 @@ export default function TreatmentRecommenderByTreatment({
     });
   }, [client.skincareQuiz?.recommendedProductNames]);
 
-  const openAddToPlanAndScroll = (
-    treatment: string,
-    prefill?: Partial<{
-      skincareWhat: string[];
-      where: string[];
-    }>,
-  ) => {
-    setAddToPlanForTreatment({
-      treatment,
-      where: prefill?.where ?? [],
-      skincareWhat:
-        treatment === "Skincare" ? (prefill?.skincareWhat ?? []) : undefined,
-      skincareCategoryFilter: treatment === "Skincare" ? [] : undefined,
-      laserWhat: treatment === "Laser" ? [] : undefined,
-      biostimulantWhat: treatment === "Biostimulants" ? [] : undefined,
-      when: TIMELINE_OPTIONS[0],
-      detailsExpanded: false,
-      product: "",
-      quantity: "",
-      notes: "",
-    });
-    requestAnimationFrame(() => {
-      const el = cardRefsMap.current[treatment];
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  };
-
   const handleAddToPlanConfirm = async () => {
     if (!addToPlanForTreatment || !onAddToPlanDirect) return;
     const isSkincare = addToPlanForTreatment.treatment === "Skincare";
@@ -1052,7 +1025,10 @@ export default function TreatmentRecommenderByTreatment({
           ) : (
             <div className="treatment-recommender-by-treatment__plan-list">
               {planSectionLabels.map((sectionLabel) => {
-                const sectionItems = planItemsBySection[sectionLabel] ?? [];
+                const sectionItems =
+                  (planItemsBySection as Record<string, DiscussedItem[]>)[
+                    sectionLabel
+                  ] ?? [];
                 if (sectionItems.length === 0) return null;
                 return (
                   <div
@@ -1062,7 +1038,7 @@ export default function TreatmentRecommenderByTreatment({
                     <h4 className="treatment-recommender-by-treatment__plan-group-title">
                       {sectionLabel}
                     </h4>
-                    {sectionItems.map((item) => (
+                    {sectionItems.map((item: DiscussedItem) => (
                       <div
                         key={item.id}
                         className="treatment-recommender-by-treatment__plan-row-wrap"
