@@ -229,16 +229,16 @@ export function mapRecordToClient(
           : 0,
     treatmentsViewed: [],
     source: (() => {
+      const sourceValue =
+        fields["Source"] || fields["source"] || fields["SOURCE"] || "";
+      const raw = String(sourceValue).trim();
       if (tableName === "Web Popup Leads") {
-        return "Website";
+        if (!raw) return "Website";
+        return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
       } else if (tableName === "Patients") {
-        // Use Source field from Patients table and format it
-        // Try multiple possible field name variations
-        const sourceValue =
-          fields["Source"] || fields["source"] || fields["SOURCE"] || "";
-        return formatPatientSource(sourceValue);
+        return formatPatientSource(raw || undefined);
       } else {
-        return fields["Source"] || "AI Consult";
+        return raw || "AI Consult";
       }
     })(),
     status: mapAirtableStatus(fields),
