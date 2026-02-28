@@ -123,16 +123,14 @@ export function getSkincareCarouselItems(): {
   imageUrls?: string[];
 }[] {
   return [
-    ...TREATMENT_BOUTIQUE_SKINCARE.map(
-      (p: TreatmentBoutiqueProduct) => ({
-        name: p.name,
-        imageUrl: p.imageUrl,
-        productUrl: p.productUrl,
-        description: p.description,
-        price: p.price,
-        imageUrls: p.imageUrls,
-      })
-    ),
+    ...TREATMENT_BOUTIQUE_SKINCARE.map((p: TreatmentBoutiqueProduct) => ({
+      name: p.name,
+      imageUrl: p.imageUrl,
+      productUrl: p.productUrl,
+      description: p.description,
+      price: p.price,
+      imageUrls: p.imageUrls,
+    })),
     { name: "Other" },
   ];
 }
@@ -351,36 +349,50 @@ export const RECOMMENDED_PRODUCTS_BY_CONTEXT: {
       "RF microneedling",
       "With growth factors / PRP",
       "Nanoneedling",
+      "TCA / TCA cross (acne scars)",
+      "Suction (acne scars)",
+      "With TXA (tranexamic acid)",
     ],
   },
 ];
 
 /** Skincare category options for filtering the product carousel (treatment recommender). Includes an "Other" category for products not in the first five. */
-const _SKINCARE_CATEGORIES_FROM_CONTEXT: { label: string; products: string[] }[] =
-  RECOMMENDED_PRODUCTS_BY_CONTEXT.filter((r) => r.treatment === "Skincare").map((r, i) => ({
-    label:
-      i === 0
-        ? "Hydration"
-        : i === 1
-          ? "Acne / oil"
-          : i === 2
-            ? "Dark spots / tone"
-            : i === 3
-              ? "Fine lines / anti-aging"
-              : i === 4
-                ? "Sensitive skin"
-                : r.keywords[0] ?? "Other",
-    products: r.products,
-  }));
+const _SKINCARE_CATEGORIES_FROM_CONTEXT: {
+  label: string;
+  products: string[];
+}[] = RECOMMENDED_PRODUCTS_BY_CONTEXT.filter(
+  (r) => r.treatment === "Skincare",
+).map((r, i) => ({
+  label:
+    i === 0
+      ? "Hydration"
+      : i === 1
+        ? "Acne / oil"
+        : i === 2
+          ? "Dark spots / tone"
+          : i === 3
+            ? "Fine lines / anti-aging"
+            : i === 4
+              ? "Sensitive skin"
+              : (r.keywords[0] ?? "Other"),
+  products: r.products,
+}));
 
 const _ALL_CATEGORIZED_SKINCARE = new Set(
-  _SKINCARE_CATEGORIES_FROM_CONTEXT.flatMap((c) => c.products)
+  _SKINCARE_CATEGORIES_FROM_CONTEXT.flatMap((c) => c.products),
 );
-const _OTHER_SKINCARE_PRODUCTS = SKINCARE_PRODUCTS.filter((p) => !_ALL_CATEGORIZED_SKINCARE.has(p));
+const _OTHER_SKINCARE_PRODUCTS = SKINCARE_PRODUCTS.filter(
+  (p) => !_ALL_CATEGORIZED_SKINCARE.has(p),
+);
 
-export const SKINCARE_CATEGORY_OPTIONS: { label: string; products: string[] }[] = [
+export const SKINCARE_CATEGORY_OPTIONS: {
+  label: string;
+  products: string[];
+}[] = [
   ..._SKINCARE_CATEGORIES_FROM_CONTEXT,
-  ...(_OTHER_SKINCARE_PRODUCTS.length > 0 ? [{ label: "Other", products: _OTHER_SKINCARE_PRODUCTS }] : []),
+  ...(_OTHER_SKINCARE_PRODUCTS.length > 0
+    ? [{ label: "Other", products: _OTHER_SKINCARE_PRODUCTS }]
+    : []),
 ];
 
 /** Treatment type / product options per treatment (for product selector when that treatment is selected) */
@@ -422,12 +434,33 @@ export const TREATMENT_PRODUCT_OPTIONS: Record<string, string[]> = {
     OTHER_PRODUCT_LABEL,
   ],
   Microneedling: [
-    "Standard microneedling",
+    "PRP",
+    "TCA",
+    "TXA",
+    "PDGF",
+    "Subcision",
     "RF microneedling",
+    "Standard microneedling",
     "Nanoneedling",
     "Dermaroller",
     "Dermapen",
     "With growth factors / PRP",
+    "TCA / TCA cross (acne scars)",
+    "Suction (acne scars)",
+    "With TXA (tranexamic acid)",
+    "PRFM",
+    OTHER_PRODUCT_LABEL,
+  ],
+  PRP: [
+    "PRP",
+    "PRP with microneedling",
+    "PRP (platelet-rich plasma)",
+    OTHER_PRODUCT_LABEL,
+  ],
+  PDGF: [
+    "PDGF",
+    "PDGF (platelet-derived growth factor)",
+    "PDGF with microneedling",
     OTHER_PRODUCT_LABEL,
   ],
   Biostimulants: [
@@ -463,7 +496,9 @@ export const TREATMENT_POSTCARE: Record<
 > = {
   Laser: {
     sendInstructionsLabel: "Send laser post-care instructions",
-    instructionsText: `• Avoid sun exposure for 24–48 hours; use SPF 50+ daily
+    instructionsText: `Post-Care Instructions for Laser
+
+• Avoid sun exposure for 24–48 hours; use SPF 50+ daily
 • Keep treated area clean and moisturized
 • No makeup for 24 hours if possible
 • Avoid harsh actives (retinoids, acids) for 3–5 days
@@ -473,7 +508,9 @@ export const TREATMENT_POSTCARE: Record<
   },
   "Chemical Peel": {
     sendInstructionsLabel: "Send chemical peel post-care instructions",
-    instructionsText: `• Use gentle cleanser and moisturizer only for 24–48 hours
+    instructionsText: `Post-Care Instructions for Chemical Peel
+
+• Use gentle cleanser and moisturizer only for 24–48 hours
 • Apply SPF 50+ daily; avoid sun exposure
 • No picking or peeling skin
 • Avoid retinoids, AHAs/BHAs, and exfoliants for 5–7 days
@@ -483,7 +520,9 @@ export const TREATMENT_POSTCARE: Record<
   },
   Microneedling: {
     sendInstructionsLabel: "Send microneedling post-care instructions",
-    instructionsText: `• Avoid sun exposure; use SPF 50+ daily
+    instructionsText: `Post-Care Instructions for Microneedling
+
+• Avoid sun exposure; use SPF 50+ daily
 • No makeup for 24 hours
 • Keep skin clean and moisturized; avoid harsh actives for 3–5 days
 • No saunas, hot yoga, or intense sweating for 24–48 hours
@@ -492,7 +531,9 @@ export const TREATMENT_POSTCARE: Record<
   },
   Filler: {
     sendInstructionsLabel: "Send filler aftercare instructions",
-    instructionsText: `• Avoid touching or massaging treated area for 24 hours (unless directed)
+    instructionsText: `Post-Care Instructions for Filler
+
+• Avoid touching or massaging treated area for 24 hours (unless directed)
 • No strenuous exercise for 24–48 hours
 • Avoid alcohol and blood thinners for 24 hours
 • Ice if needed for swelling; sleep with head elevated first night
@@ -501,17 +542,40 @@ export const TREATMENT_POSTCARE: Record<
   },
   Neurotoxin: {
     sendInstructionsLabel: "Send neurotoxin aftercare instructions",
-    instructionsText: `• Stay upright for 4 hours; avoid lying down
+    instructionsText: `Post-Care Instructions for Neurotoxin (e.g. Botox)
+
 • No rubbing or massaging treated area for 24 hours
 • Avoid strenuous exercise for 24 hours
-• Results typically visible in 3–7 days`,
+• Results typically visible in 1-2 weeks`,
     suggestedProducts: [],
   },
   Skincare: {
     sendInstructionsLabel: "Send skincare routine instructions",
-    instructionsText: `• Apply products in order: cleanse → treat → moisturize → SPF (AM)
+    instructionsText: `Skincare Routine Instructions
+
+• Apply products in order: cleanse → treat → moisturize → SPF (AM)
 • Use as directed; allow actives to absorb before next step
 • Patch test new products if sensitive`,
+    suggestedProducts: [],
+  },
+  PRP: {
+    sendInstructionsLabel: "Send PRP post-care instructions",
+    instructionsText: `Post-Care Instructions for PRP
+
+• Avoid sun exposure; use SPF 50+ daily
+• No makeup for 24 hours
+• Keep skin clean and moisturized; avoid harsh actives for 3–5 days
+• No saunas, hot yoga, or intense sweating for 24–48 hours`,
+    suggestedProducts: [],
+  },
+  PDGF: {
+    sendInstructionsLabel: "Send PDGF post-care instructions",
+    instructionsText: `Post-Care Instructions for PDGF
+
+• Avoid sun exposure; use SPF 50+ daily
+• No makeup for 24 hours
+• Keep skin clean and moisturized; avoid harsh actives for 3–5 days
+• No saunas, hot yoga, or intense sweating for 24–48 hours`,
     suggestedProducts: [],
   },
 };
@@ -611,7 +675,13 @@ export const FINDING_TO_GOAL_REGION_TREATMENTS: {
     keywords: ["nasolabial", "marionette", "smile line"],
     goal: "Shadow Correction",
     region: "Nasolabial",
-    treatments: ["Filler", "Biostimulants", "Laser", "Chemical Peel", "Microneedling"],
+    treatments: [
+      "Filler",
+      "Biostimulants",
+      "Laser",
+      "Chemical Peel",
+      "Microneedling",
+    ],
   },
   {
     keywords: ["prejowl", "retruded chin", "chin"],
@@ -663,6 +733,8 @@ export const FINDING_TO_GOAL_REGION_TREATMENTS: {
       "Laser",
       "Chemical Peel",
       "Microneedling",
+      "PRP",
+      "PDGF",
       "Filler",
       "Neurotoxin",
       "Biostimulants",
@@ -725,9 +797,11 @@ const ALL_TREATMENTS_RAW = [
   "Biostimulants",
   "Kybella",
   "Threadlift",
+  "PRP",
+  "PDGF",
 ];
 export const ALL_TREATMENTS = ALL_TREATMENTS_RAW.filter(
-  (t) => !SURGICAL_TREATMENTS.includes(t)
+  (t) => !SURGICAL_TREATMENTS.includes(t),
 );
 export const OTHER_TREATMENT_LABEL = "Other";
 
@@ -783,6 +857,16 @@ export const TREATMENT_META: Record<
     downtime: "3–7 days",
     priceRange: "$1,500–$4,000",
   },
+  PRP: {
+    longevity: "Varies",
+    downtime: "1–3 days",
+    priceRange: "Varies",
+  },
+  PDGF: {
+    longevity: "Varies",
+    downtime: "1–3 days",
+    priceRange: "Varies",
+  },
 };
 
 /** Map each interest (by keyword match) to suggested treatments. */
@@ -835,6 +919,8 @@ export const INTEREST_TO_TREATMENTS: {
       "Laser",
       "Chemical Peel",
       "Microneedling",
+      "PRP",
+      "PDGF",
       "Filler",
       "Neurotoxin",
       "Biostimulants",
@@ -857,11 +943,44 @@ export const REGION_OPTIONS = [
   "Multiple",
   "Other",
 ];
-export const TIMELINE_OPTIONS = ["Now", "Add next visit", "Wishlist", "Completed"];
+
+/** Where options for Microneedling on the treatment recommender (Face / Neck / Chest only). */
+export const REGION_OPTIONS_MICRONEEDLING = ["Face", "Neck", "Chest"] as const;
+
+/** Type options for Microneedling on the treatment recommender (PRP, TCA, TXA, etc.). */
+export const MICRONEEDLING_TYPE_OPTIONS = [
+  "PRP",
+  "TCA",
+  "TXA",
+  "PDGF",
+  "Subcision",
+  "RF microneedling",
+  "Standard microneedling",
+  "Nanoneedling",
+  "Dermaroller",
+  "Dermapen",
+  "With growth factors / PRP",
+  "TCA / TCA cross (acne scars)",
+  "Suction (acne scars)",
+  "With TXA (tranexamic acid)",
+  "PRFM",
+  OTHER_PRODUCT_LABEL,
+] as const;
+export const TIMELINE_OPTIONS = [
+  "Now",
+  "Add next visit",
+  "Wishlist",
+  "Completed",
+];
 /** Timeline value for skincare items; they are shown in a single "Skincare" section, not by visit timing. */
 export const TIMELINE_SKINCARE = "Skincare";
 /** Plan sections in display order (Now top, Completed bottom). Skincare is a separate category rendered first when present. */
-export const PLAN_SECTIONS = ["Now", "Add next visit", "Wishlist", "Completed"] as const;
+export const PLAN_SECTIONS = [
+  "Now",
+  "Add next visit",
+  "Wishlist",
+  "Completed",
+] as const;
 /** Section label for the dedicated skincare products block (all skincare items in one list). */
 export const SKINCARE_SECTION_LABEL = "Skincare";
 

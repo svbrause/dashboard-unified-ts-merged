@@ -16,8 +16,17 @@ export function getSkinQuizLink(client: Client): string {
   return `${base}${QUIZ_PATH}?${params.toString()}`;
 }
 
+/** True if the client has completed the skin type quiz (has saved results). */
+function hasCompletedSkinQuiz(client: Client): boolean {
+  const quiz = client.skincareQuiz;
+  return Boolean(quiz && typeof quiz === "object" && quiz.result);
+}
+
 export function getSkinQuizMessage(client: Client): string {
   const link = getSkinQuizLink(client);
+  if (hasCompletedSkinQuiz(client)) {
+    return `View your Skin Type Quiz results and personalized product recommendations: ${link}`;
+  }
   return `Take our free Skin Type Quiz and get personalized product recommendations: ${link}`;
 }
 

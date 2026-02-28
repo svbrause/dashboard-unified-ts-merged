@@ -394,6 +394,28 @@ export function mapRecordToClient(
         return undefined;
       }
     })(),
+    wellnessQuiz: (() => {
+      const raw = fields["Wellness Quiz"] ?? fields["Wellness quiz"] ?? null;
+      if (!raw || typeof raw !== "string" || !raw.trim()) return undefined;
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== "object") return undefined;
+        const o = parsed as Record<string, unknown>;
+        if (o.version !== 1 || typeof o.completedAt !== "string") return undefined;
+        if (!o.answers || typeof o.answers !== "object") return undefined;
+        const ids = Array.isArray(o.suggestedTreatmentIds)
+          ? o.suggestedTreatmentIds.filter((x): x is string => typeof x === "string")
+          : [];
+        return {
+          version: 1 as const,
+          completedAt: o.completedAt,
+          answers: o.answers as Record<string, number | number[]>,
+          suggestedTreatmentIds: ids,
+        };
+      } catch {
+        return undefined;
+      }
+    })(),
   };
 
   return client;

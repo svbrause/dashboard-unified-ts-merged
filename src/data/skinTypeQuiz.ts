@@ -1,26 +1,33 @@
 /**
- * Skin Type Quiz – questions and scoring
+ * Skin Type Quiz – Gemstone Skin Type Questionnaire
  *
- * Manually paste scraped questions/answers here. Keep this file as the single
- * source of truth so the app (and AI) can read it directly.
- *
- * SCORING: For each answer, list which skin type(s) it suggests and the weight (1 = weak, 2 = strong).
- * The quiz will sum weights per type and pick the highest (or use logic you add later).
+ * Three sections: Hydration (Oily vs Dry), Reactivity (Sensitive vs Resistant),
+ * Pigmentation (Pigmented vs Non-pigmented). Each answer scores 1–4 (A=1, B=2, C=3, D=4).
+ * Section totals map to a 3-letter code (e.g. OSP) and then to one of 8 gemstone types.
  */
 
-export type SkinTypeId =
-  | "oily"
-  | "dry"
-  | "combination"
-  | "normal"
-  | "sensitive"
-  | "pigmentation";
+/** The 8 gemstone skin types (result of the quiz). */
+export type GemstoneId =
+  | "opal"
+  | "pearl"
+  | "jade"
+  | "quartz"
+  | "amber"
+  | "moonstone"
+  | "turquoise"
+  | "diamond";
 
-/** One answer option: label and how it affects each skin type score (optional weight, default 1). */
+/** Alias for backward compatibility; result is always one of the 8 gemstones. */
+export type SkinTypeId = GemstoneId;
+
+/** Section of the quiz; each has 5–6 questions and maps to one letter. */
+export type QuizSectionId = "hydration" | "reactivity" | "pigmentation";
+
+/** One answer option: label and point value (1–4) for that question's section. */
 export interface QuizAnswer {
   label: string;
-  /** Which skin type(s) this answer suggests; use weights to indicate strength (e.g. strong oily = 2). */
-  scores: Partial<Record<SkinTypeId, number>>;
+  /** Points for this section (A=1, B=2, C=3, D=4). */
+  points: number;
 }
 
 /** One multiple-choice question. */
@@ -28,351 +35,315 @@ export interface QuizQuestion {
   id: string;
   title: string;
   question: string;
+  section: QuizSectionId;
   answers: QuizAnswer[];
 }
 
 /** All quiz questions in order. */
 export interface SkinTypeQuizData {
   questions: QuizQuestion[];
-  /** Optional: display names and descriptions for each result (for results screen). */
   resultDescriptions?: Partial<
     Record<SkinTypeId, { label: string; description?: string }>
   >;
 }
 
-/**
- * EXAMPLE – replace with your scraped content.
- * Copy the block below for each question; fill in id, question, and for each answer: label + scores.
- */
+/** Section totals → letter. Hydration: 5–10 = D, 11–20 = O. Reactivity: 6–15 = S, 16–24 = R. Pigmentation: 5–12 = P, 13–20 = N. */
+export function getSectionLetters(sectionScores: Record<QuizSectionId, number>): Record<QuizSectionId, string> {
+  const h = sectionScores.hydration;
+  const r = sectionScores.reactivity;
+  const p = sectionScores.pigmentation;
+  return {
+    hydration: h >= 5 && h <= 10 ? "D" : "O",
+    reactivity: r >= 6 && r <= 15 ? "S" : "R",
+    pigmentation: p >= 5 && p <= 12 ? "P" : "N",
+  };
+}
+
+/** 3-letter code (e.g. OSP) → gemstone id. */
+const CODE_TO_GEMSTONE: Record<string, GemstoneId> = {
+  OSP: "opal",
+  OSN: "pearl",
+  ORP: "jade",
+  ORN: "quartz",
+  DSP: "amber",
+  DSN: "moonstone",
+  DRP: "turquoise",
+  DRN: "diamond",
+};
+
+export function getGemstoneFromSectionScores(sectionScores: Record<QuizSectionId, number>): GemstoneId {
+  const letters = getSectionLetters(sectionScores);
+  const code = letters.hydration + letters.reactivity + letters.pigmentation;
+  return CODE_TO_GEMSTONE[code] ?? "quartz";
+}
+
 export const SKIN_TYPE_QUIZ: SkinTypeQuizData = {
   questions: [
     {
       id: "q1",
       title: "Hydration",
+      section: "hydration",
       question: "When you wake up in the morning, your skin feels:",
       answers: [
-        { label: "Tight and in need of moisturizer", scores: { dry: 2 } },
-        { label: "Comfortable and balanced", scores: { normal: 2 } },
-        { label: "Oily in some areas", scores: { combination: 2 } },
-        { label: "Oily all over", scores: { oily: 2 } },
+        { label: "Tight and in need of moisturizer", points: 1 },
+        { label: "Comfortable and balanced", points: 2 },
+        { label: "Slightly oily in some areas", points: 3 },
+        { label: "Oily all over", points: 4 },
       ],
     },
     {
       id: "q2",
       title: "Hydration",
+      section: "hydration",
       question: "By midday, your T-zone (forehead, nose, chin):",
       answers: [
-        { label: "Still feels tight or normal", scores: { dry: 2 } },
-        { label: "Has a slight shine", scores: { normal: 2 } },
-        { label: "Is noticeably shiny", scores: { combination: 2 } },
-        { label: "Is very oily and shiny", scores: { oily: 2 } },
+        { label: "Still feels tight or normal", points: 1 },
+        { label: "Has a slight shine", points: 2 },
+        { label: "Is noticeably shiny", points: 3 },
+        { label: "Is very oily and shiny", points: 4 },
       ],
     },
     {
       id: "q3",
       title: "Hydration",
-      question:
-        "How does your skin feel 2-3 hours after cleansing (without moisturizer)?",
+      section: "hydration",
+      question: "How does your skin feel 2-3 hours after cleansing (without moisturizer)?",
       answers: [
-        { label: "Very tight and uncomfortable", scores: { dry: 2 } },
-        { label: "Slightly tight", scores: { normal: 2 } },
-        { label: "Comfortable", scores: { combination: 2 } },
-        { label: "Already showing oil", scores: { oily: 2 } },
+        { label: "Very tight and uncomfortable", points: 1 },
+        { label: "Slightly tight", points: 2 },
+        { label: "Comfortable", points: 3 },
+        { label: "Already showing oil", points: 4 },
       ],
     },
     {
       id: "q4",
       title: "Hydration",
+      section: "hydration",
       question: "Your pores are:",
       answers: [
-        { label: "Barely visible", scores: { dry: 2 } },
-        { label: "Small and fine", scores: { normal: 2 } },
-        {
-          label: "Visible, especially on nose and cheek",
-          scores: { combination: 2 },
-        },
-        { label: "Large and visible across the face", scores: { oily: 2 } },
+        { label: "Barely visible", points: 1 },
+        { label: "Small and fine", points: 2 },
+        { label: "Visible, especially on nose and cheeks", points: 3 },
+        { label: "Large and visible across face", points: 4 },
       ],
     },
     {
       id: "q5",
       title: "Hydration",
+      section: "hydration",
       question: "How often do you typically need to moisturize?",
       answers: [
-        { label: "Multiple times a day", scores: { dry: 2 } },
-        { label: "Twice daily (morning and night)", scores: { normal: 2 } },
-        { label: "Once daily", scores: { combination: 2 } },
-        { label: "Rarely or occasionally", scores: { oily: 2 } },
+        { label: "Multiple times a day", points: 1 },
+        { label: "Twice daily (morning and night)", points: 2 },
+        { label: "Once daily", points: 3 },
+        { label: "Rarely or only occasionally", points: 4 },
       ],
     },
     {
       id: "q6",
       title: "Reactivity",
+      section: "reactivity",
       question: "When trying new skincare products, your skin:",
       answers: [
-        {
-          label: "Often breaks out, stings, or gets irritated",
-          scores: { sensitive: 2 },
-        },
-        {
-          label: "Sometimes reacts but usually adjusts",
-          scores: { sensitive: 1, normal: 1 },
-        },
-        { label: "Rarely has reactions", scores: { normal: 2 } },
-        { label: "Can handle almost anything", scores: { oily: 1, normal: 1 } },
+        { label: "Often breaks out, stings, or gets irritated", points: 1 },
+        { label: "Sometimes reacts but usually adjusts", points: 2 },
+        { label: "Rarely has reactions", points: 3 },
+        { label: "Can handle almost anything", points: 4 },
       ],
     },
     {
       id: "q7",
       title: "Reactivity",
+      section: "reactivity",
       question: "In windy or cold weather, your skin:",
       answers: [
-        {
-          label: "Becomes very red and irritated",
-          scores: { sensitive: 2 },
-        },
-        { label: "Gets slightly red or tight", scores: { sensitive: 1, normal: 1 } },
-        { label: "Feels a bit dry but manageable", scores: { dry: 1, combination: 1 } },
-        { label: "Doesn't seem affected", scores: { oily: 1, normal: 1 } },
+        { label: "Becomes very red and irritated", points: 1 },
+        { label: "Gets slightly red or tight", points: 2 },
+        { label: "Feels a bit dry but manageable", points: 3 },
+        { label: "Doesn't seem affected", points: 4 },
       ],
     },
     {
       id: "q8",
       title: "Reactivity",
+      section: "reactivity",
       question: "Fragranced products (perfumes, scented lotions):",
       answers: [
-        {
-          label: "Always cause irritation or breakouts",
-          scores: { sensitive: 2 },
-        },
-        { label: "Sometimes cause problems", scores: { sensitive: 1, normal: 1 } },
-        { label: "Rarely bother you", scores: { normal: 2 } },
-        { label: "Never cause issues", scores: { oily: 1, normal: 1 } },
+        { label: "Always cause irritation or breakouts", points: 1 },
+        { label: "Sometimes cause problems", points: 2 },
+        { label: "Rarely bother you", points: 3 },
+        { label: "Never cause issues", points: 4 },
       ],
     },
     {
       id: "q9",
       title: "Reactivity",
+      section: "reactivity",
       question: "After sun exposure (even with sunscreen), your skin:",
       answers: [
-        {
-          label: "Gets very red and burns easily",
-          scores: { sensitive: 2 },
-        },
-        { label: "Sometimes gets pink or burns", scores: { sensitive: 1, normal: 1 } },
-        {
-          label: "Tans gradually with minimal burning",
-          scores: { combination: 1, normal: 1 },
-        },
-        { label: "Rarely burns, tans easily", scores: { oily: 1, normal: 1 } },
+        { label: "Gets very red and burns easily", points: 1 },
+        { label: "Sometimes gets pink or burns", points: 2 },
+        { label: "Tans gradually with minimal burning", points: 3 },
+        { label: "Rarely burns, tans easily", points: 4 },
       ],
     },
     {
       id: "q10",
       title: "Reactivity",
-      question:
-        "How does your skin react to stress, hormonal changes, or diet?",
+      section: "reactivity",
+      question: "How does your skin react to stress, hormonal changes, or diet?",
       answers: [
-        {
-          label: "Very noticeable reactions (breakouts, redness, sensitivity)",
-          scores: { sensitive: 2 },
-        },
-        {
-          label: "Some reactions during major changes",
-          scores: { sensitive: 1, normal: 1 },
-        },
-        { label: "Mild reactions occasionally", scores: { combination: 1, normal: 1 } },
-        { label: "Skin stays pretty much the same", scores: { oily: 1, normal: 1 } },
+        { label: "Very noticeable reactions (breakouts, redness, sensitivity)", points: 1 },
+        { label: "Some reactions during major changes", points: 2 },
+        { label: "Mild reactions occasionally", points: 3 },
+        { label: "Skin stays pretty much the same", points: 4 },
       ],
     },
     {
       id: "q11",
       title: "Reactivity",
+      section: "reactivity",
       question: "Retinol or acid products (AHA/BHA):",
       answers: [
-        {
-          label: "Cause irritation even in small amounts",
-          scores: { sensitive: 2 },
-        },
-        {
-          label: "Need to be introduced very slowly",
-          scores: { sensitive: 1, normal: 1 },
-        },
-        {
-          label: "Can be tolerated with gradual introduction",
-          scores: { combination: 1, normal: 1 },
-        },
-        { label: "Can use regularly without issue", scores: { oily: 1, normal: 1 } },
+        { label: "Cause irritation even in small amounts", points: 1 },
+        { label: "Need to be introduced very slowly", points: 2 },
+        { label: "Can be tolerated with gradual introduction", points: 3 },
+        { label: "Can use regularly without issues", points: 4 },
       ],
     },
     {
       id: "q12",
       title: "Pigmentation",
+      section: "pigmentation",
       question: "When you get a pimple or minor injury, afterward you:",
       answers: [
-        {
-          label: "Almost always get a dark mark that lasts months",
-          scores: { pigmentation: 2 },
-        },
-        {
-          label: "Sometimes get marks that fade slowly",
-          scores: { pigmentation: 1, normal: 1 },
-        },
-        {
-          label: "Occasionally get marks that fade within a few weeks",
-          scores: { combination: 1, normal: 1 },
-        },
-        { label: "Rarely get any lasting marks", scores: { oily: 1, normal: 1 } },
+        { label: "Almost always get a dark mark that lasts months", points: 1 },
+        { label: "Sometimes get marks that fade slowly", points: 2 },
+        { label: "Occasionally get marks that fade quickly", points: 3 },
+        { label: "Rarely get any lasting marks", points: 4 },
       ],
     },
     {
       id: "q13",
       title: "Pigmentation",
+      section: "pigmentation",
       question: "Your skin tone on your face is:",
       answers: [
-        {
-          label: "Very uneven with many dark spots or patches",
-          scores: { pigmentation: 2 },
-        },
-        {
-          label: "Somewhat uneven with some spots",
-          scores: { pigmentation: 1, normal: 1 },
-        },
-        {
-          label: "Mostly even with few to no spots",
-          scores: { combination: 1, normal: 1 },
-        },
-        { label: "Very even with few to no spots", scores: { oily: 1, normal: 1 } },
+        { label: "Very uneven with many dark spots or patches", points: 1 },
+        { label: "Somewhat uneven with some spots", points: 2 },
+        { label: "Mostly even with occasional spots", points: 3 },
+        { label: "Very even with few to no spots", points: 4 },
       ],
     },
     {
       id: "q14",
       title: "Pigmentation",
+      section: "pigmentation",
       question: "In the past, sun exposure has caused:",
       answers: [
-        {
-          label: "Many freckles, sun spots, or melasma",
-          scores: { pigmentation: 2 },
-        },
-        {
-          label: "Some freckles or spots",
-          scores: { pigmentation: 1, normal: 1 },
-        },
-        {
-          label: "Occasional light freckling",
-          scores: { combination: 1, normal: 1 },
-        },
-        { label: "Very little pigmentation change", scores: { oily: 1, normal: 1 } },
+        { label: "Many freckles, sun spots, or melasma", points: 1 },
+        { label: "Some freckles or spots", points: 2 },
+        { label: "Occasional light freckling", points: 3 },
+        { label: "Very little pigmentation change", points: 4 },
       ],
     },
     {
       id: "q15",
       title: "Pigmentation",
+      section: "pigmentation",
       question: "Your family history includes:",
       answers: [
-        {
-          label: "Many relatives with melasma, sun spots, or uneven skin tone",
-          scores: { pigmentation: 2 },
-        },
-        {
-          label: "Some relatives with pigmentation issues",
-          scores: { pigmentation: 1, normal: 1 },
-        },
-        {
-          label: "Few relatives with these issues",
-          scores: { combination: 1, normal: 1 },
-        },
-        {
-          label: "No family history of pigmentation problems",
-          scores: { oily: 1, normal: 1 },
-        },
+        { label: "Many relatives with melasma, sun spots, or uneven skin tone", points: 1 },
+        { label: "Some relatives with pigmentation issues", points: 2 },
+        { label: "Few relatives with these issues", points: 3 },
+        { label: "No family history of pigmentation problems", points: 4 },
       ],
     },
     {
       id: "q16",
       title: "Pigmentation",
+      section: "pigmentation",
       question: "When you tan:",
       answers: [
-        {
-          label: "You burn and develop uneven pigmentation",
-          scores: { pigmentation: 2 },
-        },
-        {
-          label: "You tan unevenly with some spots",
-          scores: { pigmentation: 1, normal: 1 },
-        },
-        {
-          label: "You tan fairly evenly",
-          scores: { combination: 1, normal: 1 },
-        },
-        { label: "You tan very evenly without spots", scores: { oily: 1, normal: 1 } },
+        { label: "You burn and develop uneven pigmentation", points: 1 },
+        { label: "You tan unevenly with some spots", points: 2 },
+        { label: "You tan fairly evenly", points: 3 },
+        { label: "You tan very evenly without spots", points: 4 },
       ],
     },
-    // Add more questions in the same format:
-    // {
-    //   id: "q2",
-    //   question: "...",
-    //   answers: [
-    //     { label: "...", scores: { oily: 1, dry: 0 } },
-    //   ],
-    // },
   ],
 
   resultDescriptions: {
-    oily: {
-      label: "Oily",
+    opal: {
+      label: "Opal",
       description:
-        "Your skin produces more sebum than it needs, especially in the T-zone. Pores may look larger and skin can look shiny within a few hours of cleansing. Lightweight, non-comedogenic products and gentle oil control (without over-stripping) work best.",
+        "Your skin is oily, reactive, and prone to pigmentation. Like the opal gemstone, your skin shows a beautiful play of color but can reveal imperfections clearly. Targeted treatments focus on controlling oil, calming sensitivity, and addressing pigmentation for a balanced, radiant complexion.",
     },
-    dry: {
-      label: "Dry",
+    pearl: {
+      label: "Pearl",
       description:
-        "Your skin doesn’t hold onto moisture well and can feel tight or flaky, especially after cleansing or in dry air. Focus on hydrating serums, barrier-supporting moisturizers, and avoiding harsh or stripping products.",
+        "You have oily, sensitive skin that stays mostly clear of pigmentation. Like a pearl, your skin is beautiful yet delicate, needing gentle care to maintain balance and minimize irritation while controlling shine and reactivity.",
     },
-    combination: {
-      label: "Combination",
+    jade: {
+      label: "Jade",
       description:
-        "Your skin is oily in the T-zone (forehead, nose, chin) and drier or normal on the cheeks. Use targeted products: lighter or oil-controlling options in the T-zone and more hydration where needed elsewhere.",
+        "Your skin is oily and resistant with pigmentation concerns. Like the jade gemstone, your skin is resilient but reveals imperfections clearly. Treatment aims to reduce discoloration while enhancing skin texture and clarity.",
     },
-    normal: {
-      label: "Normal",
+    quartz: {
+      label: "Quartz",
       description:
-        "Your skin is well-balanced—not overly oily or dry, and it tolerates most products without strong reactions. A consistent routine with a gentle cleanser, light moisturizer, and daily sunscreen will help maintain its health.",
+        "Oily, resistant, and non-pigmented — your skin is clear and tough like quartz. You benefit from treatments that maintain clarity, improve texture, and prevent aging while controlling oil production effectively.",
     },
-    sensitive: {
-      label: "Sensitive",
+    amber: {
+      label: "Amber",
       description:
-        "Your skin reacts easily to new products, fragrance, or environmental factors (wind, cold, sun). Choose fragrance-free, soothing formulas and patch-test new products. Strengthening the barrier can help over time.",
+        "Your dry, sensitive skin with pigmentation is like amber — warm, beautiful, but delicate. Treatments focus on strengthening your skin barrier, reducing pigmentation, and deeply hydrating for a luminous glow.",
     },
-    pigmentation: {
-      label: "Pigmentation",
+    moonstone: {
+      label: "Moonstone",
       description:
-        "Your skin is prone to dark spots, post-inflammatory marks, sun spots, or uneven tone. Daily broad-spectrum sunscreen, vitamin C or brightening antioxidants, and gentle exfoliation can help even and protect. Avoid picking and treat any inflammation gently to reduce lasting marks.",
+        "With dry, sensitive, and non-pigmented skin, your skin resembles the soft glow of moonstone. Gentle, nurturing treatments that protect and restore moisture help maintain your skin's natural radiance.",
+    },
+    turquoise: {
+      label: "Turquoise",
+      description:
+        "Your skin is dry, resistant, and pigmented. It is tough yet delicate like turquoise. You respond well to therapies that balance pigmentation and restore hydration while promoting skin strength.",
+    },
+    diamond: {
+      label: "Diamond",
+      description:
+        "Dry, resistant, and non-pigmented — your skin is clear and resilient like a diamond. You're well suited for advanced rejuvenation that enhances firmness, hydration, and youthful radiance.",
     },
   },
 };
 
-/** Display labels for the score axes (used on results screen). */
-export const SKIN_TYPE_DISPLAY_LABELS: Record<SkinTypeId, string> = {
-  oily: "Oiliness",
-  dry: "Dryness",
-  combination: "T-zone / combination",
-  normal: "Balance",
-  sensitive: "Sensitivity",
+/** Display labels for the three quiz sections (used on results score breakdown). */
+export const SECTION_DISPLAY_LABELS: Record<QuizSectionId, string> = {
+  hydration: "Hydration",
+  reactivity: "Reactivity",
   pigmentation: "Pigmentation",
 };
 
-/** Gemstone Skin Type name and tagline for results hero (e.g. "QUARTZ 💎 Clear and resilient"). */
+/** Display labels for score axes (section ids). Kept for backward compatibility with UI that iterates score keys. */
+export const SKIN_TYPE_DISPLAY_LABELS: Record<string, string> = {
+  hydration: "Hydration",
+  reactivity: "Reactivity",
+  pigmentation: "Pigmentation",
+};
+
+/** Gemstone name and tagline for results hero (e.g. "Opal – Iridescent and reactive"). */
 export const GEMSTONE_BY_SKIN_TYPE: Record<
-  SkinTypeId,
+  GemstoneId,
   { name: string; tagline: string }
 > = {
-  oily: { name: "Quartz", tagline: "Clear and resilient" },
-  dry: { name: "Pearl", tagline: "Nourished and luminous" },
-  combination: { name: "Topaz", tagline: "Balanced and radiant" },
-  normal: { name: "Diamond", tagline: "Clear and balanced" },
-  sensitive: { name: "Rose Quartz", tagline: "Calm and soothed" },
-  pigmentation: { name: "Moonstone", tagline: "Even and luminous" },
+  opal: { name: "Opal", tagline: "Iridescent and reactive" },
+  pearl: { name: "Pearl", tagline: "Lustrous but delicate" },
+  jade: { name: "Jade", tagline: "Strong and precious, shows every mark" },
+  quartz: { name: "Quartz", tagline: "Clear and resilient" },
+  amber: { name: "Amber", tagline: "Warm golden treasure" },
+  moonstone: { name: "Moonstone", tagline: "Ethereal inner glow" },
+  turquoise: { name: "Turquoise", tagline: "Sacred weathered beauty" },
+  diamond: { name: "Diamond", tagline: "Rare perfect clarity" },
 };
 
 /** One step in a routine: label shown to user + full product names for lookup in boutique. */
@@ -382,13 +353,11 @@ export interface RoutineStep {
 }
 
 /** Routine notes: AM/PM steps with labels and linked product names (match getSkincareCarouselItems). */
-export const ROUTINE_NOTES_BY_SKIN_TYPE: Partial<
-  Record<
-    SkinTypeId,
-    { am: RoutineStep[]; pm: RoutineStep[]; optional?: { label: string; productNames: string[] } }
-  >
+export const ROUTINE_NOTES_BY_SKIN_TYPE: Record<
+  GemstoneId,
+  { am: RoutineStep[]; pm: RoutineStep[]; optional?: { label: string; productNames: string[] } }
 > = {
-  oily: {
+  opal: {
     am: [
       {
         label: "Simply Clean or Gentle Cleanser",
@@ -458,13 +427,12 @@ export const ROUTINE_NOTES_BY_SKIN_TYPE: Partial<
       ],
     },
   },
-  dry: {
+  pearl: {
     am: [
       {
-        label: "Replenishing Cleanser or Gentle Cleanser",
+        label: "Simply Clean",
         productNames: [
-          "SkinCeuticals Replenishing Cleanser | Hydrating Face Wash for Dry & Sensitive Skin",
-          "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+          "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
         ],
       },
       {
@@ -528,79 +496,75 @@ export const ROUTINE_NOTES_BY_SKIN_TYPE: Partial<
       ],
     },
   },
-  combination: {
+  jade: {
     am: [
       {
-        label: "Simply Clean or Gentle Cleanser",
+        label: "Simply Clean (gel cleanser for oily/resistant)",
         productNames: [
           "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
-          "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
         ],
       },
       {
-        label: "Silymarin CF or Phyto Corrective Gel",
+        label: "Silymarin CF",
         productNames: [
           "SkinCeuticals Silymarin CF | Antioxidant Serum for Oily & Acne-Prone Skin",
-          "SkinCeuticals Phyto Corrective Gel | Soothing Hydrating Serum for Redness & Sensitive Skin",
         ],
       },
       {
-        label: "Hydrating B5 Gel",
+        label: "Discoloration Defense",
         productNames: [
-          "SkinCeuticals Hydrating B5 Gel | Lightweight Moisturizer with Vitamin B5 for Deep Skin Hydration",
+          "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
         ],
       },
       {
-        label: "Equalizing Toner (T-zone)",
+        label: "Blemish + Age Defense",
         productNames: [
-          "SkinCeuticals Equalizing Toner | Alcohol-Free Toner for Balanced, Refreshed Skin",
+          "SkinCeuticals Blemish + Age Defense | Targeted Serum for Acne and Signs of Aging",
         ],
       },
       {
-        label: "Daily Moisture",
-        productNames: [
-          "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
-        ],
-      },
-      {
-        label: "On The Daily SPF 45",
+        label: "On The Daily SPF 45 or Let's Get Physical Tinted SPF 44",
         productNames: [
           "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+          "The Treatment Let's Get Physical Tinted SPF 44 | Lightweight Tinted Sunscreen with Broad Spectrum Protection",
         ],
       },
     ],
     pm: [
       {
-        label: "Simply Clean or Gentle Cleanser",
+        label: "LHA Cleanser",
         productNames: [
-          "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
-          "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+          "SkinCeuticals LHA Cleanser | Exfoliating Face Wash for Acne-Prone & Congested Skin",
         ],
       },
       {
-        label: "Hydrating B5 Gel",
+        label: "P-Tiox",
         productNames: [
-          "SkinCeuticals Hydrating B5 Gel | Lightweight Moisturizer with Vitamin B5 for Deep Skin Hydration",
+          "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
         ],
       },
       {
-        label: "Daily Moisture",
+        label: "Retinol",
         productNames: [
-          "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
+          "SkinCeuticals Retinol 0.5% | Anti-Aging Serum for Wrinkles & Skin Renewal",
         ],
+      },
+      {
+        label: "RGN-6",
+        productNames: [],
       },
     ],
     optional: {
-      label: "Phyto Corrective Masque 1×/week",
+      label: "Glycolic 10 Renew Overnight 1–2×/week",
       productNames: [
-        "SkinCeuticals Phyto Corrective Masque | Soothing Hydrating Mask for Redness & Sensitive Skin",
+        "SkinCeuticals Glycolic 10 Renew Overnight | Exfoliating Night Serum for Smoother, Radiant Skin",
       ],
     },
   },
-  normal: {
+  quartz: {
     am: [
       {
-        label: "Simply Clean",
+        label: "Simply Clean or Gentle Cleanser",
         productNames: [
           "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
         ],
@@ -666,85 +630,30 @@ export const ROUTINE_NOTES_BY_SKIN_TYPE: Partial<
       ],
     },
   },
-  sensitive: {
+  amber: {
     am: [
       {
-        label: "Sensiderm Cleansing Milk or Soothing Cleanser",
-        productNames: [
-          "GM Collin Sensiderm Cleansing Milk | Gentle Cleanser for Sensitive & Irritated Skin",
-          "SkinCeuticals Soothing Cleanser | Gentle Face Wash for Sensitive & Irritated Skin",
-        ],
-      },
-      {
-        label: "Phyto Corrective Gel",
-        productNames: [
-          "SkinCeuticals Phyto Corrective Gel | Soothing Hydrating Serum for Redness & Sensitive Skin",
-        ],
-      },
-      {
-        label: "Triple Lipid Restore or Epidermal Repair",
-        productNames: [
-          "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
-          "SkinCeuticals Epidermal Repair | Calming Therapeutic Treatment for Compromised or Sensitive Skin",
-        ],
-      },
-      {
-        label: "On The Daily SPF 45",
-        productNames: [
-          "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
-        ],
-      },
-    ],
-    pm: [
-      {
-        label: "Sensiderm Cleansing Milk or Soothing Cleanser",
-        productNames: [
-          "GM Collin Sensiderm Cleansing Milk | Gentle Cleanser for Sensitive & Irritated Skin",
-          "SkinCeuticals Soothing Cleanser | Gentle Face Wash for Sensitive & Irritated Skin",
-        ],
-      },
-      {
-        label: "Redness Neutralizer",
-        productNames: [
-          "SkinCeuticals Redness Neutralizer | Soothing Serum for Sensitive & Redness-Prone Skin",
-        ],
-      },
-      {
-        label: "Triple Lipid Restore or Epidermal Repair",
-        productNames: [
-          "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
-          "SkinCeuticals Epidermal Repair | Calming Therapeutic Treatment for Compromised or Sensitive Skin",
-        ],
-      },
-    ],
-    optional: {
-      label: "Phyto Corrective Masque 1×/week",
-      productNames: [
-        "SkinCeuticals Phyto Corrective Masque | Soothing Hydrating Mask for Redness & Sensitive Skin",
-      ],
-    },
-  },
-  pigmentation: {
-    am: [
-      {
-        label: "Gentle Cleanser or Simply Clean",
+        label: "Gentle Cleanser (hydrating cream cleanser)",
         productNames: [
           "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
-          "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
         ],
       },
       {
-        label: "C E Ferulic or Phloretin CF",
+        label: "Phloretin CF",
         productNames: [
-          "SkinCeuticals C E Ferulic | Antioxidant Vitamin C Serum for Brightening & Anti-Aging",
           "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
         ],
       },
       {
-        label: "Discoloration Defense or Phyto A+ (if needed)",
+        label: "HA Intensifier",
+        productNames: [
+          "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+        ],
+      },
+      {
+        label: "Discoloration Defense",
         productNames: [
           "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
-          "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin",
         ],
       },
       {
@@ -757,48 +666,173 @@ export const ROUTINE_NOTES_BY_SKIN_TYPE: Partial<
     ],
     pm: [
       {
-        label: "Gentle Cleanser or Simply Clean",
+        label: "Gentle Cleanser",
+        productNames: [
+          "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+        ],
+      },
+      {
+        label: "P-Tiox (if tolerated) or Cell Cycle Catalyst",
+        productNames: [
+          "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+        ],
+      },
+      {
+        label: "HA Intensifier or AGE Interrupter",
+        productNames: [
+          "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+        ],
+      },
+      {
+        label: "Phyto Corrective Gel (if redness)",
+        productNames: [
+          "SkinCeuticals Phyto Corrective Gel | Soothing Hydrating Serum for Redness & Sensitive Skin",
+        ],
+      },
+      {
+        label: "Triple Lipid Restore 2:4:2 or AGE Interrupter Advanced",
+        productNames: [
+          "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
+        ],
+      },
+    ],
+  },
+  moonstone: {
+    am: [
+      {
+        label: "Gentle Cleanser",
         productNames: [
           "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
           "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
         ],
       },
       {
-        label: "Retinol 0.3 or 0.5",
+        label: "Serum 10 AOX+",
         productNames: [
-          "SkinCeuticals Retinol 0.3% | Anti-Aging Serum for Wrinkles & Skin Renewal",
-          "SkinCeuticals Retinol 0.5% | Anti-Aging Serum for Wrinkles & Skin Renewal",
+          "SkinCeuticals Serum 10 AOX | Antioxidant Serum with 10% Vitamin C for Brightening & Protection",
         ],
       },
       {
-        label: "Discoloration Defense or Phyto A+",
+        label: "HA Intensifier",
         productNames: [
-          "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
+          "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+        ],
+      },
+      {
+        label: "P-Tiox (if tolerated) or Cell Cycle Catalyst",
+        productNames: [
+          "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+        ],
+      },
+      {
+        label: "On The Daily SPF 45 or Let's Get Physical Tinted SPF 44",
+        productNames: [
+          "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+          "The Treatment Let's Get Physical Tinted SPF 44 | Lightweight Tinted Sunscreen with Broad Spectrum Protection",
+        ],
+      },
+    ],
+    pm: [
+      {
+        label: "Gentle Cleanser",
+        productNames: [
+          "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+        ],
+      },
+      {
+        label: "HA Intensifier",
+        productNames: [
+          "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+        ],
+      },
+      {
+        label: "Phyto A+",
+        productNames: [
           "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin",
         ],
       },
       {
-        label: "Triple Lipid Restore or Daily Moisture",
+        label: "P-Tiox (if tolerated) or Cell Cycle Catalyst",
         productNames: [
-          "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
-          "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
+          "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+        ],
+      },
+      {
+        label: "GM Collins Rosa Sea Moisturizer or Emollience",
+        productNames: [
+          "SkinCeuticals Emollience | Hydrating Moisturizer for Normal to Dry Skin",
         ],
       },
     ],
-    optional: {
-      label: "Glycolic 10 Renew Overnight 1–2×/week",
-      productNames: [
-        "SkinCeuticals Glycolic 10 Renew Overnight | Exfoliating Night Serum for Smoother, Radiant Skin",
-      ],
-    },
+  },
+  turquoise: {
+    am: [
+      { label: "Replenishing Cleanser", productNames: ["SkinCeuticals Replenishing Cleanser | Hydrating Face Wash for Dry & Sensitive Skin"] },
+      { label: "Phloretin CF", productNames: ["SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone"] },
+      { label: "Discoloration Defense", productNames: ["SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone"] },
+      { label: "P-Tiox", productNames: ["SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair"] },
+      { label: "On The Daily SPF 45 or Let's Get Physical Tinted SPF 44", productNames: ["The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection", "The Treatment Let's Get Physical Tinted SPF 44 | Lightweight Tinted Sunscreen with Broad Spectrum Protection"] },
+    ],
+    pm: [
+      { label: "Replenishing Cleanser", productNames: ["SkinCeuticals Replenishing Cleanser | Hydrating Face Wash for Dry & Sensitive Skin"] },
+      { label: "P-Tiox", productNames: ["SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair"] },
+      { label: "HA Intensifier", productNames: ["SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin"] },
+      { label: "Triple Lipid Restore 2:4:2 or RGN-6", productNames: ["SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration"] },
+    ],
+  },
+  diamond: {
+    am: [
+      { label: "Simply Clean Cleanser", productNames: ["SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types"] },
+      { label: "CE Ferulic", productNames: ["SkinCeuticals C E Ferulic | Antioxidant Vitamin C Serum for Brightening & Anti-Aging"] },
+      { label: "P-Tiox", productNames: ["SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair"] },
+      { label: "HA Intensifier", productNames: ["SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin"] },
+      { label: "On The Daily SPF 45 or Let's Get Physical Tinted SPF 44", productNames: ["The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection", "The Treatment Let's Get Physical Tinted SPF 44 | Lightweight Tinted Sunscreen with Broad Spectrum Protection"] },
+    ],
+    pm: [
+      { label: "Simply Clean Cleanser", productNames: ["SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types"] },
+      { label: "Retinol 0.5", productNames: ["SkinCeuticals Retinol 0.5% | Anti-Aging Serum for Wrinkles & Skin Renewal"] },
+      { label: "P-Tiox", productNames: ["SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair"] },
+      { label: "HA Intensifier", productNames: ["SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin"] },
+      { label: "Triple Lipid Restore 2:4:2", productNames: ["SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration"] },
+    ],
   },
 };
 
 /** In-person treatment recommendations per skin type for "Your personalized treatment recommendations" section. */
-export const TREATMENT_RECOMMENDATIONS_BY_SKIN_TYPE: Partial<
-  Record<SkinTypeId, { heading: string; items: string[] }>
+export const TREATMENT_RECOMMENDATIONS_BY_SKIN_TYPE: Record<
+  GemstoneId,
+  { heading: string; items: string[] }
 > = {
-  oily: {
+  opal: {
+    heading: "Reactive, breakout-prone, with stubborn pigmentation",
+    items: [
+      "BBL/Moxi – For pigmentation and redness (laser consultation will determine which is best)",
+      "PRFM Injections – Healing and collagen support",
+      "Cosmelan Peel – For deeper pigment correction",
+      "Sweating Treatment with Botox – Helps manage oil and sweat",
+    ],
+  },
+  pearl: {
+    heading: "Reactive, breakout-prone, not prone to pigmentation",
+    items: [
+      "PRFM Injections – Regenerates skin and improves barrier",
+      "Sweating Treatment with Botox – Controls oil and sweat",
+      "Sofwave/Ultherapy – Tightening treatment with no downtime",
+      "Fillers – For contour and volume",
+      "Microneedling – Collagen stimulation and textural improvement",
+    ],
+  },
+  jade: {
+    heading: "Tolerant skin prone to pigmentation and sun damage",
+    items: [
+      "Cosmelan Peel – Corrects stubborn pigmentation",
+      "BBL/Moxi – Brightens and evens tone (laser consultation will determine best option)",
+      "Sofwave/Ultherapy – Firms and stimulates collagen",
+      "Sculptra – Long-term collagen stimulation",
+      "Dermasweep – Gently exfoliates and radiates",
+    ],
+  },
+  quartz: {
     heading: "Balanced, clear skin — ideal for advanced rejuvenation",
     items: [
       "Sofwave/Ultherapy – Tightens and improves skin quality",
@@ -807,92 +841,75 @@ export const TREATMENT_RECOMMENDATIONS_BY_SKIN_TYPE: Partial<
       "PRFM Microneedling – Collagen stimulation and textural improvement with brightening benefits",
     ],
   },
-  dry: {
-    heading: "Hydration and renewal",
+  amber: {
+    heading: "Delicate skin with discoloration — needs gentle pigment correction",
     items: [
-      "Hydrafacial – Deep hydration and gentle exfoliation",
-      "PRP/PRFM – Natural growth factors for rejuvenation",
-      "Laser resurfacing – Texture and tone improvement",
-      "Custom facials – Nourishing, barrier-supporting treatments",
+      "BBL/Moxi – Brightens and evens tone (laser consultation will determine best option)",
+      "PRFM Microneedling – Collagen stimulation with brightening benefits",
+      "SkinVive – Gentle hydration and radiance",
+      "Cosmelan Peel – Pigmentation correction",
+      "Sculptra – Collagen and structural support, enhanced skin glow",
     ],
   },
-  combination: {
-    heading: "Balance and radiance",
+  moonstone: {
+    heading: "Extremely delicate and dry — needs nurturing, low-risk options",
     items: [
-      "Hydrafacial – Balance and clarity",
-      "Chemical peels – Refine T-zone, nourish cheeks",
-      "Microneedling – Texture and glow",
-      "LED therapy – Calm and clarify",
+      "SkinVive – Hydration without irritation",
+      "Ultherapy or Sofwave – Tightening and collagen boost",
+      "PRFM Injections – Repair and texture enhancement",
+      "Sculptra – Collagen and structural support, skin glow",
+      "BBL – Calms the skin",
     ],
   },
-  normal: {
-    heading: "Maintain and enhance",
+  turquoise: {
+    heading: "Tolerant skin with visible pigment and early aging",
     items: [
-      "Sofwave/Ultherapy – Maintain firmness and quality",
-      "Chemical peels – Radiance and clarity",
-      "Microneedling – Collagen and texture",
-      "Custom facials – Tailored to your goals",
+      "Cosmelan Peel – Comprehensive pigment reset",
+      "BBL/Moxi – Corrects tone and sun damage (laser consultation will determine best option)",
+      "PRFM Microneedling – Collagen stimulation with brightening benefits",
+      "Fillers – For natural contour and replenishment",
+      "SkinVive – Helps hydrate skin",
     ],
   },
-  sensitive: {
-    heading: "Gentle, calming treatments",
+  diamond: {
+    heading: "Resilient, aging skin — ideal for full rejuvenation plans",
     items: [
-      "Hydrafacial – Soothing, hydrating cleanse",
-      "LED therapy – Calm and reduce redness",
-      "Custom gentle facials – Fragrance-free, barrier-supporting",
-      "PRP – Natural healing and rejuvenation",
-    ],
-  },
-  pigmentation: {
-    heading: "Even tone and brightening",
-    items: [
-      "Chemical peels – Brightening, pigment-correcting",
-      "BBL/IPL – Target sun damage and sun spots",
-      "Microneedling with brightening serums – Improve texture and tone",
-      "Hydrafacial – Gentle exfoliation and infusion of brightening ingredients",
+      "Ultherapy or Sofwave – Lifting and firming",
+      "Sculptra – Collagen regeneration, skin glow",
+      "Fillers – Volume and definition",
+      "SkinVive – Hydration and glow boost",
     ],
   },
 };
 
-/** Short advice line when this type appears as a secondary tendency. */
-export const SECONDARY_TENDENCY_ADVICE: Partial<Record<SkinTypeId, string>> = {
-  oily: "Consider lightweight, non-comedogenic products in oilier areas.",
-  dry: "Add extra hydration where skin feels tight; avoid over-cleansing.",
-  combination: "You may benefit from using different products on the T-zone vs cheeks.",
-  normal: "Keep a simple, consistent routine to maintain balance.",
-  sensitive: "Patch-test new products and favor fragrance-free, soothing options.",
-  pigmentation:
-    "Wear daily broad-spectrum SPF and consider vitamin C or brightening serums to support even tone.",
-};
+/** Short advice (legacy; gemstone quiz has no secondary tendency). */
+export const SECONDARY_TENDENCY_ADVICE: Partial<Record<GemstoneId, string>> = {};
 
 // ---------------------------------------------------------------------------
 // Scoring: answer index (0-based) per question id → total per skin type → winner
 // ---------------------------------------------------------------------------
 
-/** Display order for skin type score breakdown. */
-export const SKIN_TYPE_SCORE_ORDER: SkinTypeId[] = [
-  "oily",
-  "dry",
-  "combination",
-  "normal",
-  "sensitive",
+/** Display order for section score breakdown (results screen). */
+export const SECTION_SCORE_ORDER: QuizSectionId[] = [
+  "hydration",
+  "reactivity",
   "pigmentation",
 ];
 
+/** Backward compatibility: same as SECTION_SCORE_ORDER for iteration. */
+export const SKIN_TYPE_SCORE_ORDER: QuizSectionId[] = SECTION_SCORE_ORDER;
+
 /**
- * Compute per–skin-type scores from quiz answers (for results screen charts).
+ * Compute section totals from quiz answers (A=1, B=2, C=3, D=4 per question).
  * @param answersByQuestionId Map of question id → selected answer index (0-based)
- * @returns Scores for each skin type
+ * @returns Section scores (hydration 5–20, reactivity 6–24, pigmentation 5–20)
  */
 export function computeQuizScores(
   answersByQuestionId: Record<string, number>
-): Record<SkinTypeId, number> {
-  const totals: Record<SkinTypeId, number> = {
-    oily: 0,
-    dry: 0,
-    combination: 0,
-    normal: 0,
-    sensitive: 0,
+): Record<QuizSectionId, number> {
+  const totals: Record<QuizSectionId, number> = {
+    hydration: 0,
+    reactivity: 0,
     pigmentation: 0,
   };
   for (const q of SKIN_TYPE_QUIZ.questions) {
@@ -900,54 +917,42 @@ export function computeQuizScores(
     if (answerIndex == null || answerIndex < 0 || answerIndex >= q.answers.length)
       continue;
     const answer = q.answers[answerIndex];
-    for (const [type, weight] of Object.entries(answer.scores)) {
-      if (type in totals) totals[type as SkinTypeId] += weight;
+    const points = "points" in answer ? answer.points : 0;
+    if (q.section && totals[q.section] !== undefined) {
+      totals[q.section] += points;
     }
   }
   return totals;
 }
 
 /**
- * Compute skin type result from quiz answers.
+ * Compute gemstone result from quiz answers.
  * @param answersByQuestionId Map of question id → selected answer index (0-based)
- * @returns The skin type with the highest total score; ties broken by order: oily < dry < combination < normal < sensitive < pigmentation
+ * @returns The gemstone skin type (e.g. opal, quartz)
  */
 export function computeQuizResult(
   answersByQuestionId: Record<string, number>
-): SkinTypeId {
+): GemstoneId {
   return computeQuizProfile(answersByQuestionId).primary;
 }
 
-/** Profile: primary type, optional secondary tendency, and raw scores. */
+/** Profile: primary gemstone, section scores, and section letters (D/O, S/R, P/N). */
 export interface SkinProfile {
-  primary: SkinTypeId;
-  secondary?: SkinTypeId;
-  scores: Record<SkinTypeId, number>;
+  primary: GemstoneId;
+  scores: Record<QuizSectionId, number>;
+  sectionLetters: Record<QuizSectionId, string>;
 }
 
-/** Score gap under which we show a "with X tendency" secondary (e.g. 2 points). */
-const SECONDARY_THRESHOLD = 2;
-
 /**
- * Compute full profile from quiz answers (primary, optional secondary, scores).
- * Secondary is set when the second-highest type is within SECONDARY_THRESHOLD of primary.
+ * Compute full profile from quiz answers (gemstone + section scores and letters).
  */
 export function computeQuizProfile(
   answersByQuestionId: Record<string, number>
 ): SkinProfile {
   const scores = computeQuizScores(answersByQuestionId);
-  const ordered = [...SKIN_TYPE_SCORE_ORDER].sort(
-    (a, b) => (scores[b] ?? 0) - (scores[a] ?? 0)
-  );
-  const primary = ordered[0] as SkinTypeId;
-  const primaryScore = scores[primary] ?? 0;
-  const second = ordered[1] as SkinTypeId;
-  const secondScore = scores[second] ?? 0;
-  const secondary =
-    second !== primary && primaryScore - secondScore <= SECONDARY_THRESHOLD
-      ? second
-      : undefined;
-  return { primary, secondary, scores };
+  const sectionLetters = getSectionLetters(scores);
+  const primary = getGemstoneFromSectionScores(scores);
+  return { primary, scores, sectionLetters };
 }
 
 /**
@@ -959,15 +964,8 @@ export function getResultSummary(profile: SkinProfile): {
   description: string;
 } {
   const desc = SKIN_TYPE_QUIZ.resultDescriptions?.[profile.primary];
-  const primaryLabel = desc?.label ?? profile.primary;
-  const label = profile.secondary
-    ? `${primaryLabel} with ${(SKIN_TYPE_QUIZ.resultDescriptions?.[profile.secondary]?.label ?? profile.secondary)} tendency`
-    : primaryLabel;
-  const parts: string[] = [];
-  if (desc?.description) parts.push(desc.description);
-  if (profile.secondary && SECONDARY_TENDENCY_ADVICE[profile.secondary])
-    parts.push(SECONDARY_TENDENCY_ADVICE[profile.secondary]!);
-  const description = parts.join(" ");
+  const label = desc?.label ?? profile.primary;
+  const description = desc?.description ?? "";
   return { label, description };
 }
 
@@ -976,57 +974,83 @@ export function getResultSummary(profile: SkinProfile): {
 // Aligned with RECOMMENDED_PRODUCTS_BY_CONTEXT Skincare categories where possible.
 // ---------------------------------------------------------------------------
 
-export const SKIN_TYPE_TO_PRODUCTS: Record<SkinTypeId, string[]> = {
-  dry: [
-    "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
-    "SkinCeuticals Hydrating B5 Gel | Lightweight Moisturizer with Vitamin B5 for Deep Skin Hydration",
-    "GM Collin Daily Ceramide Comfort | Nourishing Skin Barrier Capsules for Hydration & Repair (20 Ct.)",
-    "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
-    "SkinCeuticals Hydra Balm | Intensive Moisturizing Balm for Compromised, Dry & Dehydrated Skin",
-    "SkinCeuticals Renew Overnight | Intensive Night Cream for Dry & Dehydrated Skin",
-    "SkinCeuticals Emollience | Hydrating Moisturizer for Normal to Dry Skin",
-  ],
-  oily: [
-    "SkinCeuticals Blemish + Age Defense | Targeted Serum for Acne and Signs of Aging",
-    "SkinCeuticals Silymarin CF | Antioxidant Serum for Oily & Acne-Prone Skin",
-    "SkinCeuticals Purifying Cleanser | Deep Cleansing Face Wash for Oily & Acne-Prone Skin",
-    "Skinceuticals Clarifying Clay Mask | Detoxifying Face Mask for Oil Control",
-    "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
-    "The TreatMINT Cooling Clay Mask | Detoxifying & Refreshing Face Mask for Clear Skin",
-  ],
-  combination: [
-    "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
-    "SkinCeuticals Hydrating B5 Gel | Lightweight Moisturizer with Vitamin B5 for Deep Skin Hydration",
-    "SkinCeuticals Silymarin CF | Antioxidant Serum for Oily & Acne-Prone Skin",
-    "SkinCeuticals Equalizing Toner | Alcohol-Free Toner for Balanced, Refreshed Skin",
-    "SkinCeuticals Phyto Corrective Gel | Soothing Hydrating Serum for Redness & Sensitive Skin",
-    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
-  ],
-  normal: [
-    "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
+export const SKIN_TYPE_TO_PRODUCTS: Record<GemstoneId, string[]> = {
+  opal: [
     "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
-    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
-    "SkinCeuticals C E Ferulic | Antioxidant Vitamin C Serum for Brightening & Anti-Aging",
-    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
-    "SkinCeuticals Hydrating B5 Gel | Lightweight Moisturizer with Vitamin B5 for Deep Skin Hydration",
-  ],
-  sensitive: [
-    "GM Collin Sensiderm Cleansing Milk | Gentle Cleanser for Sensitive & Irritated Skin",
-    "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
+    "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
+    "SkinCeuticals Silymarin CF | Antioxidant Serum for Oily & Acne-Prone Skin",
+    "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
     "SkinCeuticals Phyto Corrective Gel | Soothing Hydrating Serum for Redness & Sensitive Skin",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "SkinCeuticals Blemish + Age Defense | Targeted Serum for Acne and Signs of Aging",
     "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
-    "SkinCeuticals Soothing Cleanser | Gentle Face Wash for Sensitive & Irritated Skin",
-    "SkinCeuticals Redness Neutralizer | Soothing Serum for Sensitive & Redness-Prone Skin",
-    "SkinCeuticals Epidermal Repair | Calming Therapeutic Treatment for Compromised or Sensitive Skin",
+    "The Treatment Let's Get Physical Tinted SPF 44 | Lightweight Tinted Sunscreen with Broad Spectrum Protection",
   ],
-  pigmentation: [
-    "SkinCeuticals C E Ferulic | Antioxidant Vitamin C Serum for Brightening & Anti-Aging",
+  pearl: [
+    "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
+    "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
+    "SkinCeuticals Phyto Corrective Gel | Soothing Hydrating Serum for Redness & Sensitive Skin",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+    "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
+  ],
+  jade: [
+    "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
+    "SkinCeuticals Silymarin CF | Antioxidant Serum for Oily & Acne-Prone Skin",
+    "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
+    "SkinCeuticals Blemish + Age Defense | Targeted Serum for Acne and Signs of Aging",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "SkinCeuticals LHA Cleanser | Exfoliating Face Wash for Acne-Prone & Congested Skin",
+    "SkinCeuticals Retinol 0.5% | Anti-Aging Serum for Wrinkles & Skin Renewal",
+    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+  ],
+  quartz: [
+    "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
+    "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+    "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
+    "SkinCeuticals Silymarin CF | Antioxidant Serum for Oily & Acne-Prone Skin",
+    "SkinCeuticals Blemish + Age Defense | Targeted Serum for Acne and Signs of Aging",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "SkinCeuticals Retinol 0.5% | Anti-Aging Serum for Wrinkles & Skin Renewal",
+    "SkinCeuticals Daily Moisture | Lightweight Hydrating Moisturizer for All Skin Types",
+    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+  ],
+  amber: [
+    "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+    "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
+    "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+    "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "SkinCeuticals Phyto Corrective Gel | Soothing Hydrating Serum for Redness & Sensitive Skin",
+    "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
+    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+  ],
+  moonstone: [
+    "SkinCeuticals Gentle Cleanser | Soothing Cream Cleanser for Dry & Sensitive Skin",
+    "SkinCeuticals Serum 10 AOX | Antioxidant Serum with 10% Vitamin C for Brightening & Protection",
+    "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin",
+    "SkinCeuticals Emollience | Hydrating Moisturizer for Normal to Dry Skin",
+    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
+  ],
+  turquoise: [
+    "SkinCeuticals Replenishing Cleanser | Hydrating Face Wash for Dry & Sensitive Skin",
     "SkinCeuticals Phloretin CF | Antioxidant Serum for Environmental Damage & Uneven Skin Tone",
     "SkinCeuticals Discoloration Defense | Targeted Serum for Dark Spots & Uneven Skin Tone",
-    "SkinCeuticals Phyto A+ Brightening Treatment | Lightweight Gel Moisturizer for Dull, Uneven Skin",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+    "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
     "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
-    "SkinCeuticals Serum 10 AOX | Antioxidant Serum with 10% Vitamin C for Brightening & Protection",
-    "SkinCeuticals Glycolic 10 Renew Overnight | Exfoliating Night Serum for Smoother, Radiant Skin",
+  ],
+  diamond: [
+    "SkinCeuticals Simply Clean | Gentle Foaming Cleanser for All Skin Types",
+    "SkinCeuticals C E Ferulic | Antioxidant Vitamin C Serum for Brightening & Anti-Aging",
+    "SkinCeuticals P-Tiox | Glass Skin Serum for Skin Protection & Repair",
+    "SkinCeuticals Hyaluronic Acid Intensifier | Multi-Glycan Hydrating Serum for Plump & Smooth Skin",
+    "SkinCeuticals Retinol 0.5% | Anti-Aging Serum for Wrinkles & Skin Renewal",
+    "SkinCeuticals Triple Lipid Restore 2:4:2 | Anti-Aging Moisturizer for Skin Barrier Repair & Hydration",
+    "The Treatment On The Daily SPF 45 | Lightweight Sunscreen for Daily Protection",
   ],
 };
 
@@ -1097,7 +1121,7 @@ export const RECOMMENDED_PRODUCT_REASONS: Record<string, string> = {
  * Return recommended product names for a skin type (from our boutique list).
  * Use with getSkincareCarouselItems() or TREATMENT_BOUTIQUE_SKINCARE to resolve to full product objects.
  */
-export function getRecommendedProductsForSkinType(skinType: SkinTypeId): string[] {
+export function getRecommendedProductsForSkinType(skinType: GemstoneId): string[] {
   return [...(SKIN_TYPE_TO_PRODUCTS[skinType] ?? [])];
 }
 
@@ -1116,11 +1140,10 @@ export function buildSkincareQuizPayload(answersByQuestionId: Record<string, num
   version: 1;
   completedAt: string;
   answers: Record<string, number>;
-  result: SkinTypeId;
+  result: GemstoneId;
   recommendedProductNames: string[];
   resultLabel?: string;
   resultDescription?: string;
-  secondary?: SkinTypeId;
 } {
   const profile = computeQuizProfile(answersByQuestionId);
   const { label: resultLabel, description: resultDescription } =
@@ -1133,6 +1156,5 @@ export function buildSkincareQuizPayload(answersByQuestionId: Record<string, num
     recommendedProductNames: getRecommendedProductsForSkinType(profile.primary),
     resultLabel,
     resultDescription,
-    secondary: profile.secondary,
   };
 }

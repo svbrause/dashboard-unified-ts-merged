@@ -376,6 +376,20 @@
   border-left: 4px solid var(--theme-accent);
 }
 
+.detail-section-wellness-quiz .wellness-quiz-treatment-list {
+  margin-top: 16px;
+}
+
+.detail-section-wellness-quiz {
+  border-top: 2px solid var(--theme-border);
+  padding-top: 20px;
+  margin-top: 20px;
+  background: #fafafa;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid var(--theme-accent);
+}
+
 .skin-analysis-header {
   align-items: center;
 }
@@ -385,6 +399,17 @@
   font-weight: 500;
   color: var(--theme-text-secondary);
   margin-left: 8px;
+}
+
+.wellness-quiz-summary {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--theme-text-secondary);
+}
+
+.wellness-quiz-summary-label {
+  font-weight: 500;
+  color: var(--theme-text-muted);
 }
 
 .skin-analysis-description {
@@ -872,6 +897,12 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.detail-section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .detail-section-title-inline {

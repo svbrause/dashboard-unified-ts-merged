@@ -41,6 +41,8 @@ import {
 } from "../modals/DiscussedTreatmentsModal/utils";
 import {
   REGION_OPTIONS,
+  REGION_OPTIONS_MICRONEEDLING,
+  MICRONEEDLING_TYPE_OPTIONS,
   TIMELINE_OPTIONS,
   TIMELINE_SKINCARE,
   PLAN_SECTIONS,
@@ -55,7 +57,6 @@ import {
   GEMSTONE_BY_SKIN_TYPE,
   RECOMMENDED_PRODUCT_REASONS,
   computeQuizScores,
-  computeQuizProfile,
   SKIN_TYPE_DISPLAY_LABELS,
   SKIN_TYPE_SCORE_ORDER,
 } from "../../data/skinTypeQuiz";
@@ -64,6 +65,7 @@ import type { TreatmentPlanPrefill } from "../modals/DiscussedTreatmentsModal/Tr
 import TreatmentRecommenderFilters from "./TreatmentRecommenderFilters";
 
 import TreatmentPhotosModal from "../modals/TreatmentPhotosModal";
+import PhotoViewerModal from "../modals/PhotoViewerModal";
 import "../modals/AnalysisOverviewModal.css";
 import "./TreatmentRecommenderByTreatment.css";
 
@@ -389,6 +391,8 @@ export default function TreatmentRecommenderByTreatment({
     laserWhat?: string[];
     /** For Biostimulants: multi-select "What" options (e.g. Sculptra, Radiesse, Ellansé). */
     biostimulantWhat?: string[];
+    /** For Microneedling: multi-select type options (e.g. PRP, TCA, TXA, PDGF, Subcision). */
+    microneedlingType?: string[];
     when: string;
     detailsExpanded: boolean;
     product?: string;
@@ -475,7 +479,12 @@ export default function TreatmentRecommenderByTreatment({
     let mounted = true;
     fetchTableRecords("Patients", {
       filterFormula: `RECORD_ID() = "${client.id}"`,
-      fields: ["Front Photo", "Side Photo"],
+      fields: [
+        "Front Photo",
+        "Side Photo",
+        "Side Photo (from Form Submissions)",
+        "Left Side Photo (from Form Submissions)",
+      ],
     })
       .then((records) => {
         if (!mounted || records.length === 0) return;
@@ -489,8 +498,16 @@ export default function TreatmentRecommenderByTreatment({
         }
         const side =
           fields["Side Photo"] ?? fields["Side photo"] ?? fields["sidePhoto"];
+        const unprocessedSide = fields["Side Photo (from Form Submissions)"];
+        const unprocessedLeft = fields["Left Side Photo (from Form Submissions)"];
         if (side && Array.isArray(side) && side.length > 0) {
           setSidePhotoUrl(getUrl(side[0]) ?? null);
+        } else if (unprocessedSide && Array.isArray(unprocessedSide) && unprocessedSide.length > 0) {
+          setSidePhotoUrl(getUrl(unprocessedSide[0]) ?? null);
+        } else if (unprocessedLeft && Array.isArray(unprocessedLeft) && unprocessedLeft.length > 0) {
+          setSidePhotoUrl(getUrl(unprocessedLeft[0]) ?? null);
+        } else {
+          setSidePhotoUrl(null);
         }
       })
       .catch(() => {});
@@ -796,7 +813,11 @@ export default function TreatmentRecommenderByTreatment({
           ? addToPlanForTreatment.biostimulantWhat?.length
             ? addToPlanForTreatment.biostimulantWhat.join(", ")
             : addToPlanForTreatment.product?.trim() || undefined
-          : addToPlanForTreatment.product?.trim() || undefined;
+          : addToPlanForTreatment.treatment === "Microneedling"
+            ? addToPlanForTreatment.microneedlingType?.length
+              ? addToPlanForTreatment.microneedlingType.join(", ")
+              : addToPlanForTreatment.product?.trim() || undefined
+            : addToPlanForTreatment.product?.trim() || undefined;
     const prefill: TreatmentPlanPrefill = {
       interest: "",
       region,
@@ -1163,11 +1184,8 @@ export default function TreatmentRecommenderByTreatment({
                           </button>
                         </div>
                         {!skincareScoreBreakdownCollapsed &&
-                          (() => {
+                            (() => {
                             const scores = computeQuizScores(
-                              client.skincareQuiz!.answers,
-                            );
-                            const profile = computeQuizProfile(
                               client.skincareQuiz!.answers,
                             );
                             const maxScore = Math.max(
@@ -1180,9 +1198,8 @@ export default function TreatmentRecommenderByTreatment({
                                   const value = scores[type] ?? 0;
                                   const pct =
                                     maxScore > 0 ? (value / maxScore) * 100 : 0;
-                                  const isPrimary = profile.primary === type;
-                                  const isSecondary =
-                                    profile.secondary === type;
+                                  const isPrimary = false;
+                                  const isSecondary = false;
                                   return (
                                     <div
                                       key={type}
@@ -1410,6 +1427,10 @@ export default function TreatmentRecommenderByTreatment({
                                       treatment === "Biostimulants"
                                         ? []
                                         : undefined,
+                                    microneedlingType:
+                                      treatment === "Microneedling"
+                                        ? []
+                                        : undefined,
                                     when: TIMELINE_OPTIONS[0],
                                     detailsExpanded: false,
                                     product: "",
@@ -1618,7 +1639,8 @@ export default function TreatmentRecommenderByTreatment({
                                     ? "What:"
                                     : "Where:"}
                                 </span>
-                                {optionsFromTable && (
+                                {optionsFromTable &&
+                                  treatment !== "Microneedling" && (
                                   <span className="treatment-recommender-by-treatment__edit-options-wrap">
                                     <button
                                       type="button"
@@ -1804,12 +1826,16 @@ export default function TreatmentRecommenderByTreatment({
                                             </button>
                                           );
                                         })
-                                      : (optionsFromTable
-                                          ? whereOptionRecordsDeduped
-                                          : whereOptions.map((v) => ({
-                                              id: "",
-                                              value: v,
-                                            }))
+                                      : (treatment === "Microneedling"
+                                          ? [...REGION_OPTIONS_MICRONEEDLING].map(
+                                              (v) => ({ id: "", value: v }),
+                                            )
+                                          : optionsFromTable
+                                            ? whereOptionRecordsDeduped
+                                            : whereOptions.map((v) => ({
+                                                id: "",
+                                                value: v,
+                                              }))
                                         ).map((rec) => {
                                           const r = rec.value;
                                           const whereSelected =
@@ -1999,7 +2025,13 @@ export default function TreatmentRecommenderByTreatment({
                                     treatment !== "Laser" &&
                                     treatment !== "Biostimulants" &&
                                     addToPlanForTreatment.where
-                                      .filter((w) => !whereOptions.includes(w))
+                                      .filter((w) =>
+                                        treatment === "Microneedling"
+                                          ? !REGION_OPTIONS_MICRONEEDLING.includes(
+                                              w as "Face" | "Neck" | "Chest",
+                                            )
+                                          : !whereOptions.includes(w),
+                                      )
                                       .map((customVal) => (
                                         <button
                                           key={customVal}
@@ -2031,6 +2063,76 @@ export default function TreatmentRecommenderByTreatment({
                                           </span>
                                         </button>
                                       ))}
+                                </div>
+                              </div>
+                            )}
+                            {treatment === "Microneedling" && (
+                              <div className="treatment-recommender-by-treatment__add-row">
+                                <span className="treatment-recommender-by-treatment__add-row-label">
+                                  Type:
+                                </span>
+                                <div className="treatment-recommender-by-treatment__chips">
+                                  {[...MICRONEEDLING_TYPE_OPTIONS].map(
+                                    (opt) => {
+                                      const selected = (
+                                        addToPlanForTreatment.microneedlingType ??
+                                        []
+                                      ).includes(opt);
+                                      return (
+                                        <button
+                                          key={opt}
+                                          type="button"
+                                          className={`treatment-recommender-by-treatment__chip ${
+                                            selected
+                                              ? "treatment-recommender-by-treatment__chip--selected"
+                                              : ""
+                                          }`}
+                                          onClick={() =>
+                                            setAddToPlanForTreatment(
+                                              (prev) => {
+                                                if (!prev) return null;
+                                                const current =
+                                                  prev.microneedlingType ?? [];
+                                                const next = current.includes(
+                                                  opt,
+                                                )
+                                                  ? current.filter(
+                                                      (x) => x !== opt,
+                                                    )
+                                                  : [...current, opt];
+                                                return {
+                                                  ...prev,
+                                                  microneedlingType: next,
+                                                };
+                                              },
+                                            )
+                                          }
+                                          title={
+                                            selected
+                                              ? `Remove ${opt}`
+                                              : `Add ${opt}`
+                                          }
+                                          aria-label={
+                                            selected
+                                              ? `Remove ${opt}`
+                                              : `Add ${opt}`
+                                          }
+                                        >
+                                          <span className="treatment-recommender-by-treatment__chip-label">
+                                            {opt}
+                                          </span>
+                                          {selected && (
+                                            <span
+                                              className="treatment-recommender-by-treatment__chip-remove"
+                                              aria-hidden
+                                            >
+                                              ×
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    },
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -2148,6 +2250,10 @@ export default function TreatmentRecommenderByTreatment({
                                   treatment === "Laser" ? [] : undefined,
                                 biostimulantWhat:
                                   treatment === "Biostimulants"
+                                    ? []
+                                    : undefined,
+                                microneedlingType:
+                                  treatment === "Microneedling"
                                     ? []
                                     : undefined,
                                 when: TIMELINE_OPTIONS[0],
@@ -2388,65 +2494,11 @@ export default function TreatmentRecommenderByTreatment({
       )}
 
       {showClientPhotoModal && (hasFront || hasSide) && (
-        <div
-          className="treatment-recommender-by-treatment__photo-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${client.name} – ${clientPhotoView} photo`}
-          onClick={() => setShowClientPhotoModal(false)}
-        >
-          <div
-            className="treatment-recommender-by-treatment__photo-modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="treatment-recommender-by-treatment__photo-modal-img-wrap">
-              <button
-                type="button"
-                className="treatment-recommender-by-treatment__photo-modal-close"
-                onClick={() => setShowClientPhotoModal(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-              {currentClientPhotoUrl && (
-                <img
-                  src={currentClientPhotoUrl}
-                  alt={`${client.name} – ${clientPhotoView}`}
-                  className="treatment-recommender-by-treatment__photo-modal-img"
-                />
-              )}
-            </div>
-            <div className="treatment-recommender-by-treatment__photo-modal-toggles">
-              <button
-                type="button"
-                className={`treatment-recommender-by-treatment__photo-modal-toggle ${
-                  clientPhotoView === "front"
-                    ? "treatment-recommender-by-treatment__photo-modal-toggle--active"
-                    : ""
-                }`}
-                onClick={() => setClientPhotoView("front")}
-                disabled={!hasFront}
-              >
-                Front
-              </button>
-              <button
-                type="button"
-                className={`treatment-recommender-by-treatment__photo-modal-toggle ${
-                  clientPhotoView === "side"
-                    ? "treatment-recommender-by-treatment__photo-modal-toggle--active"
-                    : ""
-                }`}
-                onClick={() => setClientPhotoView("side")}
-                disabled={!hasSide}
-              >
-                Side
-              </button>
-            </div>
-            <p className="treatment-recommender-by-treatment__photo-modal-caption">
-              {client.name} – {clientPhotoView}
-            </p>
-          </div>
-        </div>
+        <PhotoViewerModal
+          client={client}
+          initialPhotoType={clientPhotoView}
+          onClose={() => setShowClientPhotoModal(false)}
+        />
       )}
     </div>
   );

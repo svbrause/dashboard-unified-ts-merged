@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { parseSkinQuizParams } from "../../utils/skinQuizLink";
-import { submitSkinQuizFromLink } from "../../services/api";
+import { submitSkinQuizFromLink, fetchSkinQuizResultsFromLink } from "../../services/api";
 import {
   SKIN_TYPE_QUIZ,
   buildSkincareQuizPayload,
@@ -33,12 +33,36 @@ export default function SkinQuizStandalonePage() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingExisting, setLoadingExisting] = useState(!!params);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<SkinQuizProduct | null>(null);
 
   useEffect(() => {
     if (!params) setPhase("invalid");
   }, [params]);
+
+  // If client has already completed the quiz, load and show results instead of the quiz
+  useEffect(() => {
+    if (!params || !loadingExisting) return;
+    let cancelled = false;
+    fetchSkinQuizResultsFromLink(params.recordId, params.tableName)
+      .then((payload) => {
+        if (cancelled || !payload) return;
+        setAnswers(payload.answers);
+        setPhase("results");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          // No results or error – show intro so they can take the quiz
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingExisting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [params?.recordId, params?.tableName, loadingExisting]);
 
   const question = SKIN_TYPE_QUIZ.questions[currentIndex];
   const isLast = currentIndex === TOTAL_QUESTIONS - 1;
@@ -76,6 +100,18 @@ export default function SkinQuizStandalonePage() {
         <div className="skin-quiz-standalone__invalid">
           <h1>Invalid or expired link</h1>
           <p>This quiz link is invalid or has expired. Please request a new link from your provider.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadingExisting) {
+    return (
+      <div className="skin-quiz-standalone">
+        <div className="skin-quiz-standalone__card">
+          <div className="skin-quiz-standalone__body">
+            <p className="skin-quiz-standalone__saving">Loading your results…</p>
+          </div>
         </div>
       </div>
     );
@@ -202,21 +238,18 @@ export default function SkinQuizStandalonePage() {
                 <div className="skin-type-quiz-score-section">
                   <h3 className="skin-type-quiz-score-title">Score breakdown</h3>
                   <div className="skin-type-quiz-score-bars">
-                    {SKIN_TYPE_SCORE_ORDER.map((type) => {
-                      const value = scores[type] ?? 0;
+                    {SKIN_TYPE_SCORE_ORDER.map((sectionId) => {
+                      const value = scores[sectionId] ?? 0;
                       const pct = maxScore > 0 ? (value / maxScore) * 100 : 0;
-                      const isWinner = payload.result === type;
+                      const letter = profile?.sectionLetters?.[sectionId];
+                      const label = letter
+                        ? `${SKIN_TYPE_DISPLAY_LABELS[sectionId]} (${letter})`
+                        : SKIN_TYPE_DISPLAY_LABELS[sectionId];
                       return (
-                        <div key={type} className="skin-type-quiz-score-row">
-                          <span className="skin-type-quiz-score-label">
-                            {SKIN_TYPE_DISPLAY_LABELS[type]}
-                            {isWinner && <span className="skin-type-quiz-score-winner"> (primary)</span>}
-                          </span>
+                        <div key={sectionId} className="skin-type-quiz-score-row">
+                          <span className="skin-type-quiz-score-label">{label}</span>
                           <div className="skin-type-quiz-score-bar-wrap">
-                            <div
-                              className={`skin-type-quiz-score-bar ${isWinner ? "skin-type-quiz-score-bar-winner" : ""}`}
-                              style={{ width: `${pct}%` }}
-                            />
+                            <div className="skin-type-quiz-score-bar" style={{ width: `${pct}%` }} />
                           </div>
                           <span className="skin-type-quiz-score-value">{value}</span>
                         </div>

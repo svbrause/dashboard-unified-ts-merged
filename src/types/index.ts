@@ -142,6 +142,19 @@ export interface Client {
   linkedLeadId?: string;
   /** Skincare quiz result (from "Skincare Quiz" long text field in Airtable – JSON). Same field name in Patients and Web Popup Leads. */
   skincareQuiz?: SkincareQuizData | null;
+  /** Wellness quiz result (from "Wellness Quiz" long text field in Airtable – JSON). Peptide/treatment suggestions from Dr Reddy offerings. */
+  wellnessQuiz?: WellnessQuizData | null;
+}
+
+/**
+ * Stored in Airtable "Wellness Quiz" long text field (JSON).
+ * Suggested treatments are resolved from wellnessQuiz.ts by suggestedTreatmentIds.
+ */
+export interface WellnessQuizData {
+  version: 1;
+  completedAt: string;
+  answers: Record<string, number | number[]>;
+  suggestedTreatmentIds: string[];
 }
 
 /**
@@ -154,8 +167,8 @@ export interface SkincareQuizData {
   completedAt: string;
   /** Question id → selected answer index (0-based). */
   answers: Record<string, number>;
-  /** Computed skin type from quiz scoring. */
-  result: "oily" | "dry" | "combination" | "normal" | "sensitive" | "pigmentation";
+  /** Computed gemstone skin type from quiz scoring (e.g. opal, pearl, quartz). */
+  result: "opal" | "pearl" | "jade" | "quartz" | "amber" | "moonstone" | "turquoise" | "diamond";
   /** Recommended product names (optional; can be recomputed from result via getRecommendedProductsForSkinType). */
   recommendedProductNames?: string[];
   /** Human-readable result label (e.g. "Normal with sensitive tendency"). */
@@ -192,7 +205,8 @@ export type ViewType =
   | "facial-analysis"
   | "archived"
   | "offers"
-  | "inbox";
+  | "inbox"
+  | "sms-history";
 
 export interface FilterState {
   source: string;

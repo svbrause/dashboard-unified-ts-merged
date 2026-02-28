@@ -7,58 +7,61 @@ import {
   buildSkincareQuizPayload,
   getRecommendedProductsForSkinType,
   SKIN_TYPE_QUIZ,
-  type SkinTypeId,
+  type GemstoneId,
 } from "./skinTypeQuiz";
+
+const GEMSTONES: GemstoneId[] = [
+  "opal", "pearl", "jade", "quartz", "amber", "moonstone", "turquoise", "diamond",
+];
 
 describe("skinTypeQuiz", () => {
   describe("computeQuizScores", () => {
     it("returns zeros when no answers", () => {
       const scores = computeQuizScores({});
       expect(scores).toEqual({
-        oily: 0,
-        dry: 0,
-        combination: 0,
-        normal: 0,
-        sensitive: 0,
+        hydration: 0,
+        reactivity: 0,
         pigmentation: 0,
       });
     });
 
-    it("sums scores for selected answers", () => {
-      // q1: index 0 = "Tight and in need of moisturizer" -> dry: 2
-      // q2: index 3 = "Is very oily and shiny" -> oily: 2
+    it("sums section points (1–4 per answer)", () => {
+      // q1 hydration: index 0 = 1 point, q2 hydration: index 3 = 4 points
       const scores = computeQuizScores({ q1: 0, q2: 3 });
-      expect(scores.dry).toBe(2);
-      expect(scores.oily).toBe(2);
+      expect(scores.hydration).toBe(1 + 4);
+      expect(scores.reactivity).toBe(0);
+      expect(scores.pigmentation).toBe(0);
     });
 
     it("ignores out-of-range answer index", () => {
       const scores = computeQuizScores({ q1: 999 });
-      expect(scores.oily).toBe(0);
-      expect(scores.dry).toBe(0);
+      expect(scores.hydration).toBe(0);
     });
   });
 
   describe("computeQuizResult", () => {
-    it("returns primary type with highest score", () => {
+    it("returns gemstone from section scores (e.g. all low = dry/sensitive/pigmented = amber)", () => {
       const answers: Record<string, number> = {};
       SKIN_TYPE_QUIZ.questions.forEach((q) => {
-        const dryIdx = q.answers.findIndex((a) => a.scores?.dry);
-        if (dryIdx >= 0) answers[q.id] = dryIdx;
+        answers[q.id] = 0; // first option = 1 point per section
       });
       const result = computeQuizResult(answers);
-      expect(result).toBe("dry");
+      expect(GEMSTONES).toContain(result);
+      // Low hydration (5), low reactivity (6), low pigmentation (5) → D,S,P → amber
+      expect(result).toBe("amber");
     });
   });
 
   describe("computeQuizProfile", () => {
-    it("returns primary and scores", () => {
+    it("returns primary gemstone, section scores, and sectionLetters", () => {
       const profile = computeQuizProfile({});
-      expect(profile.primary).toBeDefined();
-      expect(["oily", "dry", "combination", "normal", "sensitive", "pigmentation"]).toContain(
-        profile.primary
-      );
-      expect(profile.scores).toHaveProperty("oily");
+      expect(GEMSTONES).toContain(profile.primary);
+      expect(profile.scores).toHaveProperty("hydration");
+      expect(profile.scores).toHaveProperty("reactivity");
+      expect(profile.scores).toHaveProperty("pigmentation");
+      expect(profile.sectionLetters).toHaveProperty("hydration");
+      expect(profile.sectionLetters).toHaveProperty("reactivity");
+      expect(profile.sectionLetters).toHaveProperty("pigmentation");
     });
   });
 
@@ -80,22 +83,21 @@ describe("skinTypeQuiz", () => {
       vi.useRealTimers();
     });
 
-    it("builds payload with version, completedAt, result, products", () => {
+    it("builds payload with version, completedAt, result (gemstone), products", () => {
       const answers = { q1: 0, q2: 0, q3: 0, q4: 0, q5: 0 };
       const payload = buildSkincareQuizPayload(answers);
       expect(payload.version).toBe(1);
       expect(payload.completedAt).toBe("2025-06-01T12:00:00.000Z");
       expect(payload.answers).toEqual(answers);
-      expect(payload.result).toBeDefined();
+      expect(GEMSTONES).toContain(payload.result);
       expect(Array.isArray(payload.recommendedProductNames)).toBe(true);
       expect(payload.resultLabel).toBeDefined();
     });
   });
 
   describe("getRecommendedProductsForSkinType", () => {
-    it("returns array of product names for each type", () => {
-      const types: SkinTypeId[] = ["oily", "dry", "combination", "normal", "sensitive", "pigmentation"];
-      for (const t of types) {
+    it("returns array of product names for each gemstone", () => {
+      for (const t of GEMSTONES) {
         const products = getRecommendedProductsForSkinType(t);
         expect(Array.isArray(products)).toBe(true);
         expect(products.length).toBeGreaterThan(0);

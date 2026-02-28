@@ -15,6 +15,7 @@ import {
 } from "../../services/contactHistory";
 import { showToast, showError } from "../../utils/toast";
 import ContactHistorySection from "./ContactHistorySection";
+import ClientSmsPopupModal from "./ClientSmsPopupModal";
 import AnalysisResultsSection from "./AnalysisResultsSection";
 import TelehealthSMSModal from "./TelehealthSMSModal";
 import ShareAnalysisModal from "./ShareAnalysisModal";
@@ -32,6 +33,9 @@ import TreatmentRecommenderByTreatment from "../treatmentRecommender/TreatmentRe
 import TreatmentRecommenderBySuggestion from "../treatmentRecommender/TreatmentRecommenderBySuggestion";
 import SkinTypeQuizModal from "./SkinTypeQuizModal";
 import SkinQuizProductModal, { type SkinQuizProduct } from "./SkinQuizProductModal";
+import WellnessQuizModal from "./WellnessQuizModal";
+import WellnessQuizResultsCards from "../wellnessQuiz/WellnessQuizResultsCards";
+import { getSuggestedWellnessTreatments, getWellnessQuizResultsSMSMessage, WELLNESS_QUIZ_ENABLED } from "../../data/wellnessQuiz";
 import {
   computeQuizScores,
   computeQuizProfile,
@@ -103,6 +107,7 @@ export default function ClientDetailModal({
   const [showScanDropdown, setShowScanDropdown] = useState(false);
   const [showNewClientSMS, setShowNewClientSMS] = useState(false);
   const [showSendSMS, setShowSendSMS] = useState(false);
+  const [showSmsPopup, setShowSmsPopup] = useState(false);
   const [smsInitialMessage, setSMSInitialMessage] = useState<string | null>(null);
   const [showDiscussedTreatments, setShowDiscussedTreatments] = useState(false);
   const [showAnalysisOverview, setShowAnalysisOverview] = useState(false);
@@ -121,6 +126,7 @@ export default function ClientDetailModal({
     "by-treatment" | "by-suggestion" | null
   >(null);
   const [showSkinTypeQuiz, setShowSkinTypeQuiz] = useState(false);
+  const [showWellnessQuiz, setShowWellnessQuiz] = useState(false);
   const [selectedSkinProduct, setSelectedSkinProduct] = useState<SkinQuizProduct | null>(null);
   const scanDropdownRef = useRef<HTMLDivElement>(null);
   const treatmentPlanModalClosedRef = useRef<(() => void) | null>(null);
@@ -1340,25 +1346,21 @@ export default function ClientDetailModal({
                             <span className="skin-analysis-score-bars-title">
                               Score breakdown
                             </span>
-                            {SKIN_TYPE_SCORE_ORDER.map((type) => {
-                              const value = scores[type] ?? 0;
+                            {SKIN_TYPE_SCORE_ORDER.map((sectionId) => {
+                              const value = scores[sectionId] ?? 0;
                               const pct = maxScore > 0 ? (value / maxScore) * 100 : 0;
-                              const isPrimary = profile.primary === type;
-                              const isSecondary = profile.secondary === type;
+                              const letter = profile.sectionLetters?.[sectionId];
+                              const label = letter
+                                ? `${SKIN_TYPE_DISPLAY_LABELS[sectionId]} (${letter})`
+                                : SKIN_TYPE_DISPLAY_LABELS[sectionId];
                               return (
-                                <div key={type} className="skin-analysis-score-row">
+                                <div key={sectionId} className="skin-analysis-score-row">
                                   <span className="skin-analysis-score-label">
-                                    {SKIN_TYPE_DISPLAY_LABELS[type]}
-                                    {isPrimary && (
-                                      <span className="skin-analysis-score-tag"> primary</span>
-                                    )}
-                                    {isSecondary && (
-                                      <span className="skin-analysis-score-tag"> tendency</span>
-                                    )}
+                                    {label}
                                   </span>
                                   <div className="skin-analysis-score-bar-wrap">
                                     <div
-                                      className={`skin-analysis-score-bar ${isPrimary ? "skin-analysis-score-bar-primary" : ""} ${isSecondary ? "skin-analysis-score-bar-secondary" : ""}`}
+                                      className="skin-analysis-score-bar"
                                       style={{ width: `${pct}%` }}
                                     />
                                   </div>
@@ -1372,6 +1374,89 @@ export default function ClientDetailModal({
                   </div>
                 )}
               </div>
+
+              {/* Wellness Quiz Section (hidden when WELLNESS_QUIZ_ENABLED is false) */}
+              {WELLNESS_QUIZ_ENABLED && (
+                <div className="detail-section detail-section-wellness-quiz">
+                  <div className="detail-section-header-flex">
+                    <div className="detail-section-title detail-section-title-inline">
+                      <span>Wellness Quiz</span>
+                      {client.wellnessQuiz && (
+                        <span className="detail-value-muted">
+                          {" "}
+                          · {client.wellnessQuiz.suggestedTreatmentIds.length} suggestion
+                          {client.wellnessQuiz.suggestedTreatmentIds.length !== 1 ? "s" : ""}
+                          {client.wellnessQuiz.completedAt &&
+                            ` · ${formatDate(client.wellnessQuiz.completedAt)}`}
+                        </span>
+                      )}
+                    </div>
+                    <div className="detail-section-header-actions">
+                      {client.wellnessQuiz &&
+                        getSuggestedWellnessTreatments(client.wellnessQuiz).length > 0 && (
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSMSInitialMessage(getWellnessQuizResultsSMSMessage(client.wellnessQuiz!));
+                              setShowSendSMS(true);
+                            }}
+                          >
+                            Send results via SMS
+                          </button>
+                        )}
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowWellnessQuiz(true);
+                        }}
+                      >
+                        {client.wellnessQuiz ? "View Results" : "Take now"}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="skin-analysis-description">
+                    {client.wellnessQuiz
+                      ? "Peptide and wellness treatment suggestions based on the completed quiz."
+                      : "Complete the wellness quiz to get personalized peptide/treatment suggestions from our offerings."}
+                  </p>
+                  {client.wellnessQuiz &&
+                    getSuggestedWellnessTreatments(client.wellnessQuiz).length > 0 && (
+                      <WellnessQuizResultsCards
+                        suggestedTreatments={getSuggestedWellnessTreatments(client.wellnessQuiz)}
+                        answers={client.wellnessQuiz.answers}
+                        onAddToPlan={async (prefill) => {
+                          const newItem: DiscussedItem = {
+                            id: generateId(),
+                            addedAt: new Date().toISOString(),
+                            interest: prefill.interest?.trim() || undefined,
+                            findings: prefill.findings?.length ? prefill.findings : undefined,
+                            treatment: prefill.treatment?.trim() || "",
+                            product: prefill.treatmentProduct?.trim() || undefined,
+                            region: prefill.region?.trim() || undefined,
+                            timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+                            quantity: prefill.quantity?.trim() || undefined,
+                            notes: prefill.notes?.trim() || undefined,
+                          };
+                          const nextItems = [...(client.discussedItems || []), newItem];
+                          try {
+                            await updateLeadRecord(client.id, client.tableSource, {
+                              [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+                            });
+                            showToast("Added to treatment plan");
+                            onUpdate();
+                          } catch (e) {
+                            showError(e instanceof Error ? e.message : "Failed to add to plan");
+                            throw e;
+                          }
+                        }}
+                      />
+                    )}
+                </div>
+              )}
 
               {/* Appointment Info */}
               {client.appointmentDate && (
@@ -1462,13 +1547,10 @@ export default function ClientDetailModal({
                 </button>
                 <button
                   className="btn-secondary"
-                  onClick={() => {
-                    setSMSInitialMessage(null);
-                    setShowSendSMS(true);
-                  }}
+                  onClick={() => setShowSmsPopup(true)}
                   disabled={!client.phone}
                 >
-                  SMS
+                  Messages
                 </button>
               </div>
             </div>
@@ -1532,6 +1614,7 @@ export default function ClientDetailModal({
           client={client}
           initialPhotoType={photoViewerType}
           onClose={() => setShowPhotoViewer(false)}
+          onPhotoUpdated={onUpdate}
         />
       )}
       {showNewClientSMS && (
@@ -1541,6 +1624,13 @@ export default function ClientDetailModal({
             setShowNewClientSMS(false);
             onUpdate();
           }}
+        />
+      )}
+      {showSmsPopup && client && (
+        <ClientSmsPopupModal
+          client={client}
+          onClose={() => setShowSmsPopup(false)}
+          onSuccess={onUpdate}
         />
       )}
       {showSendSMS && client && (
@@ -1610,6 +1700,42 @@ export default function ClientDetailModal({
             showToast("Added to treatment plan");
             setSelectedSkinProduct(null);
             onUpdate();
+          }}
+        />
+      )}
+      {WELLNESS_QUIZ_ENABLED && showWellnessQuiz && client && (
+        <WellnessQuizModal
+          client={client}
+          onClose={() => setShowWellnessQuiz(false)}
+          onSuccess={() => {
+            setShowWellnessQuiz(false);
+            onUpdate();
+          }}
+          savedQuiz={client.wellnessQuiz ?? undefined}
+          onAddToPlan={async (prefill) => {
+            const newItem: DiscussedItem = {
+              id: generateId(),
+              addedAt: new Date().toISOString(),
+              interest: prefill.interest?.trim() || undefined,
+              findings: prefill.findings?.length ? prefill.findings : undefined,
+              treatment: prefill.treatment?.trim() || "",
+              product: prefill.treatmentProduct?.trim() || undefined,
+              region: prefill.region?.trim() || undefined,
+              timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+              quantity: prefill.quantity?.trim() || undefined,
+              notes: prefill.notes?.trim() || undefined,
+            };
+            const nextItems = [...(client.discussedItems || []), newItem];
+            try {
+              await updateLeadRecord(client.id, client.tableSource, {
+                [AIRTABLE_FIELD]: JSON.stringify(nextItems),
+              });
+              showToast("Added to treatment plan");
+              onUpdate();
+            } catch (e) {
+              showError(e instanceof Error ? e.message : "Failed to add to plan");
+              throw e;
+            }
           }}
         />
       )}

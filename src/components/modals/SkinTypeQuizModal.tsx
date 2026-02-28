@@ -248,21 +248,18 @@ export default function SkinTypeQuizModal({
               <div className="skin-type-quiz-score-section">
                 <h3 className="skin-type-quiz-score-title">Score breakdown</h3>
                 <div className="skin-type-quiz-score-bars">
-                  {SKIN_TYPE_SCORE_ORDER.map((type) => {
-                    const value = scores[type] ?? 0;
+                  {SKIN_TYPE_SCORE_ORDER.map((sectionId) => {
+                    const value = scores[sectionId] ?? 0;
                     const pct = maxScore > 0 ? (value / maxScore) * 100 : 0;
-                    const isWinner = payload.result === type;
+                    const letter = profile?.sectionLetters?.[sectionId];
+                    const label = letter
+                      ? `${SKIN_TYPE_DISPLAY_LABELS[sectionId]} (${letter})`
+                      : SKIN_TYPE_DISPLAY_LABELS[sectionId];
                     return (
-                      <div key={type} className="skin-type-quiz-score-row">
-                        <span className="skin-type-quiz-score-label">
-                          {SKIN_TYPE_DISPLAY_LABELS[type]}
-                          {isWinner && <span className="skin-type-quiz-score-winner"> (primary)</span>}
-                        </span>
+                      <div key={sectionId} className="skin-type-quiz-score-row">
+                        <span className="skin-type-quiz-score-label">{label}</span>
                         <div className="skin-type-quiz-score-bar-wrap">
-                          <div
-                            className={`skin-type-quiz-score-bar ${isWinner ? "skin-type-quiz-score-bar-winner" : ""}`}
-                            style={{ width: `${pct}%` }}
-                          />
+                          <div className="skin-type-quiz-score-bar" style={{ width: `${pct}%` }} />
                         </div>
                         <span className="skin-type-quiz-score-value">{value}</span>
                       </div>

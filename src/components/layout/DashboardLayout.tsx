@@ -11,6 +11,7 @@ import ArchivedView from "../views/ArchivedView";
 import FacialAnalysisView from "../views/FacialAnalysisView";
 import OffersView from "../views/OffersView";
 import InboxView from "../views/InboxView";
+import SmsHistoryView from "../views/SmsHistoryView";
 import "./DashboardLayout.css";
 
 interface DashboardLayoutProps {
@@ -29,6 +30,8 @@ function DashboardViews() {
       return <OffersView />;
     case "inbox":
       return <InboxView />;
+    case "sms-history":
+      return <SmsHistoryView />;
     case "facial-analysis":
     case "cards":
       return <FacialAnalysisView />;
@@ -38,14 +41,21 @@ function DashboardViews() {
   }
 }
 
+const VIEWS_WITH_CONTROLS = ["list", "cards", "kanban", "facial-analysis", "archived"];
+
 export default function DashboardLayout({ onLogout }: DashboardLayoutProps) {
+  const { currentView } = useDashboard();
+  const showViewControls = VIEWS_WITH_CONTROLS.includes(currentView);
+
   return (
     <div className="dashboard-wrapper">
       <Sidebar onLogout={onLogout} />
       <main className="main-content">
         <Header onLogout={onLogout} />
-        <ViewControls />
-        <DashboardViews />
+        {showViewControls && <ViewControls />}
+        <div className="dashboard-views-wrap">
+          <DashboardViews />
+        </div>
       </main>
     </div>
   );

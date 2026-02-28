@@ -155,6 +155,27 @@ export default function Sidebar({ onLogout }: SidebarProps) {
         <div className="nav-divider"></div>
         <a
           href="#"
+          className={`nav-item ${currentView === "sms-history" ? "active" : ""}`}
+          onClick={(e) => {
+            e.preventDefault();
+            handleViewChange("sms-history");
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          Text Messages
+        </a>
+        <div className="nav-divider"></div>
+        <a
+          href="#"
           className={`nav-item ${currentView === "archived" ? "active" : ""}`}
           onClick={(e) => {
             e.preventDefault();
