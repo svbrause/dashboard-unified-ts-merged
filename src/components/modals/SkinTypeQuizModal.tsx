@@ -37,7 +37,11 @@ interface SkinTypeQuizModalProps {
   savedQuiz?: SkincareQuizData | null;
   /** When provided, product modal shows "Add to treatment plan" and calls this with prefill. */
   onAddToPlan?: (prefill: TreatmentPlanPrefill) => void | Promise<void>;
+  /** Provider/practice name for intro copy (replaces "The Treatment Skin Boutique" when set). */
+  providerName?: string | null;
 }
+
+const DEFAULT_PROVIDER_NAME = "The Treatment Skin Boutique";
 
 export default function SkinTypeQuizModal({
   client,
@@ -45,7 +49,9 @@ export default function SkinTypeQuizModal({
   onSuccess,
   savedQuiz,
   onAddToPlan,
+  providerName,
 }: SkinTypeQuizModalProps) {
+  const practiceName = (providerName && providerName.trim()) || DEFAULT_PROVIDER_NAME;
   const [answers, setAnswers] = useState<Record<string, number>>(
     () => savedQuiz?.answers ?? {}
   );
@@ -547,7 +553,7 @@ export default function SkinTypeQuizModal({
                     Not sure what products are right for your skin? Take our quick, dermatologist-informed quiz to discover your <strong>true skin type</strong> and learn how to care for it.
                   </p>
                   <p>
-                    In just a few questions, you&apos;ll find out whether your skin is oily, dry, combination, normal, or sensitive and get product recommendations curated by the licensed professionals at The Treatment Skin Boutique.
+                    In just a few questions, you&apos;ll find out whether your skin is oily, dry, combination, normal, or sensitive and get product recommendations curated by the licensed professionals at {practiceName}.
                   </p>
                   <p>
                     Your skin is as unique as a gemstone — and the first step to glowing, confident skin is understanding what makes it shine. ✨ Take this detailed quiz to reveal your <strong>true skin type</strong> and your <strong>personalized gemstone match</strong>, plus tailored product and treatment recommendations from our experts.

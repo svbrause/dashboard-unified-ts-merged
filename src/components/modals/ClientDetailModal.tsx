@@ -408,7 +408,11 @@ export default function ClientDetailModal({
               </div>
             )}
           </div>
-          <button className="modal-close" onClick={onClose}>
+          <button
+            className="modal-close"
+            onClick={recommenderMode ? () => setRecommenderMode(null) : onClose}
+            aria-label={recommenderMode ? "Back to client details" : "Close"}
+          >
             ×
           </button>
         </div>

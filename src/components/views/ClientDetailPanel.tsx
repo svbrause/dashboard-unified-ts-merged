@@ -463,7 +463,11 @@ export default function ClientDetailPanel({
               )}
             </div>
           </div>
-          <button className="client-detail-panel-close" onClick={onClose}>
+          <button
+            className="client-detail-panel-close"
+            onClick={recommenderMode ? () => setRecommenderMode(null) : onClose}
+            aria-label={recommenderMode ? "Back to client details" : "Close"}
+          >
             ×
           </button>
         </div>
@@ -1803,6 +1807,7 @@ export default function ClientDetailPanel({
           onClose={() => setShowSkinTypeQuiz(false)}
           onSuccess={onUpdate}
           savedQuiz={client.skincareQuiz ?? undefined}
+          providerName={formatProviderDisplayName(provider?.name) || provider?.name}
           onAddToPlan={async (prefill) => {
             const newItem: DiscussedItem = {
               id: generateId(),
