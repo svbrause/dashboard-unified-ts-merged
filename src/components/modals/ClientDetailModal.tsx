@@ -246,7 +246,7 @@ export default function ClientDetailModal({
 
   if (!client) return null;
 
-  const skincareQuiz = skincareQuiz ?? enrichedSkincareQuiz;
+  const skincareQuiz: Client["skincareQuiz"] = client.skincareQuiz ?? enrichedSkincareQuiz;
 
   const lastActivityRelative = client.lastContact
     ? formatRelativeDate(client.lastContact)
@@ -1327,7 +1327,7 @@ export default function ClientDetailModal({
                       skincareQuiz.recommendedProductNames.length > 0 && (() => {
                         const carouselItems = getSkincareCarouselItems();
                         const products: SkinQuizProduct[] = skincareQuiz!.recommendedProductNames!
-                          .map((name) => {
+                          .map((name: string) => {
                             const item = carouselItems.find((p) => p.name === name);
                             return item
                               ? {

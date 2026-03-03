@@ -103,7 +103,7 @@ export default function TreatmentPlanCheckout({
         ? parseFloat(priceStr.replace(/[$,]/g, ""))
         : undefined;
       const displayPrice =
-        Number.isFinite(price)
+        price != null && Number.isFinite(price)
           ? `$${Math.round(price)}`
           : (priceStr?.trim() ?? "See boutique");
       return {
@@ -247,7 +247,6 @@ function CheckoutCard({
   line,
   item,
   photoUrl,
-  quantityFieldId,
   quantityValue,
   quantityOptions,
   onQuantityChange,
