@@ -72,6 +72,9 @@ import "./TreatmentRecommenderByTreatment.css";
 /** Biostimulants before/after image for the treatment card. */
 import biostimulantsBeforeAfterUrl from "../../assets/images/Biostimulators-Before-and-After-With-Pictures-1.webp";
 
+/** Set to true to show the Checkout button in the plan sidebar. Temporarily hidden. */
+const SHOW_CHECKOUT_BUTTON = false;
+
 /** Map Airtable record to TreatmentPhoto for card thumbnails. */
 function mapRecordToPhoto(record: AirtableRecord): TreatmentPhoto {
   const fields = record.fields;
@@ -1109,7 +1112,7 @@ export default function TreatmentRecommenderByTreatment({
               })}
             </div>
           )}
-          {(onOpenTreatmentPlan || onOpenCheckout) && (
+          {(onOpenTreatmentPlan || (SHOW_CHECKOUT_BUTTON && onOpenCheckout)) && (
             <div className="treatment-recommender-by-treatment__plan-actions">
               {onOpenTreatmentPlan && (
                 <button
@@ -1120,7 +1123,7 @@ export default function TreatmentRecommenderByTreatment({
                   Open treatment plan
                 </button>
               )}
-              {onOpenCheckout && planItemCount > 0 && (
+              {SHOW_CHECKOUT_BUTTON && onOpenCheckout && planItemCount > 0 && (
                 <button
                   type="button"
                   className="treatment-recommender-by-treatment__plan-checkout-btn"
@@ -1263,12 +1266,7 @@ export default function TreatmentRecommenderByTreatment({
                       GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
                         <span className="treatment-recommender-skin-analysis__gemstone">
                           {" "}
-                          ·{" "}
-                          {
-                            GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result]
-                              .name
-                          }{" "}
-                          💎{" "}
+                          · 💎{" "}
                           {
                             GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result]
                               .tagline

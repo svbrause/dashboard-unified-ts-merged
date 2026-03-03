@@ -435,14 +435,14 @@
 
 .treatment-recommender-skin-analysis__summary {
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--theme-text-primary, #212121);
   margin-bottom: 0;
 }
 
 .treatment-recommender-skin-analysis__gemstone {
-  font-weight: 500;
-  color: var(--theme-text-secondary, #616161);
+  font-weight: 700;
+  color: var(--theme-text-primary, #212121);
 }
 
 .treatment-recommender-skin-analysis__products {
