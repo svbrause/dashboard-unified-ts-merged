@@ -51,6 +51,7 @@ import TreatmentPhotos, {
   type TreatmentPlanPrefill,
 } from "./TreatmentPhotos";
 import ShareTreatmentPlanModal from "../ShareTreatmentPlanModal";
+import TreatmentPlanCheckoutModal from "../TreatmentPlanCheckoutModal";
 import "./index.css";
 
 export default function DiscussedTreatmentsModal({
@@ -568,6 +569,7 @@ export default function DiscussedTreatmentsModal({
   /** Treatment photos browser state */
   const [showPhotoBrowser, setShowPhotoBrowser] = useState(false);
   const [showShareTreatmentPlan, setShowShareTreatmentPlan] = useState(false);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [photoBrowserTreatment, setPhotoBrowserTreatment] =
     useState<string>("");
   const [photoBrowserRegion, setPhotoBrowserRegion] = useState<string>("");
@@ -1493,6 +1495,8 @@ export default function DiscussedTreatmentsModal({
             setPhotoBrowserRegion(sel?.region ?? "");
             setShowPhotoBrowser(true);
           }}
+          onCheckout={() => setShowCheckoutModal(true)}
+          hasPlanItems={items.length > 0}
         />
 
         <div className="modal-body discussed-treatments-modal-body">
@@ -6337,6 +6341,15 @@ export default function DiscussedTreatmentsModal({
               />
             </div>
           </div>
+        )}
+
+        {/* Checkout – separate price summary screen */}
+        {showCheckoutModal && (
+          <TreatmentPlanCheckoutModal
+            clientName={client.name ?? ""}
+            items={items}
+            onClose={() => setShowCheckoutModal(false)}
+          />
         )}
 
         {/* Share treatment plan with patient – same modal as from client detail treatment plan section */}

@@ -8,7 +8,7 @@ import {
   getFacialStatusColorForDisplay,
   hasInterestedTreatments,
 } from "../../utils/statusFormatting";
-import { updateLeadRecord } from "../../services/api";
+import { updateLeadRecord, fetchRecordQuizFields } from "../../services/api";
 import {
   archiveClient,
   updateClientStatus,
@@ -24,6 +24,9 @@ import PhotoViewerModal from "./PhotoViewerModal";
 import NewClientSMSModal from "./NewClientSMSModal";
 import SendSMSModal from "./SendSMSModal";
 import DiscussedTreatmentsModal from "./DiscussedTreatmentsModal";
+import TreatmentPlanCheckoutModal, {
+  prefetchCheckoutImages,
+} from "./TreatmentPlanCheckoutModal";
 import TreatmentPhotosModal from "./TreatmentPhotosModal";
 import AnalysisOverviewModal, {
   type DetailView,
@@ -110,6 +113,7 @@ export default function ClientDetailModal({
   const [showSmsPopup, setShowSmsPopup] = useState(false);
   const [smsInitialMessage, setSMSInitialMessage] = useState<string | null>(null);
   const [showDiscussedTreatments, setShowDiscussedTreatments] = useState(false);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showAnalysisOverview, setShowAnalysisOverview] = useState(false);
   const [returnToOverviewView, setReturnToOverviewView] =
     useState<DetailView | null>(null);
@@ -128,6 +132,7 @@ export default function ClientDetailModal({
   const [showSkinTypeQuiz, setShowSkinTypeQuiz] = useState(false);
   const [showWellnessQuiz, setShowWellnessQuiz] = useState(false);
   const [selectedSkinProduct, setSelectedSkinProduct] = useState<SkinQuizProduct | null>(null);
+  const [enrichedSkincareQuiz, setEnrichedSkincareQuiz] = useState<Client["skincareQuiz"]>(undefined);
   const scanDropdownRef = useRef<HTMLDivElement>(null);
   const treatmentPlanModalClosedRef = useRef<(() => void) | null>(null);
 
@@ -178,6 +183,36 @@ export default function ClientDetailModal({
     }
   }, [client]);
 
+  // Prefetch checkout images when client has discussed items so Checkout opens with images ready
+  useEffect(() => {
+    if (client?.discussedItems && client.discussedItems.length > 0) {
+      prefetchCheckoutImages();
+    }
+  }, [client?.discussedItems?.length]);
+
+  // Load Skincare Quiz when list response didn't include it (e.g. backend omits long-text fields)
+  useEffect(() => {
+    if (
+      !client?.id ||
+      !client.tableSource ||
+      (client.skincareQuiz !== undefined && client.skincareQuiz !== null)
+    ) {
+      setEnrichedSkincareQuiz(undefined);
+      return;
+    }
+    let cancelled = false;
+    fetchRecordQuizFields(client.id, client.tableSource)
+      .then(({ skincareQuiz: quiz }) => {
+        if (!cancelled) setEnrichedSkincareQuiz(quiz ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setEnrichedSkincareQuiz(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client?.id, client?.tableSource, client?.skincareQuiz]);
+
   // Handle Escape key to close modal
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -210,6 +245,8 @@ export default function ClientDetailModal({
   }, [showScanDropdown]);
 
   if (!client) return null;
+
+  const skincareQuiz = skincareQuiz ?? enrichedSkincareQuiz;
 
   const lastActivityRelative = client.lastContact
     ? formatRelativeDate(client.lastContact)
@@ -458,6 +495,7 @@ export default function ClientDetailModal({
                 setInitialAddFormPrefill(null);
                 setInitialEditingItem(null);
               }}
+              onOpenCheckout={() => setShowCheckoutModal(true)}
               onOpenTreatmentPlanWithPrefill={(prefill) => {
                 setInitialAddFormPrefill(prefill);
                 setInitialEditingItem(null);
@@ -1222,19 +1260,9 @@ export default function ClientDetailModal({
                 <div className="detail-section-header-flex skin-analysis-header">
                   <div className="detail-section-title detail-section-title-inline skin-analysis-heading-block">
                     <span>Skin Quiz</span>
-                    {client.skincareQuiz && (
-                      <span className="skin-analysis-result-badge">
-                        {client.skincareQuiz.resultLabel ??
-                          (client.skincareQuiz.result
-                            ? client.skincareQuiz.result.charAt(0).toUpperCase() +
-                              client.skincareQuiz.result.slice(1)
-                            : "Completed")}
-                        {client.skincareQuiz.completedAt && (
-                          <span className="detail-value-muted">
-                            {" "}
-                            · {formatDate(client.skincareQuiz.completedAt)}
-                          </span>
-                        )}
+                    {skincareQuiz?.completedAt && (
+                      <span className="skin-analysis-result-badge detail-value-muted">
+                        · {formatDate(skincareQuiz.completedAt)}
                       </span>
                     )}
                   </div>
@@ -1244,7 +1272,7 @@ export default function ClientDetailModal({
                       className="btn-secondary btn-sm"
                       onClick={() => setShowSkinTypeQuiz(true)}
                     >
-                      {client.skincareQuiz ? "View Results" : "Take now"}
+                      {skincareQuiz ? "View Results" : "Take now"}
                     </button>
                     <button
                       type="button"
@@ -1267,38 +1295,38 @@ export default function ClientDetailModal({
                   </div>
                 </div>
                 <p className="skin-analysis-description">
-                  {client.skincareQuiz
+                  {skincareQuiz
                     ? "Skin type and product recommendations from the completed quiz."
                     : "Complete the skin type quiz to get a personalized result and product recommendations for this client."}
                 </p>
-                {client.skincareQuiz && (
+                {skincareQuiz && (
                   <div className="skin-analysis-details">
                     <div className="skin-analysis-summary">
-                      <span className="skin-analysis-summary-type">
-                        {client.skincareQuiz.resultLabel ??
-                          (client.skincareQuiz.result
-                            ? client.skincareQuiz.result.charAt(0).toUpperCase() +
-                              client.skincareQuiz.result.slice(1)
-                            : "Completed")}
-                      </span>
-                      {client.skincareQuiz.result &&
-                        GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
-                          <span className="skin-analysis-summary-gemstone">
-                            {" "}
-                            · {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].name} 💎{" "}
-                            {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].tagline}
-                          </span>
-                        )}
+                      {skincareQuiz.result &&
+                      GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result] ? (
+                        <span className="skin-analysis-summary-gemstone">
+                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].name} 💎{" "}
+                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].tagline}
+                        </span>
+                      ) : (
+                        <span className="skin-analysis-summary-type">
+                          {skincareQuiz.resultLabel ??
+                            (skincareQuiz.result
+                              ? skincareQuiz.result.charAt(0).toUpperCase() +
+                                skincareQuiz.result.slice(1)
+                              : "Completed")}
+                        </span>
+                      )}
                     </div>
-                    {client.skincareQuiz.resultDescription && (
+                    {skincareQuiz.resultDescription && (
                       <p className="skin-analysis-result-description">
-                        {client.skincareQuiz.resultDescription}
+                        {skincareQuiz.resultDescription}
                       </p>
                     )}
-                    {client.skincareQuiz.recommendedProductNames &&
-                      client.skincareQuiz.recommendedProductNames.length > 0 && (() => {
+                    {skincareQuiz.recommendedProductNames &&
+                      skincareQuiz.recommendedProductNames.length > 0 && (() => {
                         const carouselItems = getSkincareCarouselItems();
-                        const products: SkinQuizProduct[] = client.skincareQuiz!.recommendedProductNames!
+                        const products: SkinQuizProduct[] = skincareQuiz!.recommendedProductNames!
                           .map((name) => {
                             const item = carouselItems.find((p) => p.name === name);
                             return item
@@ -1339,11 +1367,11 @@ export default function ClientDetailModal({
                           </div>
                         );
                       })()}
-                    {client.skincareQuiz.answers &&
-                      Object.keys(client.skincareQuiz.answers).length > 0 &&
+                    {skincareQuiz.answers &&
+                      Object.keys(skincareQuiz.answers).length > 0 &&
                       (() => {
-                        const scores = computeQuizScores(client.skincareQuiz!.answers);
-                        const profile = computeQuizProfile(client.skincareQuiz!.answers);
+                        const scores = computeQuizScores(skincareQuiz!.answers);
+                        const profile = computeQuizProfile(skincareQuiz!.answers);
                         const maxScore = Math.max(...Object.values(scores), 1);
                         return (
                           <div className="skin-analysis-score-bars">
@@ -1657,7 +1685,7 @@ export default function ClientDetailModal({
           client={client}
           onClose={() => setShowSkinTypeQuiz(false)}
           onSuccess={onUpdate}
-          savedQuiz={client.skincareQuiz ?? undefined}
+          savedQuiz={skincareQuiz ?? undefined}
           onAddToPlan={async (prefill) => {
             const newItem: DiscussedItem = {
               id: generateId(),
@@ -1741,6 +1769,13 @@ export default function ClientDetailModal({
               throw e;
             }
           }}
+        />
+      )}
+      {showCheckoutModal && client && (
+        <TreatmentPlanCheckoutModal
+          clientName={client.name ?? ""}
+          items={client.discussedItems ?? []}
+          onClose={() => setShowCheckoutModal(false)}
         />
       )}
       {showDiscussedTreatments && client && (

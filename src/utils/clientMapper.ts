@@ -2,6 +2,34 @@
 
 import { Client, AirtableRecord, DiscussedItem, SkincareQuizData } from "../types";
 
+/** Parse "Skincare Quiz" long text field (JSON) from Airtable fields. Exported for use when fetching quiz fields separately. */
+export function parseSkincareQuizFromFields(fields: Record<string, unknown>): SkincareQuizData | undefined {
+  const raw = (fields["Skincare Quiz"] ?? fields["Skincare quiz"] ?? null) as string | null;
+  if (!raw || typeof raw !== "string" || !raw.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return undefined;
+    const o = parsed as Record<string, unknown>;
+    if (o.version !== 1 || typeof o.completedAt !== "string") return undefined;
+    if (!o.answers || typeof o.answers !== "object") return undefined;
+    const validResults: string[] = ["opal", "pearl", "jade", "quartz", "amber", "moonstone", "turquoise", "diamond"];
+    if (typeof o.result !== "string" || !validResults.includes(o.result)) return undefined;
+    return {
+      version: 1 as const,
+      completedAt: o.completedAt,
+      answers: o.answers as Record<string, number>,
+      result: o.result as SkincareQuizData["result"],
+      recommendedProductNames: Array.isArray(o.recommendedProductNames)
+        ? o.recommendedProductNames.filter((x): x is string => typeof x === "string")
+        : undefined,
+      resultLabel: typeof o.resultLabel === "string" ? o.resultLabel : undefined,
+      resultDescription: typeof o.resultDescription === "string" ? o.resultDescription : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Map Airtable status field to dashboard status
  */
@@ -366,34 +394,7 @@ export function mapRecordToClient(
       }
     })(),
     contactHistory: [],
-    skincareQuiz: (() => {
-      const raw =
-        fields["Skincare Quiz"] ?? fields["Skincare quiz"] ?? null;
-      if (!raw || typeof raw !== "string" || !raw.trim()) return undefined;
-      try {
-        const parsed = JSON.parse(raw) as unknown;
-        if (!parsed || typeof parsed !== "object") return undefined;
-        const o = parsed as Record<string, unknown>;
-        if (o.version !== 1 || typeof o.completedAt !== "string") return undefined;
-        if (!o.answers || typeof o.answers !== "object") return undefined;
-        const validResults = ["oily", "dry", "combination", "normal", "sensitive", "pigmentation"];
-        if (typeof o.result !== "string" || !validResults.includes(o.result))
-          return undefined;
-        return {
-          version: 1 as const,
-          completedAt: o.completedAt,
-          answers: o.answers as Record<string, number>,
-          result: o.result as SkincareQuizData["result"],
-          recommendedProductNames: Array.isArray(o.recommendedProductNames)
-            ? o.recommendedProductNames.filter((x): x is string => typeof x === "string")
-            : undefined,
-          resultLabel: typeof o.resultLabel === "string" ? o.resultLabel : undefined,
-          resultDescription: typeof o.resultDescription === "string" ? o.resultDescription : undefined,
-        };
-      } catch {
-        return undefined;
-      }
-    })(),
+    skincareQuiz: parseSkincareQuizFromFields(fields as Record<string, unknown>),
     wellnessQuiz: (() => {
       const raw = fields["Wellness Quiz"] ?? fields["Wellness quiz"] ?? null;
       if (!raw || typeof raw !== "string" || !raw.trim()) return undefined;

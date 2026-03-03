@@ -430,9 +430,10 @@
   margin-bottom: 8px;
 }
 
-.skin-analysis-summary-gemstone {
-  font-weight: 500;
-  color: var(--theme-text-secondary, #616161);
+.skin-analysis-summary-gemstone,
+.skin-analysis-summary-type {
+  font-weight: 700;
+  color: var(--theme-text-primary, #1a1a1a);
 }
 
 .skin-analysis-products {

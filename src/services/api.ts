@@ -1,8 +1,9 @@
 // API service for fetching data from Airtable via backend (ponce-patient-backend.vercel.app)
 // All dashboard API calls go to the backend; no /api or relative routes.
 
-import type { Offer, DoctorAdviceRequest } from "../types";
+import type { Offer, DoctorAdviceRequest, SkincareQuizData } from "../types";
 import { cleanPhoneNumber } from "../utils/validation";
+import { parseSkincareQuizFromFields } from "../utils/clientMapper";
 
 export const BACKEND_API_URL =
   import.meta.env.VITE_BACKEND_API_URL ||
@@ -162,6 +163,24 @@ export async function fetchTableRecords(
   }
 
   return data.records;
+}
+
+/**
+ * Fetch only the Skincare Quiz (and optionally Wellness Quiz) field for a record.
+ * Use when the list response may omit long-text fields; call when opening client detail.
+ */
+export async function fetchRecordQuizFields(
+  recordId: string,
+  tableName: "Patients" | "Web Popup Leads"
+): Promise<{ skincareQuiz?: SkincareQuizData }> {
+  const records = await fetchTableRecords(tableName, {
+    filterFormula: `RECORD_ID() = "${recordId.replace(/"/g, '\\"')}"`,
+    fields: ["Skincare Quiz"],
+  });
+  const fields = records[0]?.fields;
+  if (!fields) return {};
+  const skincareQuiz = parseSkincareQuizFromFields(fields as Record<string, unknown>);
+  return skincareQuiz != null ? { skincareQuiz } : {};
 }
 
 /**

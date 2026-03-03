@@ -344,6 +344,8 @@ export interface TreatmentRecommenderByTreatmentProps {
   ) => Promise<DiscussedItem | void> | void;
   /** Open the treatment plan modal (e.g. for "Add additional details"). */
   onOpenTreatmentPlan?: () => void;
+  /** Open the checkout (price summary) modal. Shown next to Open treatment plan when plan has items. */
+  onOpenCheckout?: () => void;
   /** Open the treatment plan modal with prefill (e.g. from View examples → Add to plan). */
   onOpenTreatmentPlanWithPrefill?: (prefill: TreatmentPlanPrefill) => void;
   /** Open the treatment plan modal with this item selected for editing ("Add additional details"). */
@@ -360,6 +362,7 @@ export default function TreatmentRecommenderByTreatment({
   onUpdate,
   onAddToPlanDirect,
   onOpenTreatmentPlan,
+  onOpenCheckout,
   onOpenTreatmentPlanWithPrefill,
   onOpenTreatmentPlanWithItem,
   onRemovePlanItem,
@@ -1106,16 +1109,27 @@ export default function TreatmentRecommenderByTreatment({
               })}
             </div>
           )}
-          {onOpenTreatmentPlan && (
-            <button
-              type="button"
-              className="treatment-recommender-by-treatment__plan-open-btn"
-              onClick={() => onOpenTreatmentPlan()}
-            >
-              {planItemCount === 0
-                ? "Open treatment plan"
-                : "Open treatment plan"}
-            </button>
+          {(onOpenTreatmentPlan || onOpenCheckout) && (
+            <div className="treatment-recommender-by-treatment__plan-actions">
+              {onOpenTreatmentPlan && (
+                <button
+                  type="button"
+                  className="treatment-recommender-by-treatment__plan-open-btn"
+                  onClick={() => onOpenTreatmentPlan()}
+                >
+                  Open treatment plan
+                </button>
+              )}
+              {onOpenCheckout && planItemCount > 0 && (
+                <button
+                  type="button"
+                  className="treatment-recommender-by-treatment__plan-checkout-btn"
+                  onClick={() => onOpenCheckout()}
+                >
+                  Checkout
+                </button>
+              )}
+            </div>
           )}
         </div>
       </aside>

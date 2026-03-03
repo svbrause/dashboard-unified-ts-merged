@@ -197,6 +197,17 @@ export const TREATMENT_PRICE_LIST_2025: {
   },
 ];
 
+/** Add-on options from the 2025 price list (for checkout "Add-ons" section). */
+export function getAddOnOptions(): TreatmentPriceItem[] {
+  const out: TreatmentPriceItem[] = [];
+  for (const section of TREATMENT_PRICE_LIST_2025) {
+    for (const item of section.items) {
+      if (/add-?on/i.test(item.name)) out.push(item);
+    }
+  }
+  return out;
+}
+
 /** Format price for display. */
 export function formatPrice(price: number): string {
   if (price % 1 === 0) return `$${price.toLocaleString()}`;
@@ -306,4 +317,457 @@ export function getAllPrices2025(): (TreatmentPriceItem & { category: string })[
     }
   }
   return out;
+}
+
+/** Numeric min/max for a dashboard category (for checkout totals). Kybella/Threadlift use fixed ranges; others from 2025 list. */
+export function getPriceRangeNumeric2025(
+  category: string
+): { min: number; max: number } | undefined {
+  const c = category?.trim();
+  if (!c) return undefined;
+  // Categories not in TREATMENT_PRICE_LIST_2025 (from TREATMENT_META)
+  const fallbacks: Record<string, { min: number; max: number }> = {
+    Kybella: { min: 1200, max: 1800 },
+    Threadlift: { min: 1500, max: 4000 },
+    PRP: { min: 0, max: 0 }, // no price list
+    PDGF: { min: 0, max: 0 },
+  };
+  if (fallbacks[c]) return fallbacks[c];
+  const dash = c as DashboardTreatmentCategory;
+  const items = getItemsForDashboardCategory(dash);
+  if (items.length === 0) return undefined;
+  return getMinMax(items);
+}
+
+/**
+ * One line item for checkout: estimated price range for a plan item (by treatment category).
+ * Used by TreatmentPlanCheckout to show per-line and total.
+ */
+export interface CheckoutLineItem {
+  /** Display label (e.g. "Laser", "Neurotoxin • Forehead") */
+  label: string;
+  /** Estimated price min (0 if unknown) */
+  min: number;
+  /** Estimated price max (0 if unknown) */
+  max: number;
+  /** Formatted range string for display */
+  displayPrice: string;
+}
+
+/**
+ * Plan item shape used for price lookup (avoids coupling to DiscussedItem).
+ */
+export interface PlanItemForPricing {
+  treatment: string;
+  product?: string;
+  region?: string;
+  quantity?: string;
+}
+
+/** Category-level meta for checkout (longevity, recovery, sessions). Mirrors TREATMENT_META where used. */
+export interface CategoryMeta {
+  longevity?: string;
+  downtime?: string;
+  sessions?: string;
+}
+
+/** Dashboard treatment category → price list section names (for SKU lookup). */
+const DASHBOARD_TO_PRICE_SECTIONS: Record<string, string[]> = {
+  Skincare: ["Facial Services"],
+  Laser: ["Laser", "Sofwave", "Ultherapy"],
+  "Chemical Peel": ["Chemical Peel"],
+  Microneedling: ["Medical Spa"],
+  Filler: ["Injectables"],
+  Neurotoxin: ["Injectables"],
+  Biostimulants: ["Injectables"],
+  Kybella: [],
+  Threadlift: [],
+  PRP: [],
+  PDGF: [],
+};
+
+/** Category meta for checkout display (longevity, recovery, sessions). */
+export const CHECKOUT_CATEGORY_META: Record<string, CategoryMeta> = {
+  Skincare: { longevity: "Ongoing", downtime: "None", sessions: "Ongoing" },
+  Laser: { longevity: "6–12+ months", downtime: "3–7 days", sessions: "1–6" },
+  "Chemical Peel": { longevity: "1–3 months", downtime: "3–7 days", sessions: "1–3" },
+  Microneedling: { longevity: "2–4 months", downtime: "1–3 days", sessions: "1–5" },
+  Filler: { longevity: "6–18 months", downtime: "1–2 days", sessions: "1–2" },
+  Neurotoxin: { longevity: "3–4 months", downtime: "None", sessions: "1" },
+  Biostimulants: { longevity: "18–24+ months", downtime: "1–3 days", sessions: "1–3" },
+  Kybella: { longevity: "Permanent", downtime: "3–7 days", sessions: "1–2" },
+  Threadlift: { longevity: "12–18 months", downtime: "3–7 days", sessions: "1" },
+  PRP: { longevity: "Varies", downtime: "1–3 days", sessions: "Varies" },
+  PDGF: { longevity: "Varies", downtime: "1–3 days", sessions: "Varies" },
+};
+
+export function getCategoryMeta(category: string): CategoryMeta | undefined {
+  return CHECKOUT_CATEGORY_META[category?.trim() ?? ""];
+}
+
+type SkuWithCategory = TreatmentPriceItem & { category: string };
+
+/** Get SKUs that belong to the given dashboard treatment category. */
+function getSkusForDashboardCategory(dashboardCategory: string): SkuWithCategory[] {
+  const sections = DASHBOARD_TO_PRICE_SECTIONS[dashboardCategory?.trim() ?? ""];
+  if (!sections?.length) return [];
+  const out: SkuWithCategory[] = [];
+  for (const section of TREATMENT_PRICE_LIST_2025) {
+    if (!sections.includes(section.category)) continue;
+    const items = section.items;
+    if (dashboardCategory === "Neurotoxin") {
+      items
+        .filter(
+          (i) =>
+            i.name.includes("Botox") || i.name.includes("Dysport") || i.name.includes("Sweating")
+        )
+        .forEach((i) => out.push({ ...i, category: section.category }));
+    } else if (dashboardCategory === "Filler") {
+      items
+        .filter(
+          (i) =>
+            i.name.includes("Filler") ||
+            i.name.includes("Voluma") ||
+            i.name.includes("Volux") ||
+            i.name.includes("Dissolver")
+        )
+        .forEach((i) => out.push({ ...i, category: section.category }));
+    } else if (dashboardCategory === "Biostimulants") {
+      items
+        .filter(
+          (i) =>
+            i.name.includes("Radiesse") ||
+            i.name.includes("Sculptra") ||
+            i.name.includes("Skinvive")
+        )
+        .forEach((i) => out.push({ ...i, category: section.category }));
+    } else if (dashboardCategory === "Microneedling") {
+      items
+        .filter((i) => i.name.includes("Microneedling") || i.name.includes("PRFM"))
+        .forEach((i) => out.push({ ...i, category: section.category }));
+    } else {
+      items.forEach((i) => out.push({ ...i, category: section.category }));
+    }
+  }
+  return out;
+}
+
+/** Normalize for fuzzy match: lowercase, collapse spaces, remove some punctuation. */
+function norm(s: string): string {
+  return (s ?? "")
+    .toLowerCase()
+    .replace(/[\s–\-]+/g, " ")
+    .trim();
+}
+
+/** Check if plan product/region text matches SKU name (contains or is contained). */
+function skuNameMatches(skuName: string, productOrRegion: string): boolean {
+  if (!productOrRegion?.trim()) return false;
+  const a = norm(skuName);
+  const b = norm(productOrRegion);
+  if (a.includes(b) || b.includes(a)) return true;
+  if (b.includes("face") && (a.includes("full face") || a.includes("face"))) return true;
+  if (b.includes("neck") && a.includes("neck")) return true;
+  if (b.includes("chest") && a.includes("chest")) return true;
+  if (b.includes("moxi") && a.includes("moxi")) return true;
+  if (b.includes("bbl") && a.includes("bbl")) return true;
+  if (b.includes("botox") && a.includes("botox")) return true;
+  if (b.includes("dysport") && a.includes("dysport")) return true;
+  if (b.includes("filler") && (a.includes("filler") || a.includes("Voluma") || a.includes("Volux"))) return true;
+  if (b.includes("radiasse") && a.includes("Radiesse")) return true;
+  if (b.includes("sculptra") && a.includes("Sculptra")) return true;
+  if (b.includes("microneedling") && a.includes("Microneedling")) return true;
+  if (b.includes("peel") && a.includes("Peel")) return true;
+  if (b.includes("facial") && a.includes("Facial")) return true;
+  return false;
+}
+
+/** Default neurotoxin units for quoting when patient doesn't specify (typical multi-area treatment). */
+export const DEFAULT_NEUROTOXIN_UNITS_FOR_QUOTE = 35;
+
+/** Prefer Claremont/California pricing over Henderson when both exist. */
+function preferClaremontCaSkus<T extends { name: string }>(skus: T[]): T[] {
+  return [...skus].sort((a, b) => {
+    const aH = a.name.includes("Henderson") ? 1 : 0;
+    const bH = b.name.includes("Henderson") ? 1 : 0;
+    return aH - bH;
+  });
+}
+
+/** Match a plan item to a specific SKU and return price (total or per-unit × quantity). */
+export function matchPlanItemToSku(
+  item: PlanItemForPricing
+): {
+  sku: SkuWithCategory;
+  totalPrice: number;
+  isPerUnit?: boolean;
+  unitPrice?: number;
+  quantity?: number;
+} | null {
+  const treatment = (item.treatment ?? "").trim();
+  if (!treatment) return null;
+  // Skincare with a specific product (e.g. Retinol, Vitamin C) uses boutique pricing, not the 2025 facial price list.
+  if (treatment === "Skincare" && (item.product ?? "").trim()) return null;
+  let skus = getSkusForDashboardCategory(treatment);
+  skus = preferClaremontCaSkus(skus);
+  if (skus.length === 0) return null;
+
+  const product = (item.product ?? "").trim();
+  const region = (item.region ?? "").trim();
+  const quantityStr = (item.quantity ?? "").trim();
+  const qty = quantityStr ? parseInt(quantityStr, 10) : NaN;
+
+  // Per-unit SKUs (Botox, Dysport) – use CA 1-Unit pricing only, not Henderson vials
+  const perUnitSkus = skus.filter(
+    (s) =>
+      !s.name.includes("Henderson") &&
+      (s.name.includes("1-Unit") ||
+        (s.name.includes("Botox") && s.name.includes("Unit")) ||
+        (s.name.includes("Dysport") && s.name.includes("Unit")))
+  );
+  const effectiveQty =
+    !Number.isNaN(qty) && qty > 0
+      ? qty
+      : treatment === "Neurotoxin"
+        ? DEFAULT_NEUROTOXIN_UNITS_FOR_QUOTE
+        : 0;
+  if (perUnitSkus.length > 0 && effectiveQty > 0) {
+    const preferBotox = /botox|tox/i.test(product) && !/dysport/i.test(product);
+    const preferDysport = /dysport/i.test(product);
+    let chosen = perUnitSkus[0];
+    if (preferBotox) chosen = perUnitSkus.find((s) => s.name.includes("Botox")) ?? chosen;
+    if (preferDysport) chosen = perUnitSkus.find((s) => s.name.includes("Dysport")) ?? chosen;
+    const totalPrice = chosen.price * effectiveQty;
+    return {
+      sku: chosen,
+      totalPrice,
+      isPerUnit: true,
+      unitPrice: chosen.price,
+      quantity: effectiveQty,
+    };
+  }
+
+  // Try match by product then region
+  const searchTerms = [product, region].filter(Boolean);
+  let matched: SkuWithCategory | null = null;
+  if (searchTerms.length > 0) {
+    for (const term of searchTerms) {
+      const found = skus.find((s) => skuNameMatches(s.name, term));
+      if (found) {
+        matched = found;
+        break;
+      }
+    }
+    if (!matched) {
+      const term = searchTerms[0];
+      const byContains = skus.filter((s) => skuNameMatches(s.name, term));
+      if (byContains.length > 0) matched = byContains[0];
+    }
+  }
+  if (!matched) {
+    if (skus.length === 1) matched = skus[0];
+    else if (treatment === "Filler" && !product) matched = skus.find((s) => s.name.includes("Fillers (except")) ?? skus[0];
+    else if (treatment === "Neurotoxin" && !product) matched = skus.find((s) => s.name.includes("Botox 1-Unit")) ?? skus.find((s) => s.name.includes("Botox – Henderson")) ?? skus[0];
+    else matched = skus[0];
+  }
+  if (!matched) return null;
+  return { sku: matched, totalPrice: matched.price };
+}
+
+/**
+ * Estimated price range for a single plan item based on treatment category (2025 list).
+ */
+export function getEstimatedPriceForPlanItem(
+  item: PlanItemForPricing
+): { min: number; max: number; displayPrice: string } | undefined {
+  const range = getPriceRangeNumeric2025(item.treatment?.trim() ?? "");
+  if (!range) return undefined;
+  if (range.min === 0 && range.max === 0) return undefined;
+  return {
+    min: range.min,
+    max: range.max,
+    displayPrice:
+      range.min === range.max
+        ? formatPrice(range.min)
+        : `${formatPrice(range.min)}–${formatPrice(range.max)}`,
+  };
+}
+
+/**
+ * Build checkout summary: line items with estimated prices and total range.
+ * Items without a matching price are omitted from totals but can still be shown with "Price varies".
+ */
+export function getCheckoutSummary(
+  items: (PlanItemForPricing & { id?: string })[],
+  getLabel: (item: PlanItemForPricing & { id?: string }) => string
+): {
+  lineItems: CheckoutLineItem[];
+  totalMin: number;
+  totalMax: number;
+  hasUnknownPrices: boolean;
+} {
+  const lineItems: CheckoutLineItem[] = [];
+  let totalMin = 0;
+  let totalMax = 0;
+  let hasUnknownPrices = false;
+  for (const item of items) {
+    const label = getLabel(item);
+    const est = getEstimatedPriceForPlanItem(item);
+    if (est) {
+      lineItems.push({
+        label,
+        min: est.min,
+        max: est.max,
+        displayPrice: est.displayPrice,
+      });
+      totalMin += est.min;
+      totalMax += est.max;
+    } else {
+      lineItems.push({
+        label,
+        min: 0,
+        max: 0,
+        displayPrice: "Price varies",
+      });
+      hasUnknownPrices = true;
+    }
+  }
+  return { lineItems, totalMin, totalMax, hasUnknownPrices };
+}
+
+/**
+ * Rich checkout line: SKU-level price plus longevity, recovery, sessions for detail view.
+ */
+export interface CheckoutLineItemDetail {
+  /** Display label (e.g. "Laser • Full Face") */
+  label: string;
+  /** Matched SKU name from price list (e.g. "Moxi Full Face") */
+  skuName?: string;
+  /** Note from price list (e.g. "CA locations only") */
+  skuNote?: string;
+  /** Single price for this line (for total) */
+  price: number;
+  /** Formatted price for display (e.g. "$550" or "40 units × $13 = $520") */
+  displayPrice: string;
+  /** Longevity (e.g. "6–12+ months") */
+  longevity?: string;
+  /** Recovery/downtime (e.g. "3–7 days") */
+  downtime?: string;
+  /** Sessions (e.g. "1–6") */
+  sessions?: string;
+  /** Optional photo URL for treatment (caller can attach) */
+  photoUrl?: string;
+  /** True if no SKU matched (price is 0, displayPrice may be "Price varies") */
+  isEstimate?: boolean;
+  /** Product description (skincare only; when set, longevity/recovery/sessions are omitted) */
+  description?: string;
+}
+
+/** Skincare boutique product info for checkout (from getSkincareCarouselItems / TREATMENT_BOUTIQUE_SKINCARE). */
+export interface SkincareProductInfo {
+  price?: number;
+  displayPrice: string;
+  imageUrl?: string;
+  productLabel: string;
+  /** Short description (shown instead of longevity/recovery/sessions for skincare) */
+  description?: string;
+}
+
+/**
+ * Build checkout summary with SKU-level prices and category meta (longevity, downtime, sessions).
+ * Uses specific SKU when product/region/quantity match; otherwise falls back to category range.
+ * For Skincare + product, pass getSkincareProductInfo to use boutique product name, price, and image (not the 2025 facial list).
+ */
+export function getCheckoutSummaryWithSkus(
+  items: (PlanItemForPricing & { id?: string })[],
+  getLabel: (item: PlanItemForPricing & { id?: string }) => string,
+  getSkincareProductInfo?: (productName: string) => SkincareProductInfo | null
+): {
+  lineItems: CheckoutLineItemDetail[];
+  total: number;
+  hasUnknownPrices: boolean;
+} {
+  const lineItems: CheckoutLineItemDetail[] = [];
+  let total = 0;
+  let hasUnknownPrices = false;
+  const category = (item: PlanItemForPricing) => (item.treatment ?? "").trim();
+  const meta = (cat: string) => getCategoryMeta(cat);
+
+  for (const item of items) {
+    const label = getLabel(item);
+    const cat = category(item);
+    const categoryMeta = meta(cat);
+    const productName = (item.product ?? "").trim();
+
+    if (cat === "Skincare" && productName && getSkincareProductInfo) {
+      const skincare = getSkincareProductInfo(productName);
+      if (skincare) {
+        lineItems.push({
+          label: skincare.productLabel,
+          skuName: skincare.productLabel,
+          price: skincare.price ?? 0,
+          displayPrice: skincare.displayPrice,
+          photoUrl: skincare.imageUrl,
+          isEstimate: !skincare.price,
+          description: skincare.description,
+          /* longevity/downtime/sessions omitted for skincare products */
+        });
+        total += skincare.price ?? 0;
+        if (!skincare.price) hasUnknownPrices = true;
+        continue;
+      }
+    }
+
+    const match = matchPlanItemToSku(item);
+
+    if (match) {
+      const displayPrice =
+        match.isPerUnit && match.quantity != null && match.unitPrice != null
+          ? `${match.quantity} × ${formatPrice(match.unitPrice)} = ${formatPrice(match.totalPrice)}`
+          : formatPrice(match.totalPrice);
+      lineItems.push({
+        label,
+        skuName: match.sku.name,
+        skuNote: match.sku.note,
+        price: match.totalPrice,
+        displayPrice,
+        longevity: categoryMeta?.longevity,
+        downtime: categoryMeta?.downtime,
+        sessions: categoryMeta?.sessions,
+        isEstimate: false,
+      });
+      total += match.totalPrice;
+    } else {
+      const range = getPriceRangeNumeric2025(cat);
+      const categoryMetaFallback = meta(cat);
+      if (range && (range.min > 0 || range.max > 0)) {
+        const displayPrice =
+          range.min === range.max
+            ? formatPrice(range.min)
+            : `${formatPrice(range.min)}–${formatPrice(range.max)}`;
+        lineItems.push({
+          label,
+          price: range.min,
+          displayPrice,
+          longevity: categoryMetaFallback?.longevity,
+          downtime: categoryMetaFallback?.downtime,
+          sessions: categoryMetaFallback?.sessions,
+          isEstimate: true,
+        });
+        total += range.min;
+      } else {
+        lineItems.push({
+          label,
+          price: 0,
+          displayPrice: "Price varies",
+          longevity: categoryMetaFallback?.longevity,
+          downtime: categoryMetaFallback?.downtime,
+          sessions: categoryMetaFallback?.sessions,
+          isEstimate: true,
+        });
+        hasUnknownPrices = true;
+      }
+    }
+  }
+  return { lineItems, total, hasUnknownPrices };
 }
