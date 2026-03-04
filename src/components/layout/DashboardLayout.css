@@ -18,6 +18,11 @@
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
+  transition: margin-left 0.2s ease;
+}
+
+.dashboard-wrapper--sidebar-collapsed .main-content {
+  margin-left: 76px;
 }
 
 /* Wrapper so views can fill remaining height and manage internal scroll (e.g. SMS messages) */

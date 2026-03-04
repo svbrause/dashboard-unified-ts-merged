@@ -1,6 +1,7 @@
 // Main Dashboard Layout Component
 
 // import React from 'react';
+import { useState } from "react";
 import { useDashboard } from "../../context/DashboardContext";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
@@ -45,11 +46,16 @@ const VIEWS_WITH_CONTROLS = ["list", "cards", "kanban", "facial-analysis", "arch
 
 export default function DashboardLayout({ onLogout }: DashboardLayoutProps) {
   const { currentView } = useDashboard();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const showViewControls = VIEWS_WITH_CONTROLS.includes(currentView);
 
   return (
-    <div className="dashboard-wrapper">
-      <Sidebar onLogout={onLogout} />
+    <div className={`dashboard-wrapper ${sidebarCollapsed ? "dashboard-wrapper--sidebar-collapsed" : ""}`}>
+      <Sidebar
+        onLogout={onLogout}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+      />
       <main className="main-content">
         <Header onLogout={onLogout} />
         {showViewControls && <ViewControls />}

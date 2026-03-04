@@ -8,8 +8,13 @@ import {
   getFacialStatusColorForDisplay,
   hasInterestedTreatments,
 } from "../../utils/statusFormatting";
+import { WEB_POPUP_LEAD_NO_ANALYSIS_STATUS } from "../../utils/clientMapper";
 import { updateLeadRecord, prefetchSmsForPhone, fetchRecordQuizFields } from "../../services/api";
-import { archiveClient } from "../../services/contactHistory";
+import {
+  archiveClient,
+  markOfferRedeemed,
+  updateClientStatus,
+} from "../../services/contactHistory";
 import { showToast, showError } from "../../utils/toast";
 import ContactHistorySection from "../modals/ContactHistorySection";
 import ClientSmsPopupModal from "../modals/ClientSmsPopupModal";
@@ -99,8 +104,7 @@ export default function ClientDetailPanel({
   const [editedClient, setEditedClient] = useState<Partial<Client> | null>(
     null,
   );
-  // Status state - kept for potential future use
-  // const [status, setStatus] = useState<Client["status"]>("new");
+  const [status, setStatus] = useState<Client["status"]>("new");
   const [showTelehealthSMS, setShowTelehealthSMS] = useState(false);
   const [showShareAnalysis, setShowShareAnalysis] = useState(false);
   const [showShareTreatmentPlan, setShowShareTreatmentPlan] = useState(false);
@@ -152,7 +156,7 @@ export default function ClientDetailPanel({
         ...client,
         phone: client.phone ? formatPhoneDisplay(client.phone) : "",
       });
-      // setStatus(client.status);
+      setStatus(client.status);
 
       // Load front photo if available and should be loaded
       let photoUrl: string | null = null;
@@ -343,17 +347,16 @@ export default function ClientDetailPanel({
     setIsEditMode(false);
   };
 
-  // Status change handler - currently unused but kept for potential future use
-  // const handleStatusChange = async (newStatus: Client["status"]) => {
-  //   try {
-  //     await updateClientStatus(client, newStatus);
-  //     setStatus(newStatus);
-  //     showToast(`Status updated to ${newStatus}`);
-  //     onUpdate();
-  //   } catch (error: any) {
-  //     showError(error.message || "Failed to update status");
-  //   }
-  // };
+  const handleStatusChange = async (newStatus: Client["status"]) => {
+    try {
+      await updateClientStatus(client, newStatus);
+      setStatus(newStatus);
+      showToast(`Status updated to ${newStatus}`);
+      onUpdate();
+    } catch (error: any) {
+      showError(error.message || "Failed to update status");
+    }
+  };
 
   const handleArchive = async () => {
     const action = client.archived ? "unarchive" : "archive";
@@ -833,6 +836,31 @@ export default function ClientDetailPanel({
                             </div>
                           </div>
                         )}
+                        <div className="detail-item">
+                          <label>Status</label>
+                          <select
+                            value={status}
+                            onChange={(e) =>
+                              handleStatusChange(
+                                e.target.value as Client["status"],
+                              )
+                            }
+                            className="detail-status-select-full"
+                          >
+                            <option value="new">New Lead</option>
+                            <option value="contacted">Contacted</option>
+                            <option value="requested-consult">
+                              Requested Consult
+                            </option>
+                            <option value="scheduled">
+                              Consultation Scheduled
+                            </option>
+                            <option value="converted">Converted</option>
+                            <option value="current-client">
+                              Current Client
+                            </option>
+                          </select>
+                        </div>
                         {client.source && (
                           <div className="detail-item">
                             <label>Source</label>
@@ -972,138 +1000,183 @@ export default function ClientDetailPanel({
                   </div>
                 </div>
 
-                {/* Web Popup Leads Form Section */}
-                {webPopupFormHasData && (
+                {/* Online Treatment Finder – Web Popup Leads */}
+                {hasWebPopupForm && (
                   <div className="detail-section detail-section-with-border">
                     <div className="detail-section-title detail-section-title-flex">
                       <span>Online Treatment Finder</span>
+                      {client.createdAt && (
+                        <span className="detail-value-muted detail-section-date">
+                          Completed {formatDate(client.createdAt)}
+                        </span>
+                      )}
                     </div>
 
-                    {((typeof client.concerns === "string" &&
-                      client.concerns.trim()) ||
-                      (Array.isArray(client.concerns) &&
-                        client.concerns.length > 0) ||
-                      (client.areas && client.areas.length > 0)) && (
-                      <div className="detail-grid-custom">
-                        {((typeof client.concerns === "string" &&
-                          client.concerns.trim()) ||
-                          (Array.isArray(client.concerns) &&
-                            client.concerns.length > 0)) && (
-                          <div>
-                            <div className="detail-label">Concerns</div>
-                            <div className="detail-tags-container">
-                              {(typeof client.concerns === "string"
+                    {/* $50 coupon – white box with Earned / Claimed side by side, checkbox-style Yes/No */}
+                    <div className="detail-section-spacing">
+                      <div className="detail-coupon-box">
+                        <h4 className="detail-coupon-title">$50 coupon</h4>
+                        <div className="detail-coupon-row-inline">
+                          <div className="detail-coupon-cell">
+                            <span className="detail-coupon-label">Earned</span>
+                            <span
+                              className={`detail-coupon-badge ${
+                                client.offerEarned !== false
+                                  ? "detail-coupon-badge--yes"
+                                  : "detail-coupon-badge--no"
+                              }`}
+                              aria-label={client.offerEarned !== false ? "Earned: Yes" : "Earned: No"}
+                            >
+                              {client.offerEarned !== false ? (
+                                <>
+                                  <span className="detail-coupon-check" aria-hidden>✓</span>
+                                  <span>Yes</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="detail-coupon-x" aria-hidden>✗</span>
+                                  <span>No</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          <div className="detail-coupon-cell">
+                            <span className="detail-coupon-label">Claimed</span>
+                            {client.offerClaimed ? (
+                              <span
+                                className="detail-coupon-badge detail-coupon-badge--yes"
+                                aria-label="Claimed: Yes"
+                              >
+                                <span className="detail-coupon-check" aria-hidden>✓</span>
+                                <span>Yes</span>
+                              </span>
+                            ) : (
+                              <div className="detail-coupon-claimed-wrap">
+                                <span
+                                  className="detail-coupon-badge detail-coupon-badge--no"
+                                  aria-label="Claimed: No"
+                                >
+                                  <span className="detail-coupon-x" aria-hidden>✗</span>
+                                  <span>No</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn-secondary btn-sm"
+                                  onClick={async () => {
+                                    try {
+                                      await markOfferRedeemed(client);
+                                      showToast("Coupon marked as redeemed");
+                                      onUpdate();
+                                    } catch (e) {
+                                      showError(
+                                        e instanceof Error ? e.message : "Failed to mark as redeemed",
+                                      );
+                                    }
+                                  }}
+                                >
+                                  Mark as redeemed
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="detail-grid-custom">
+                      <div>
+                        <div className="detail-label">Concerns</div>
+                        <div className="detail-tags-container">
+                          {(() => {
+                            const list: string[] =
+                              typeof client.concerns === "string"
                                 ? client.concerns
                                     .split(",")
                                     .map((c) => c.trim())
-                                    .filter((c) => c)
+                                    .filter(Boolean)
                                 : Array.isArray(client.concerns)
-                                  ? client.concerns
-                                  : []
-                              ).map((c, i) => (
+                                  ? client.concerns.filter(
+                                      (c): c is string => typeof c === "string",
+                                    )
+                                  : [];
+                            return list.length > 0 ? (
+                              list.map((c, i) => (
                                 <span key={i} className="detail-tag">
                                   {c}
                                 </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {client.areas && client.areas.length > 0 && (
-                          <div>
-                            <div className="detail-label">Focus Areas</div>
-                            <div className="detail-tags-container">
-                              {(Array.isArray(client.areas)
-                                ? client.areas
-                                : [client.areas]
-                              ).map((a, i) => (
-                                <span key={i} className="detail-tag">
-                                  {String(a).replace(/\+/g, " ")}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                              ))
+                            ) : (
+                              <span className="detail-value-empty">N/A</span>
+                            );
+                          })()}
+                        </div>
                       </div>
-                    )}
-
-                    {(client.skinType ||
-                      client.skinTone ||
-                      client.ethnicBackground) && (
-                      <div className="detail-section-spacing">
-                        <div className="detail-label">Demographics</div>
-                        <div className="detail-grid detail-grid-demographics">
-                          {client.skinType && (
-                            <div className="detail-item">
-                              <label className="detail-label-small">
-                                Skin Type
-                              </label>
-                              <div className="detail-value detail-value-small">
-                                {client.skinType && client.skinType.length > 0
-                                  ? client.skinType.charAt(0).toUpperCase() +
-                                    client.skinType.slice(1)
-                                  : client.skinType}
-                              </div>
-                            </div>
-                          )}
-                          {client.skinTone && (
-                            <div className="detail-item">
-                              <label className="detail-label-small">
-                                Skin Tone
-                              </label>
-                              <div className="detail-value detail-value-small">
-                                {client.skinTone && client.skinTone.length > 0
-                                  ? client.skinTone.charAt(0).toUpperCase() +
-                                    client.skinTone.slice(1)
-                                  : client.skinTone}
-                              </div>
-                            </div>
-                          )}
-                          {client.ethnicBackground && (
-                            <div className="detail-item">
-                              <label className="detail-label-small">
-                                Ethnic Background
-                              </label>
-                              <div className="detail-value detail-value-small">
-                                {client.ethnicBackground &&
-                                client.ethnicBackground.length > 0
-                                  ? client.ethnicBackground
-                                      .charAt(0)
-                                      .toUpperCase() +
-                                    client.ethnicBackground.slice(1)
-                                  : client.ethnicBackground}
-                              </div>
-                            </div>
+                      <div>
+                        <div className="detail-label">Focus Areas</div>
+                        <div className="detail-tags-container">
+                          {client.areas && client.areas.length > 0 ? (
+                            (Array.isArray(client.areas)
+                              ? client.areas
+                              : [client.areas]
+                            ).map((a, i) => (
+                              <span key={i} className="detail-tag">
+                                {String(a).replace(/\+/g, " ")}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="detail-value-empty">N/A</span>
                           )}
                         </div>
                       </div>
-                    )}
+                    </div>
 
-                    {client.aestheticGoals &&
-                      (typeof client.aestheticGoals === "string"
-                        ? client.aestheticGoals.trim()
-                        : String(client.aestheticGoals).trim()) &&
-                      client.tableSource === "Web Popup Leads" && (
-                        <div className="detail-section-spacing">
-                          <div className="detail-label">Patient Goals</div>
-                          <div className="detail-goals-box">
-                            "{client.aestheticGoals}"
+                    <div className="detail-section-spacing">
+                      <div className="detail-label">Demographics</div>
+                      <div className="detail-grid detail-grid-demographics">
+                        <div className="detail-item">
+                          <label className="detail-label-small">
+                            Skin Type
+                          </label>
+                          <div className="detail-value detail-value-small">
+                            {client.skinType && String(client.skinType).trim()
+                              ? client.skinType.length > 0
+                                ? client.skinType.charAt(0).toUpperCase() +
+                                  client.skinType.slice(1)
+                                : client.skinType
+                              : "N/A"}
                           </div>
                         </div>
-                      )}
-
-                    {client.offerClaimed && (
-                      <div className="detail-section-spacing">
-                        <div className="detail-label">Offer Status</div>
-                        <div className="detail-offer-claimed-box">
-                          <div className="detail-offer-claimed-content">
-                            <span className="detail-offer-claimed-icon">✓</span>
-                            <strong className="detail-offer-claimed-text">
-                              $50 Off Offer Claimed
-                            </strong>
+                        <div className="detail-item">
+                          <label className="detail-label-small">
+                            Skin Tone
+                          </label>
+                          <div className="detail-value detail-value-small">
+                            {client.skinTone && String(client.skinTone).trim()
+                              ? client.skinTone.length > 0
+                                ? client.skinTone.charAt(0).toUpperCase() +
+                                  client.skinTone.slice(1)
+                                : client.skinTone
+                              : "N/A"}
+                          </div>
+                        </div>
+                        <div className="detail-item">
+                          <label className="detail-label-small">
+                            Ethnic Background
+                          </label>
+                          <div className="detail-value detail-value-small">
+                            {client.ethnicBackground &&
+                            String(client.ethnicBackground).trim()
+                              ? client.ethnicBackground.length > 0
+                                ? client.ethnicBackground
+                                    .charAt(0)
+                                    .toUpperCase() +
+                                  client.ethnicBackground.slice(1)
+                                : client.ethnicBackground
+                              : "N/A"}
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
@@ -1113,23 +1186,29 @@ export default function ClientDetailPanel({
                     <div className="detail-section-title detail-section-title-inline detail-section-title-facial">
                       <div className="facial-analysis-heading-row">
                         <span>Facial Analysis</span>
-                        {facialAnalysisFormHasData &&
-                          client.facialAnalysisStatus && (
+                        {(() => {
+                          const statusForDisplay =
+                            client.facialAnalysisStatus ??
+                            (client.tableSource === "Web Popup Leads"
+                              ? WEB_POPUP_LEAD_NO_ANALYSIS_STATUS
+                              : "not-started");
+                          return (
                             <span
                               className="status-badge detail-status-badge-dynamic"
                               style={{
                                 background: getFacialStatusColorForDisplay(
-                                  client.facialAnalysisStatus,
+                                  statusForDisplay,
                                   hasInterestedTreatments(client),
                                 ),
                               }}
                             >
                               {formatFacialStatusForDisplay(
-                                client.facialAnalysisStatus,
+                                statusForDisplay,
                                 hasInterestedTreatments(client),
                               )}
                             </span>
-                          )}
+                          );
+                        })()}
                       </div>
                       {client.tableSource === "Patients" &&
                         facialAnalysisFormHasData &&
@@ -1244,25 +1323,25 @@ export default function ClientDetailPanel({
                       </div>
                       <div className="discussed-treatments-in-facial-actions">
                         {facialAnalysisFormHasData && (
-                          <>
-                            <button
-                              type="button"
-                              className="btn-secondary btn-sm"
-                              onClick={() => setShowShareTreatmentPlan(true)}
-                            >
-                              Share with Patient
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-secondary btn-sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRecommenderMode("by-treatment");
-                              }}
-                            >
-                              Treatment Recommender
-                            </button>
-                          </>
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() => setShowShareTreatmentPlan(true)}
+                          >
+                            Share with Patient
+                          </button>
+                        )}
+                        {(facialAnalysisFormHasData || webPopupFormHasData) && (
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRecommenderMode("by-treatment");
+                            }}
+                          >
+                            Treatment Recommender
+                          </button>
                         )}
                         <button
                           type="button"

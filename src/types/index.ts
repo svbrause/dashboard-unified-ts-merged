@@ -129,6 +129,8 @@ export interface Client {
   areasOfInterestFromForm: string;
   archived: boolean;
   offerClaimed: boolean;
+  /** Whether the $50 coupon was earned (e.g. completed online treatment finder). When undefined, treated as true for Web Popup Leads. */
+  offerEarned?: boolean;
   /** Offer/coupon expiration date (e.g. $50 off). ISO date string or null. */
   offerExpirationDate: string | null;
   /** Patients: Location name from Boulevard Appointments (from Form Submissions) */

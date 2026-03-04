@@ -505,12 +505,21 @@ export default function TreatmentRecommenderByTreatment({
         const side =
           fields["Side Photo"] ?? fields["Side photo"] ?? fields["sidePhoto"];
         const unprocessedSide = fields["Side Photo (from Form Submissions)"];
-        const unprocessedLeft = fields["Left Side Photo (from Form Submissions)"];
+        const unprocessedLeft =
+          fields["Left Side Photo (from Form Submissions)"];
         if (side && Array.isArray(side) && side.length > 0) {
           setSidePhotoUrl(getUrl(side[0]) ?? null);
-        } else if (unprocessedSide && Array.isArray(unprocessedSide) && unprocessedSide.length > 0) {
+        } else if (
+          unprocessedSide &&
+          Array.isArray(unprocessedSide) &&
+          unprocessedSide.length > 0
+        ) {
           setSidePhotoUrl(getUrl(unprocessedSide[0]) ?? null);
-        } else if (unprocessedLeft && Array.isArray(unprocessedLeft) && unprocessedLeft.length > 0) {
+        } else if (
+          unprocessedLeft &&
+          Array.isArray(unprocessedLeft) &&
+          unprocessedLeft.length > 0
+        ) {
           setSidePhotoUrl(getUrl(unprocessedLeft[0]) ?? null);
         } else {
           setSidePhotoUrl(null);
@@ -1112,7 +1121,8 @@ export default function TreatmentRecommenderByTreatment({
               })}
             </div>
           )}
-          {(onOpenTreatmentPlan || (SHOW_CHECKOUT_BUTTON && onOpenCheckout)) && (
+          {(onOpenTreatmentPlan ||
+            (SHOW_CHECKOUT_BUTTON && onOpenCheckout)) && (
             <div className="treatment-recommender-by-treatment__plan-actions">
               {onOpenTreatmentPlan && (
                 <button
@@ -1201,7 +1211,7 @@ export default function TreatmentRecommenderByTreatment({
                           </button>
                         </div>
                         {!skincareScoreBreakdownCollapsed &&
-                            (() => {
+                          (() => {
                             const scores = computeQuizScores(
                               client.skincareQuiz!.answers,
                             );
@@ -1653,50 +1663,51 @@ export default function TreatmentRecommenderByTreatment({
                                 </span>
                                 {optionsFromTable &&
                                   treatment !== "Microneedling" && (
-                                  <span className="treatment-recommender-by-treatment__edit-options-wrap">
-                                    <button
-                                      type="button"
-                                      className="treatment-recommender-by-treatment__edit-options-btn treatment-recommender-by-treatment__edit-options-btn--with-label"
-                                      onClick={() => {
-                                        setEditingRecordId(null);
-                                        setEditingValue("");
-                                        setEditModalNewOptionInput("");
-                                        setEditOptionsContext({
-                                          treatment:
-                                            addToPlanForTreatment.treatment,
-                                          optionType:
-                                            treatment === "Skincare"
-                                              ? "skincare_what"
-                                              : treatment === "Laser"
-                                                ? "laser_what"
-                                                : treatment === "Biostimulants"
-                                                  ? "biostimulant_what"
-                                                  : "where",
-                                        });
-                                      }}
-                                      title="Edit options"
-                                      aria-label="Edit options"
-                                    >
-                                      <svg
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        aria-hidden
+                                    <span className="treatment-recommender-by-treatment__edit-options-wrap">
+                                      <button
+                                        type="button"
+                                        className="treatment-recommender-by-treatment__edit-options-btn treatment-recommender-by-treatment__edit-options-btn--with-label"
+                                        onClick={() => {
+                                          setEditingRecordId(null);
+                                          setEditingValue("");
+                                          setEditModalNewOptionInput("");
+                                          setEditOptionsContext({
+                                            treatment:
+                                              addToPlanForTreatment.treatment,
+                                            optionType:
+                                              treatment === "Skincare"
+                                                ? "skincare_what"
+                                                : treatment === "Laser"
+                                                  ? "laser_what"
+                                                  : treatment ===
+                                                      "Biostimulants"
+                                                    ? "biostimulant_what"
+                                                    : "where",
+                                          });
+                                        }}
+                                        title="Edit options"
+                                        aria-label="Edit options"
                                       >
-                                        <circle cx="12" cy="12" r="3" />
-                                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                                      </svg>
-                                      <span className="treatment-recommender-by-treatment__edit-options-label">
-                                        Edit options
-                                      </span>
-                                    </button>
-                                  </span>
-                                )}
+                                        <svg
+                                          width="16"
+                                          height="16"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          aria-hidden
+                                        >
+                                          <circle cx="12" cy="12" r="3" />
+                                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                        </svg>
+                                        <span className="treatment-recommender-by-treatment__edit-options-label">
+                                          Edit options
+                                        </span>
+                                      </button>
+                                    </span>
+                                  )}
                                 <div className="treatment-recommender-by-treatment__chips">
                                   {treatment === "Laser"
                                     ? (optionsFromTable
@@ -1839,9 +1850,9 @@ export default function TreatmentRecommenderByTreatment({
                                           );
                                         })
                                       : (treatment === "Microneedling"
-                                          ? [...REGION_OPTIONS_MICRONEEDLING].map(
-                                              (v) => ({ id: "", value: v }),
-                                            )
+                                          ? [
+                                              ...REGION_OPTIONS_MICRONEEDLING,
+                                            ].map((v) => ({ id: "", value: v }))
                                           : optionsFromTable
                                             ? whereOptionRecordsDeduped
                                             : whereOptions.map((v) => ({
@@ -2100,24 +2111,20 @@ export default function TreatmentRecommenderByTreatment({
                                               : ""
                                           }`}
                                           onClick={() =>
-                                            setAddToPlanForTreatment(
-                                              (prev) => {
-                                                if (!prev) return null;
-                                                const current =
-                                                  prev.microneedlingType ?? [];
-                                                const next = current.includes(
-                                                  opt,
-                                                )
-                                                  ? current.filter(
-                                                      (x) => x !== opt,
-                                                    )
-                                                  : [...current, opt];
-                                                return {
-                                                  ...prev,
-                                                  microneedlingType: next,
-                                                };
-                                              },
-                                            )
+                                            setAddToPlanForTreatment((prev) => {
+                                              if (!prev) return null;
+                                              const current =
+                                                prev.microneedlingType ?? [];
+                                              const next = current.includes(opt)
+                                                ? current.filter(
+                                                    (x) => x !== opt,
+                                                  )
+                                                : [...current, opt];
+                                              return {
+                                                ...prev,
+                                                microneedlingType: next,
+                                              };
+                                            })
                                           }
                                           title={
                                             selected

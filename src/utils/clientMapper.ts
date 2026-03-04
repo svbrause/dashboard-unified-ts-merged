@@ -96,9 +96,13 @@ function formatPatientSource(sourceValue: string | null | undefined): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
+/** Sentinel value for Web Popup Leads with no facial analysis; display as "—" instead of "Pending". */
+export const WEB_POPUP_LEAD_NO_ANALYSIS_STATUS = "n/a";
+
 /**
  * Get facial analysis status from record fields.
  * Patients table may use "Pending/Opened" or other names; Web Popup Leads typically don't have this field.
+ * For Web Popup Leads with no status field, returns WEB_POPUP_LEAD_NO_ANALYSIS_STATUS so the UI shows "—" instead of "Pending".
  */
 function getFacialAnalysisStatus(
   fields: Record<string, any>,
@@ -117,9 +121,10 @@ function getFacialAnalysisStatus(
       if (v != null && String(v).trim() !== "") return String(v).trim();
     }
   }
-  return fields["Pending/Opened"] != null && String(fields["Pending/Opened"]).trim() !== ""
-    ? String(fields["Pending/Opened"]).trim()
-    : null;
+  const raw = fields["Pending/Opened"];
+  if (raw != null && String(raw).trim() !== "") return String(raw).trim();
+  if (tableName === "Web Popup Leads") return WEB_POPUP_LEAD_NO_ANALYSIS_STATUS;
+  return null;
 }
 
 /**
@@ -353,6 +358,10 @@ export function mapRecordToClient(
         : "",
     archived: fields["Archived"] || false,
     offerClaimed: fields["Offer Claimed"] || false,
+    offerEarned:
+      fields["Offer Earned"] === undefined
+        ? undefined
+        : Boolean(fields["Offer Earned"]),
     offerExpirationDate:
       fields["Offer Expiration"] ||
       fields["Offer Expiration Date"] ||

@@ -814,31 +814,21 @@ export async function fetchDoctorAdviceRequests(): Promise<DoctorAdviceRequest[]
 
 /**
  * Fetch offers from the dashboard offers API.
- * Returns records shaped as Offer (id + flat fields).
+ * Backend GET /api/dashboard/offers reads from the Airtable Offers table and returns
+ * { success, records, count }. No provider filter is applied (Offers table has no provider link).
  */
-export async function fetchOffers(): Promise<Offer[]> {
-  const apiPath = "/api/dashboard/offers";
-  const apiUrl = API_BASE_URL + apiPath;
+export async function fetchOffers(_providerId?: string): Promise<Offer[]> {
+  const apiUrl = `${API_BASE_URL}/api/dashboard/offers`;
   const response = await fetch(apiUrl);
   if (!response.ok) {
     const errorData = await safeJsonParse(response).catch(() => ({}));
-    throw new Error(errorData.message || "Failed to fetch offers");
+    throw new Error(
+      errorData.message || errorData.error?.message || "Failed to fetch offers"
+    );
   }
   const data = await safeJsonParse(response);
   const records = data.records || [];
-  return records.map((r: AirtableRecord) => {
-    const f = r.fields || {};
-    return {
-      id: r.id,
-      name: f.Name ?? f.name ?? "",
-      heading: f.Heading ?? f.heading ?? "",
-      details: f.Details ?? f.details ?? "",
-      availableUntil: f["Available Until"] ?? f.availableUntil ?? "",
-      redemptionPeriod: f["Redemption Period"] ?? f.redemptionPeriod ?? "",
-      treatmentFilter: f["Treatment Filter"] ?? f.treatmentFilter ?? "",
-      createdTime: r.createdTime,
-    };
-  });
+  return records;
 }
 
 /**
