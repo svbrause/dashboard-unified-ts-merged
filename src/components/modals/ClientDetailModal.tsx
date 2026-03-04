@@ -64,6 +64,7 @@ import { getSkinQuizMessage } from "../../utils/skinQuizLink";
 import {
   getJotformUrl,
   formatProviderDisplayName,
+  isUniqueAestheticsProvider,
 } from "../../utils/providerHelpers";
 import {
   splitName,
@@ -1153,16 +1154,18 @@ export default function ClientDetailModal({
                             >
                               Scan In-Clinic
                             </button>
-                            <button
-                              className="scan-client-option"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowScanDropdown(false);
-                                setShowNewClientSMS(true);
-                              }}
-                            >
-                              Scan At Home
-                            </button>
+                            {!isUniqueAestheticsProvider(provider) && (
+                              <button
+                                className="scan-client-option"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowScanDropdown(false);
+                                  setShowNewClientSMS(true);
+                                }}
+                              >
+                                Scan At Home
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1308,6 +1311,8 @@ export default function ClientDetailModal({
                 </div>
               </div>
 
+              {!isUniqueAestheticsProvider(provider) && (
+              <>
               {/* Skin Quiz Section */}
               <div className="detail-section detail-section-skin-analysis">
                 <div className="detail-section-header-flex skin-analysis-header">
@@ -1459,6 +1464,8 @@ export default function ClientDetailModal({
                   </div>
                 )}
               </div>
+              </>
+              )}
 
               {/* Wellness Quiz Section (hidden when WELLNESS_QUIZ_ENABLED is false) */}
               {WELLNESS_QUIZ_ENABLED && (
