@@ -1276,7 +1276,7 @@ export default function TreatmentRecommenderByTreatment({
                       GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result] && (
                         <span className="treatment-recommender-skin-analysis__gemstone">
                           {" "}
-                          · 💎{" "}
+                          · {GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result].emoji}{" "}
                           {
                             GEMSTONE_BY_SKIN_TYPE[client.skincareQuiz.result]
                               .tagline

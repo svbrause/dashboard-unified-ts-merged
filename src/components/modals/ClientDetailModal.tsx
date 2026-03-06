@@ -1363,7 +1363,8 @@ export default function ClientDetailModal({
                       {skincareQuiz.result &&
                       GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result] ? (
                         <span className="skin-analysis-summary-gemstone">
-                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].name} 💎{" "}
+                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].name}{" "}
+                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].emoji}{" "}
                           {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].tagline}
                         </span>
                       ) : (
