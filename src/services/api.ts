@@ -4,6 +4,7 @@
 import type { Offer, DoctorAdviceRequest, SkincareQuizData } from "../types";
 import { cleanPhoneNumber } from "../utils/validation";
 import { parseSkincareQuizFromFields } from "../utils/clientMapper";
+import { buildSmsSendErrorMessage } from "./smsSendErrorMessage";
 
 export const BACKEND_API_URL =
   import.meta.env.VITE_BACKEND_API_URL ||
@@ -553,41 +554,8 @@ export async function sendSMSNotification(
   });
 
   if (!response.ok) {
-    const errorData = (await safeJsonParse(response).catch(() => ({}))) as {
-      error?: string | { message?: string };
-      message?: string;
-      details?: { message?: string; code?: string };
-    };
-    const detailsMsg =
-      typeof errorData.details?.message === "string"
-        ? errorData.details.message.trim()
-        : "";
-    const nestedErrorMsg =
-      typeof errorData.error === "object" &&
-      errorData.error !== null &&
-      typeof errorData.error.message === "string"
-        ? errorData.error.message.trim()
-        : "";
-    let msg =
-      detailsMsg ||
-      nestedErrorMsg ||
-      (typeof errorData.error === "string" ? errorData.error : "") ||
-      errorData.message ||
-      "Failed to send SMS notification";
-
-    const opCode =
-      typeof errorData.details?.code === "string"
-        ? errorData.details.code.trim()
-        : "";
-    if (
-      opCode === "0202400" ||
-      /`to` array is invalid|invalid.*`to`/i.test(msg)
-    ) {
-      msg +=
-        " OpenPhone only sends to real, deliverable US mobile numbers. Try your own cell to verify; many made-up 10-digit patterns are rejected even though the dashboard accepts them.";
-    }
-
-    throw new Error(msg);
+    const errorData = await safeJsonParse(response).catch(() => ({}));
+    throw new Error(buildSmsSendErrorMessage(errorData));
   }
   return true;
 }
