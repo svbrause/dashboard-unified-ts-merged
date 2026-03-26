@@ -556,7 +556,7 @@ export async function sendSMSNotification(
     const errorData = (await safeJsonParse(response).catch(() => ({}))) as {
       error?: string | { message?: string };
       message?: string;
-      details?: { message?: string };
+      details?: { message?: string; code?: string };
     };
     const detailsMsg =
       typeof errorData.details?.message === "string"
@@ -568,13 +568,26 @@ export async function sendSMSNotification(
       typeof errorData.error.message === "string"
         ? errorData.error.message.trim()
         : "";
-    throw new Error(
+    let msg =
       detailsMsg ||
-        nestedErrorMsg ||
-        (typeof errorData.error === "string" ? errorData.error : "") ||
-        errorData.message ||
-        "Failed to send SMS notification"
-    );
+      nestedErrorMsg ||
+      (typeof errorData.error === "string" ? errorData.error : "") ||
+      errorData.message ||
+      "Failed to send SMS notification";
+
+    const opCode =
+      typeof errorData.details?.code === "string"
+        ? errorData.details.code.trim()
+        : "";
+    if (
+      opCode === "0202400" ||
+      /`to` array is invalid|invalid.*`to`/i.test(msg)
+    ) {
+      msg +=
+        " OpenPhone only sends to real, deliverable US mobile numbers. Try your own cell to verify; many made-up 10-digit patterns are rejected even though the dashboard accepts them.";
+    }
+
+    throw new Error(msg);
   }
   return true;
 }
