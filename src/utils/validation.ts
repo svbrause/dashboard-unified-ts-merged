@@ -6,25 +6,12 @@ export function isValidEmail(email: string): boolean {
   return emailRegex.test(email.trim());
 }
 
-/**
- * Basic NANP check on exactly 10 digits: area code and exchange cannot start with 0 or 1
- * (matches common carrier/OpenPhone validation; blocks placeholders like 2121212121).
- */
-function isValidNanpTenDigits(digits10: string): boolean {
-  if (!/^\d{10}$/.test(digits10)) return false;
-  const areaFirst = digits10[0];
-  const exchangeFirst = digits10[3];
-  if (areaFirst === "0" || areaFirst === "1") return false;
-  if (exchangeFirst === "0" || exchangeFirst === "1") return false;
-  return true;
-}
-
+/** US-only for now: accept 10 digits or 11 with leading country code 1 (+1 is appended on send). */
 export function isValidPhone(phone: string): boolean {
   if (!phone) return false;
   const cleaned = phone.replace(/\D/g, "");
-  if (cleaned.length === 10) return isValidNanpTenDigits(cleaned);
-  if (cleaned.length === 11 && cleaned.startsWith("1"))
-    return isValidNanpTenDigits(cleaned.slice(1));
+  if (cleaned.length === 10) return true;
+  if (cleaned.length === 11 && cleaned.startsWith("1")) return true;
   return false;
 }
 
