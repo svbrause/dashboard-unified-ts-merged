@@ -553,9 +553,25 @@ export async function sendSMSNotification(
   });
 
   if (!response.ok) {
-    const errorData = await safeJsonParse(response).catch(() => ({}));
+    const errorData = (await safeJsonParse(response).catch(() => ({}))) as {
+      error?: string | { message?: string };
+      message?: string;
+      details?: { message?: string };
+    };
+    const detailsMsg =
+      typeof errorData.details?.message === "string"
+        ? errorData.details.message.trim()
+        : "";
+    const nestedErrorMsg =
+      typeof errorData.error === "object" &&
+      errorData.error !== null &&
+      typeof errorData.error.message === "string"
+        ? errorData.error.message.trim()
+        : "";
     throw new Error(
-      errorData.error?.message ||
+      detailsMsg ||
+        nestedErrorMsg ||
+        (typeof errorData.error === "string" ? errorData.error : "") ||
         errorData.message ||
         "Failed to send SMS notification"
     );
