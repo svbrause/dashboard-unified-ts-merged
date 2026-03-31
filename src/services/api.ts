@@ -1,6 +1,11 @@
 // API service for fetching data from Airtable via backend (ponce-patient-backend.vercel.app)
 // All dashboard API calls go to the backend; no /api or relative routes.
 
+import {
+  fetchAIAssessmentViaDevGemini,
+  fetchCategoryAssessmentViaDevGemini,
+  fetchTreatmentChapterOverviewViaDevGemini,
+} from "./geminiDevAssessment";
 import type { Offer, DoctorAdviceRequest, SkincareQuizData } from "../types";
 import { cleanPhoneNumber } from "../utils/validation";
 import { parseSkincareQuizFromFields } from "../utils/clientMapper";
@@ -107,6 +112,122 @@ export function notifyLoginToSlack(provider: Provider): void {
   }).catch((err) => {
     console.warn("Login notification failed (non-blocking):", err);
   });
+}
+
+/**
+ * Ask the backend for a **fresh** Airtable attachment URL for the blueprint hero photo.
+ * Airtable download URLs expire (~2h); this lets the patient page recover when the link
+ * payload only has an expired URL (no embedded data URL).
+ *
+ * **Backend contract** (implement on `ponce-patient-backend` or similar):
+ * `GET /api/dashboard/blueprint/front-photo?token=&patientId=&tableSource=&providerCode=`
+ * → `{ "url": "https://..." }` with a newly fetched attachment URL from Airtable.
+ * Return 404 if not implemented or patient not found.
+ */
+export async function fetchBlueprintFrontPhotoFreshUrl(params: {
+  token: string;
+  patientId: string;
+  tableSource: string;
+  providerCode?: string;
+}): Promise<string | null> {
+  try {
+    const q = new URLSearchParams({
+      token: params.token,
+      patientId: params.patientId,
+      tableSource: params.tableSource,
+    });
+    if (params.providerCode) q.set("providerCode", params.providerCode);
+    const url = `${API_BASE_URL}/api/dashboard/blueprint/front-photo?${q.toString()}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { url?: unknown };
+    const u = typeof data?.url === "string" ? data.url.trim() : "";
+    return u || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist Post-Visit Blueprint JSON on the backend so patient links can be short (`?t=` only).
+ * Backend: POST /api/dashboard/blueprint
+ *
+ * Recommended: after accepting the payload, fetch hero bytes (or receive upload), store in GCS (or similar),
+ * and merge `patient.frontPhotoPersistentUrl` into the saved JSON so patient pages avoid expiring Airtable URLs.
+ */
+export async function storePostVisitBlueprintOnServer(
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/dashboard/blueprint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load blueprint JSON for the public patient page when the URL has no `d` param.
+ * Backend: GET /api/dashboard/blueprint?token=
+ */
+export async function fetchPostVisitBlueprintFromServer(
+  token: string,
+): Promise<unknown | null> {
+  const t = token?.trim();
+  if (!t) return null;
+  try {
+    const url = `${API_BASE_URL}/api/dashboard/blueprint?${new URLSearchParams({ token: t })}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Patient tapped “Proceed to book” on the Post-Visit Blueprint quote drawer.
+ * Backend writes one Airtable row (`Blueprint Booking Intents` by default) for Slack / email / SMS automations.
+ */
+export async function submitPostVisitBlueprintBookingIntent(body: {
+  token: string;
+  patientId: string;
+  selectedLineIndices: number[];
+  mintPreview: boolean;
+}): Promise<
+  | { ok: true; patientSmsSent?: boolean }
+  | { ok: false; error: string; details?: string }
+> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/post-visit-blueprint/booking-intent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      details?: string;
+      ok?: boolean;
+      patientSmsSent?: boolean;
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: data.error || `Request failed (${res.status})`,
+        details: typeof data.details === "string" ? data.details : undefined,
+      };
+    }
+    return { ok: true, patientSmsSent: data.patientSmsSent };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Network error",
+    };
+  }
 }
 
 /**
@@ -415,7 +536,10 @@ export async function fetchSkinQuizResultsFromLink(
   return data;
 }
 
-/** One SMS notification record (from GET /api/dashboard/sms-notifications). */
+/**
+ * One SMS row after the backend merges sources (see fetchSmsNotifications).
+ * Shape should match both Airtable tables used for history.
+ */
 export interface SmsNotificationRecord {
   id: string;
   createdTime?: string;
@@ -443,6 +567,9 @@ function smsCacheKey(phone: string, limit?: number, offset?: number): string {
  * Cross-references by phone number with Patients and Web Popup Leads.
  * Optional: limit, offset for pagination; search for server-side search by name/phone.
  * Results for phone+limit+offset are cached so prefetched or repeated opens load instantly.
+ *
+ * Backend contract: merge **SMS Notifications** (e.g. Zapier-queued) with **SMS Notifications Logs**
+ * (dashboard sends: OpenPhone first, then log). Return one combined list sorted by time (newest first).
  */
 export async function fetchSmsNotifications(options: {
   providerId?: string;
@@ -528,7 +655,10 @@ export function invalidateSmsCache(phone?: string): void {
 }
 
 /**
- * Send SMS notification. Backend SMS Notifications table has: Phone Number, Message, Name.
+ * Send SMS from the dashboard. Backend should: (1) send via OpenPhone, (2) append a row to
+ * **SMS Notifications Logs** (Phone Number, Message, Name — same shape as before).
+ * Do **not** insert into **SMS Notifications** for this path if Zapier sends that table to OpenPhone
+ * (avoids double texts). Zapier-driven rows stay in **SMS Notifications**; Messages UI reads both.
  */
 export async function sendSMSNotification(
   phone: string,
@@ -1063,6 +1193,11 @@ export interface AIAssessmentPayload {
   categories: Array<{ name: string; score: number; tier: string }>;
   focusCount: number;
   detectedIssues: string[];
+  /**
+   * Rich patient-facing overview already composed on the client. Backend can use this
+   * as context so `/api/assessment` returns an “additional perspective” instead of repeating thin stats.
+   */
+  patientOverviewSummary?: string;
 }
 
 export interface CategoryAssessmentPayload {
@@ -1074,6 +1209,55 @@ export interface CategoryAssessmentPayload {
   strengthIssues: string[];
 }
 
+/** Body for POST /api/pvb/treatment-chapter-overview (Post-Visit Blueprint chapters). */
+export interface TreatmentChapterOverviewPayload {
+  treatment: string;
+  displayName: string;
+  displayArea?: string | null;
+  whyRecommended: string[];
+  planBullets: string[];
+  findings: string[];
+  interest?: string;
+  detectedIssues: string[];
+  focusAreas: string[];
+  areaImprovements: string[];
+  longevity?: string;
+  downtime?: string;
+  priceRange?: string;
+}
+
+const LLM_BACKEND_TIMEOUT_MS = 28_000;
+
+/**
+ * Server-side chapter overview; falls back to localhost Vite Gemini/OpenAI only if the backend fails.
+ */
+export async function fetchTreatmentChapterOverview(
+  payload: TreatmentChapterOverviewPayload,
+): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LLM_BACKEND_TIMEOUT_MS);
+    const res = await fetch(
+      `${API_BASE_URL}/api/pvb/treatment-chapter-overview`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      },
+    );
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = (await res.json()) as { overview?: string };
+      const t = data.overview?.trim();
+      if (t && t.length > 0) return t;
+    }
+  } catch {
+    /* try dev fallback */
+  }
+  return fetchTreatmentChapterOverviewViaDevGemini(payload);
+}
+
 /**
  * Fetch AI-generated overview assessment from the backend.
  * Falls back to null on failure (caller should use template text as fallback).
@@ -1083,7 +1267,7 @@ export async function fetchAIAssessment(
 ): Promise<string | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), LLM_BACKEND_TIMEOUT_MS);
     const res = await fetch(`${API_BASE_URL}/api/assessment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1091,12 +1275,17 @@ export async function fetchAIAssessment(
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { assessment?: string };
-    return data.assessment || null;
+    if (res.ok) {
+      const data = (await res.json()) as { assessment?: string };
+      const t = data.assessment?.trim();
+      if (t && t.length > 0) return t;
+    }
   } catch {
-    return null;
+    /* dev fallback below */
   }
+
+  const devGemini = await fetchAIAssessmentViaDevGemini(payload);
+  return devGemini ?? null;
 }
 
 /**
@@ -1108,7 +1297,7 @@ export async function fetchCategoryAssessment(
 ): Promise<string | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), LLM_BACKEND_TIMEOUT_MS);
     const res = await fetch(`${API_BASE_URL}/api/category-assessment`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1116,10 +1305,15 @@ export async function fetchCategoryAssessment(
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { assessment?: string };
-    return data.assessment || null;
+    if (res.ok) {
+      const data = (await res.json()) as { assessment?: string };
+      const t = data.assessment?.trim();
+      if (t && t.length > 0) return t;
+    }
   } catch {
-    return null;
+    /* dev fallback below */
   }
+
+  const devGemini = await fetchCategoryAssessmentViaDevGemini(payload);
+  return devGemini ?? null;
 }

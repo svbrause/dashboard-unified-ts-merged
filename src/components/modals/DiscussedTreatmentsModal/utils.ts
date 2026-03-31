@@ -14,11 +14,19 @@ import {
   TREATMENT_GOAL_ONLY,
   TREATMENT_PRODUCT_OPTIONS,
   OTHER_PRODUCT_LABEL,
-  ALL_TREATMENTS,
+  getTreatmentOptionsForProvider,
   QUANTITY_QUICK_OPTIONS_DEFAULT,
   QUANTITY_OPTIONS_FILLER,
   QUANTITY_OPTIONS_TOX,
+  QUANTITY_OPTIONS_BIOSTIMULANTS,
+  QUANTITY_OPTIONS_RADIESSE,
+  QUANTITY_OPTIONS_SCULPTRA,
 } from "./constants";
+import {
+  getWellnestOfferingByTreatmentName,
+  isWellnestWellnessProviderCode,
+  WELLNEST_OFFERINGS,
+} from "../../../data/wellnestOfferings";
 
 export function getRecommendedProducts(
   treatment: string,
@@ -56,20 +64,25 @@ export function getGoalRegionTreatmentsForFinding(
 /**
  * Suggested treatments for a list of findings/issues (e.g. from analysis).
  * Returns deduplicated entries with goal, region, and an example finding for prefill.
- * Used by Analysis Overview category/area detail views.
+ * When providerCode is set and restricted to pricing sheet, only treatments in the price list are returned.
  */
-export function getSuggestedTreatmentsForFindings(findings: string[]): {
+export function getSuggestedTreatmentsForFindings(
+  findings: string[],
+  providerCode?: string | undefined,
+): {
   treatment: string;
   goal: string;
   region: string;
   exampleFinding: string;
 }[] {
+  const allowed = new Set(getTreatmentOptionsForProvider(providerCode));
   const seen = new Set<string>();
   const result: { treatment: string; goal: string; region: string; exampleFinding: string }[] = [];
   for (const finding of findings) {
     const mapped = getGoalRegionTreatmentsForFinding(finding);
     if (!mapped) continue;
     for (const treatment of mapped.treatments) {
+      if (!allowed.has(treatment)) continue;
       const key = `${treatment}|${mapped.goal}|${mapped.region}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -78,6 +91,23 @@ export function getSuggestedTreatmentsForFindings(findings: string[]): {
         goal: mapped.goal,
         region: mapped.region,
         exampleFinding: finding,
+      });
+    }
+  }
+  // Facial-analysis findings map to aesthetic categories only; peptide names are never returned above.
+  if (isWellnestWellnessProviderCode(providerCode) && result.length === 0) {
+    for (const offering of WELLNEST_OFFERINGS) {
+      if (!allowed.has(offering.treatmentName)) continue;
+      const key = `${offering.treatmentName}|${offering.category}|Other`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const firstAddress =
+        offering.addresses.split(/[;,]/)[0]?.trim() || offering.category;
+      result.push({
+        treatment: offering.treatmentName,
+        goal: offering.category,
+        region: "Other",
+        exampleFinding: firstAddress,
       });
     }
   }
@@ -137,8 +167,13 @@ export function getGoalsAndRegionsForTreatment(treatment: string): {
   return { goals: Array.from(goals), regions: Array.from(regions) };
 }
 
-export function getTreatmentsForInterest(interest: string): string[] {
-  if (!interest || interest === OTHER_LABEL) return [...ALL_TREATMENTS];
+/** Suggested treatments for an interest/goal. When providerCode is set and restricted to pricing sheet, only returns treatments that exist in the price list. */
+export function getTreatmentsForInterest(
+  interest: string,
+  providerCode?: string | undefined,
+): string[] {
+  const allowed = getTreatmentOptionsForProvider(providerCode);
+  if (!interest || interest === OTHER_LABEL) return [...allowed];
   const lower = interest.toLowerCase();
   const matched = new Set<string>();
   for (const { keywords, treatments } of INTEREST_TO_TREATMENTS) {
@@ -146,10 +181,18 @@ export function getTreatmentsForInterest(interest: string): string[] {
       treatments.forEach((t) => matched.add(t));
     }
   }
-  return matched.size > 0 ? Array.from(matched) : [...ALL_TREATMENTS];
+  const base = matched.size > 0 ? Array.from(matched) : [...allowed];
+  const filtered = base.filter((t) => allowed.includes(t));
+  if (isWellnestWellnessProviderCode(providerCode) && filtered.length === 0) {
+    return [...allowed];
+  }
+  return filtered;
 }
 
-export function getQuantityContext(treatment: string | undefined): {
+export function getQuantityContext(
+  treatment: string | undefined,
+  product?: string,
+): {
   unitLabel: string;
   options: string[];
 } {
@@ -174,7 +217,17 @@ export function getQuantityContext(treatment: string | undefined): {
     t === "dysport" ||
     t === "xeomin"
   ) {
-    return { unitLabel: "Units", options: QUANTITY_OPTIONS_TOX };
+    return { unitLabel: "Units (Botox/Dysport)", options: QUANTITY_OPTIONS_TOX };
+  }
+  if (t === "biostimulants" || t.includes("biostimulant")) {
+    const p = (product ?? "").trim().toLowerCase();
+    if (p.includes("radiesse")) {
+      return { unitLabel: "Syringes", options: [...QUANTITY_OPTIONS_RADIESSE] };
+    }
+    if (p.includes("sculptra")) {
+      return { unitLabel: "Vials", options: [...QUANTITY_OPTIONS_SCULPTRA] };
+    }
+    return { unitLabel: "Syringes / Vials", options: QUANTITY_OPTIONS_BIOSTIMULANTS };
   }
   if (
     t === "laser" ||
@@ -186,6 +239,12 @@ export function getQuantityContext(treatment: string | undefined): {
     t.includes("microneedling")
   ) {
     return { unitLabel: "Sessions", options: QUANTITY_QUICK_OPTIONS_DEFAULT };
+  }
+  if (getWellnestOfferingByTreatmentName(treatment)) {
+    return {
+      unitLabel: "Supply (protocol)",
+      options: QUANTITY_QUICK_OPTIONS_DEFAULT,
+    };
   }
   return { unitLabel: "Quantity", options: QUANTITY_QUICK_OPTIONS_DEFAULT };
 }

@@ -1,23 +1,30 @@
 // Treatment Photos Browser - Unified before/after photos for treatments (issue, interest, or treatment+region)
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useDashboard } from "../../../context/DashboardContext";
 import type { TreatmentPhoto, DiscussedItem } from "../../../types";
 import type { Client } from "../../../types";
 import { fetchTreatmentPhotos, AirtableRecord } from "../../../services/api";
-import { fetchTableRecords, updateLeadRecord } from "../../../services/api";
+import { fetchTableRecords } from "../../../services/api";
 import { TREATMENT_META, SURGICAL_TREATMENTS } from "./constants";
 import { issueToSuggestionMap, getIssueArea } from "../../../utils/issueMapping";
 import { getTreatmentsForInterest } from "./utils";
 import { generateId } from "./utils";
-import { AIRTABLE_FIELD, REGION_OPTIONS, TIMELINE_OPTIONS, SKINCARE_QUICK_ADD_WHAT_OPTIONS } from "./constants";
+import { REGION_OPTIONS, TIMELINE_OPTIONS, SKINCARE_QUICK_ADD_WHAT_OPTIONS } from "./constants";
+import { persistClientDiscussedItems } from "../../../utils/wellnestDemoPlanPersistence";
+import {
+  getTreatmentPhotoAreaDisplayList,
+  getTreatmentPhotoDisplayTitle,
+  getTreatmentPhotoSearchHaystack,
+} from "../../../utils/treatmentPhotoTitle";
 import { SUGGESTION_TO_AREA, ALL_TREATMENT_INTERESTS } from "./suggestionsMapping";
 import { showToast, showError } from "../../../utils/toast";
 
 /** Map issue to treatment types for filtering (when opened from an issue) */
 const ISSUE_TO_TREATMENT: Record<string, string[]> = {
-  wrinkles: ["Neurotoxin", "Laser", "Chemical Peel"],
-  "fine lines": ["Neurotoxin", "Laser", "Skincare"],
-  "crow's feet": ["Neurotoxin", "Laser"],
+  wrinkles: ["Neurotoxin", "Energy Device", "Chemical Peel"],
+  "fine lines": ["Neurotoxin", "Energy Device", "Skincare"],
+  "crow's feet": ["Neurotoxin", "Energy Device"],
   "forehead lines": ["Neurotoxin"],
   "frown lines": ["Neurotoxin"],
   "volume loss": ["Filler"],
@@ -25,23 +32,23 @@ const ISSUE_TO_TREATMENT: Record<string, string[]> = {
   "thin lips": ["Filler"],
   "nasolabial folds": ["Filler"],
   "marionette lines": ["Filler"],
-  "under eye bags": ["Filler", "Laser"],
+  "under eye bags": ["Filler", "Energy Device"],
   "dark circles": ["Filler", "Skincare"],
-  acne: ["Chemical Peel", "Laser", "Skincare"],
-  "acne scars": ["Microneedling", "Laser", "Chemical Peel", "PRP", "PDGF"],
-  hyperpigmentation: ["Chemical Peel", "Laser", "Skincare"],
-  "dark spots": ["Chemical Peel", "Laser", "Skincare"],
-  "sun damage": ["Laser", "Chemical Peel"],
-  redness: ["Laser", "Skincare"],
-  rosacea: ["Laser", "Skincare"],
-  "skin laxity": ["Laser", "Microneedling"],
-  "sagging skin": ["Laser", "Microneedling"],
-  "double chin": ["Filler", "Laser"],
-  jowls: ["Filler", "Laser", "Microneedling"],
-  "uneven skin tone": ["Chemical Peel", "Laser", "Skincare"],
-  texture: ["Microneedling", "Chemical Peel", "Laser", "PRP", "PDGF"],
+  acne: ["Chemical Peel", "Energy Device", "Skincare"],
+  "acne scars": ["Microneedling", "Energy Device", "Chemical Peel", "PRP", "PDGF"],
+  hyperpigmentation: ["Chemical Peel", "Energy Device", "Skincare"],
+  "dark spots": ["Chemical Peel", "Energy Device", "Skincare"],
+  "sun damage": ["Energy Device", "Chemical Peel"],
+  redness: ["Energy Device", "Skincare"],
+  rosacea: ["Energy Device", "Skincare"],
+  "skin laxity": ["Energy Device", "Microneedling"],
+  "sagging skin": ["Energy Device", "Microneedling"],
+  "double chin": ["Filler", "Energy Device"],
+  jowls: ["Filler", "Energy Device", "Microneedling"],
+  "uneven skin tone": ["Chemical Peel", "Energy Device", "Skincare"],
+  texture: ["Microneedling", "Chemical Peel", "Energy Device", "PRP", "PDGF"],
   pores: ["Microneedling", "Chemical Peel"],
-  "droopy eyelids": ["Laser", "Neurotoxin"],
+  "droopy eyelids": ["Energy Device", "Neurotoxin"],
 };
 
 interface TreatmentPhotosProps {
@@ -75,7 +82,7 @@ interface TreatmentPhotosProps {
 export interface TreatmentPlanPrefill {
   interest: string;
   region: string;
-  /** Normalized treatment type (e.g. "Laser", "Filler") */
+  /** Normalized treatment type (e.g. "Energy Device", "Filler") */
   treatment: string;
   /** Specific product/device name if available (e.g. "Heat/Energy") */
   treatmentProduct?: string;
@@ -158,13 +165,6 @@ function mapRecordToPhoto(record: AirtableRecord): TreatmentPhoto {
   };
 }
 
-/** Area names for display: remove trailing " All" and omit standalone "All". */
-function getDisplayAreaNames(areaNames: string[]): string[] {
-  return areaNames
-    .map((a) => String(a).replace(/\s*All$/i, "").trim())
-    .filter((a) => a && a.toLowerCase() !== "all");
-}
-
 /** True if photo's areaNames match the selected region (e.g. "Skin All" matches "Skin"). */
 function photoMatchesRegion(areaNames: string[], filterRegion: string): boolean {
   if (!filterRegion) return true;
@@ -188,8 +188,8 @@ const REGION_CANONICAL = [
 
 /** Treatment name normalization: map various names to canonical display names. */
 const TREATMENT_NORMALIZATION: Record<string, string> = {
-  "heat/energy": "Laser",
-  "heat energy": "Laser",
+  "heat/energy": "Energy Device",
+  "heat energy": "Energy Device",
   "oral/topical": "Skincare",
   "topical/skincare": "Skincare",
   "topical skincare": "Skincare",
@@ -224,10 +224,10 @@ function getTreatmentOptionsFromPhotos(photos: TreatmentPhoto[]): string[] {
       if (normalized) set.add(normalized);
     }
   }
-  // Preferred order: Skincare, Laser, then alphabetical for the rest
+  // Preferred order: Skincare, Energy Device, then alphabetical for the rest
   const order = [
     "Skincare",
-    "Laser",
+    "Energy Device",
     "Filler",
     "Neurotoxin",
     "Microneedling",
@@ -263,6 +263,7 @@ export default function TreatmentPhotos({
   planItems = [],
   demoPhotos,
 }: TreatmentPhotosProps) {
+  const { provider } = useDashboard();
   const effectiveRegion = region || (issue ? getIssueArea(issue) : "");
 
   const [allPhotos, setAllPhotos] = useState<TreatmentPhoto[]>([]);
@@ -347,7 +348,7 @@ export default function TreatmentPhotos({
     if (interestOrIssue) {
       let allowedTreatments: string[] = [];
       if (filterInterest) {
-        allowedTreatments = getTreatmentsForInterest(filterInterest).map((t) => t.toLowerCase());
+        allowedTreatments = getTreatmentsForInterest(filterInterest, provider?.code).map((t) => t.toLowerCase());
       }
       if (filterIssue) {
         const issueLower = filterIssue.toLowerCase();
@@ -374,7 +375,7 @@ export default function TreatmentPhotos({
     }
 
     return base.filter((photo) => photoMatchesRegion(photo.areaNames, filterRegion));
-  }, [allPhotos, filterInterest, filterIssue, filterRegion]);
+  }, [allPhotos, filterInterest, filterIssue, filterRegion, provider?.code]);
 
   // Then apply treatment and region chip filters for final displayed list
   const photos = useMemo(() => {
@@ -405,9 +406,9 @@ export default function TreatmentPhotos({
   const getMatchScore = useCallback(
     (photo: TreatmentPhoto): number => {
       if (matchCriteriaTerms.length === 0) return 0;
-      const nameLower = (photo.name || "").toLowerCase();
+      const hay = getTreatmentPhotoSearchHaystack(photo);
       return matchCriteriaTerms.filter((term) =>
-        nameLower.includes(term.toLowerCase())
+        hay.includes(term.toLowerCase())
       ).length;
     },
     [matchCriteriaTerms]
@@ -430,11 +431,11 @@ export default function TreatmentPhotos({
       const matchType = getMatchType(photo);
       if (!matchType) return "";
       if (matchType === "exact") return "Exact match";
-      const nameLower = (photo.name || "").toLowerCase();
-      if (filterIssue?.trim() && nameLower.includes(filterIssue.trim().toLowerCase())) {
+      const hay = getTreatmentPhotoSearchHaystack(photo);
+      if (filterIssue?.trim() && hay.includes(filterIssue.trim().toLowerCase())) {
         return `✓ Matches Issue: ${filterIssue.trim()}`;
       }
-      if (filterInterest?.trim() && nameLower.includes(filterInterest.trim().toLowerCase())) {
+      if (filterInterest?.trim() && hay.includes(filterInterest.trim().toLowerCase())) {
         return `✓ Matches Interest: ${filterInterest.trim()}`;
       }
       if (filterRegion?.trim() && photoMatchesRegion(photo.areaNames, filterRegion)) {
@@ -451,7 +452,9 @@ export default function TreatmentPhotos({
       const scoreA = getMatchScore(a);
       const scoreB = getMatchScore(b);
       if (scoreB !== scoreA) return scoreB - scoreA; // higher score first
-      return (a.name || "").localeCompare(b.name || "");
+      return getTreatmentPhotoDisplayTitle(a).localeCompare(
+        getTreatmentPhotoDisplayTitle(b)
+      );
     });
   }, [photos, getMatchScore]);
 
@@ -600,25 +603,14 @@ export default function TreatmentPhotos({
     const fromPhotos = getTreatmentOptionsFromPhotos(photosAfterInterestAndIssue);
     if (!filterInterest) return fromPhotos;
     const forInterest = new Set(
-      getTreatmentsForInterest(filterInterest).map((t) => t.toLowerCase())
+      getTreatmentsForInterest(filterInterest, provider?.code).map((t) => t.toLowerCase())
     );
     return fromPhotos.filter((t) => forInterest.has(t.toLowerCase()));
-  }, [photosAfterInterestAndIssue, filterInterest]);
+  }, [photosAfterInterestAndIssue, filterInterest, provider?.code]);
   const regionOptions = useMemo(
     () => getRegionOptionsFromPhotos(allPhotos),
     [allPhotos]
   );
-
-  /** Title for a photo: use Name field (clinical) from Photos table. */
-  const getPhotoTitle = useCallback((photo: TreatmentPhoto): string => {
-    if (photo.name?.trim()) return photo.name.trim();
-    const tx = photo.generalTreatments.join(", ");
-    const area = getDisplayAreaNames(photo.areaNames).join(", ");
-    if (tx && area) return `${tx} – ${area}`;
-    if (tx) return tx;
-    if (area) return area;
-    return "Treatment example";
-  }, []);
 
   /** Open the inline Where/When form for adding this photo to plan */
   const openAddToPlanForm = useCallback((photo: TreatmentPhoto) => {
@@ -637,7 +629,7 @@ export default function TreatmentPhotos({
     (photo: TreatmentPhoto, form: { where: string[]; when: string; product?: string; quantity?: string; notes?: string }): TreatmentPlanPrefill => {
       const rawTreatment = photo.generalTreatments[0] || photo.treatments[0] || "";
       const normalizedTreatment = normalizeTreatment(rawTreatment) || rawTreatment || "Treatment";
-      const regionName = form.where.length > 0 ? form.where.join(", ") : (getDisplayAreaNames(photo.areaNames)[0] || filterRegion || effectiveRegion || "");
+      const regionName = form.where.length > 0 ? form.where.join(", ") : (getTreatmentPhotoAreaDisplayList(photo.areaNames)[0] || filterRegion || effectiveRegion || "");
       return {
         interest: filterInterest || "",
         region: regionName,
@@ -688,7 +680,7 @@ export default function TreatmentPhotos({
       }
       const rawTreatment = photo.generalTreatments[0] || photo.treatments[0] || "";
       const normalizedTreatment = normalizeTreatment(rawTreatment) || rawTreatment || "Treatment";
-      const regionName = getDisplayAreaNames(photo.areaNames)[0] || filterRegion || effectiveRegion || "";
+      const regionName = getTreatmentPhotoAreaDisplayList(photo.areaNames)[0] || filterRegion || effectiveRegion || "";
       if (!onUpdate) return;
       const newItem: DiscussedItem = {
         id: generateId(),
@@ -702,9 +694,7 @@ export default function TreatmentPhotos({
       const nextItems = [...(client.discussedItems || []), newItem];
       setAddingId(photo.id);
       try {
-        await updateLeadRecord(client.id, client.tableSource, {
-          [AIRTABLE_FIELD]: nextItems.length > 0 ? JSON.stringify(nextItems) : "",
-        });
+        await persistClientDiscussedItems(client, nextItems);
         showToast(`Added ${normalizedTreatment} to plan`);
         await onUpdate();
       } catch (e) {
@@ -737,7 +727,7 @@ export default function TreatmentPhotos({
       const normalizedTreatment =
         normalizeTreatment(rawTreatment) || rawTreatment || "";
       const regionName =
-        getDisplayAreaNames(photo.areaNames)[0] || filterRegion || effectiveRegion || "";
+        getTreatmentPhotoAreaDisplayList(photo.areaNames)[0] || filterRegion || effectiveRegion || "";
       const interestVal = filterInterest || "";
       return planItems.some((item) => {
         const treatmentMatch =
@@ -1117,7 +1107,7 @@ export default function TreatmentPhotos({
                               <div className="treatment-photo-image-wrap treatment-photo-image-wrap-wide">
                                 <img
                                   src={photo.thumbnailUrl || photo.photoUrl}
-                                  alt={getPhotoTitle(photo)}
+                                  alt={getTreatmentPhotoDisplayTitle(photo)}
                                   className="treatment-photo-image"
                                   loading="lazy"
                                 />
@@ -1143,7 +1133,7 @@ export default function TreatmentPhotos({
                                 )}
                               </div>
                               <div className="treatment-photo-card-label">
-                                {getPhotoTitle(photo)}
+                                {getTreatmentPhotoDisplayTitle(photo)}
                               </div>
                             </button>
                           );
@@ -1177,7 +1167,7 @@ export default function TreatmentPhotos({
                               <div className="treatment-photo-image-wrap treatment-photo-image-wrap-wide">
                                 <img
                                   src={photo.thumbnailUrl || photo.photoUrl}
-                                  alt={getPhotoTitle(photo)}
+                                  alt={getTreatmentPhotoDisplayTitle(photo)}
                                   className="treatment-photo-image"
                                   loading="lazy"
                                 />
@@ -1203,7 +1193,7 @@ export default function TreatmentPhotos({
                                 )}
                               </div>
                               <div className="treatment-photo-card-label">
-                                {getPhotoTitle(photo)}
+                                {getTreatmentPhotoDisplayTitle(photo)}
                               </div>
                             </button>
                           );
@@ -1230,7 +1220,7 @@ export default function TreatmentPhotos({
                         <div className="treatment-photo-image-wrap treatment-photo-image-wrap-wide">
                           <img
                             src={photo.thumbnailUrl || photo.photoUrl}
-                            alt={getPhotoTitle(photo)}
+                            alt={getTreatmentPhotoDisplayTitle(photo)}
                             className="treatment-photo-image"
                             loading="lazy"
                           />
@@ -1246,7 +1236,7 @@ export default function TreatmentPhotos({
                           )}
                         </div>
                         <div className="treatment-photo-card-label">
-                          {getPhotoTitle(photo)}
+                          {getTreatmentPhotoDisplayTitle(photo)}
                         </div>
                       </button>
                     );
@@ -1367,7 +1357,7 @@ export default function TreatmentPhotos({
                 </div>
                 <img
                   src={selectedPhoto.photoUrl}
-                  alt={getPhotoTitle(selectedPhoto)}
+                  alt={getTreatmentPhotoDisplayTitle(selectedPhoto)}
                   className="treatment-photo-detail-image"
                 />
               </div>
@@ -1376,7 +1366,7 @@ export default function TreatmentPhotos({
               <div className="treatment-photo-detail-info">
                 <div className="treatment-photo-detail-title-row">
                   <h4 className="treatment-photo-detail-title">
-                    {getPhotoTitle(selectedPhoto)}
+                    {getTreatmentPhotoDisplayTitle(selectedPhoto)}
                   </h4>
                   {getMatchReason(selectedPhoto) && (
                     <span
@@ -1394,10 +1384,10 @@ export default function TreatmentPhotos({
                       {selectedPhoto.generalTreatments.join(", ")}
                     </div>
                   )}
-                  {getDisplayAreaNames(selectedPhoto.areaNames).length > 0 && (
+                  {getTreatmentPhotoAreaDisplayList(selectedPhoto.areaNames).length > 0 && (
                     <div className="treatment-photo-detail-meta-item">
                       <strong>Area:</strong>{" "}
-                      {getDisplayAreaNames(selectedPhoto.areaNames).join(", ")}
+                      {getTreatmentPhotoAreaDisplayList(selectedPhoto.areaNames).join(", ")}
                     </div>
                   )}
                   {selectedPhoto.longevity && (
@@ -1468,7 +1458,7 @@ export default function TreatmentPhotos({
                         if (!isSkincare) return null;
                         return (
                           <div className="treatment-photo-detail-add-row">
-                            <span>What:</span>
+                            <span>Type:</span>
                             <div className="treatment-photo-detail-add-chips">
                               {SKINCARE_QUICK_ADD_WHAT_OPTIONS.map((opt) => (
                                 <button
