@@ -4,6 +4,7 @@
  */
 
 import { useMemo, useState, useEffect } from "react";
+import { useDashboard } from "../../context/DashboardContext";
 import { Client, DiscussedItem } from "../../types";
 import {
   fetchTableRecords,
@@ -45,6 +46,7 @@ import {
   RECOMMENDED_PRODUCT_REASONS,
 } from "../../data/skinTypeQuiz";
 import { showToast } from "../../utils/toast";
+import { getClientFrontPhotoDisplayUrl } from "../../utils/photoLoading";
 import { groupIssuesByConcern } from "../../config/issueToConcernMapping";
 import type { TreatmentPlanPrefill } from "../modals/DiscussedTreatmentsModal/TreatmentPhotos";
 import TreatmentRecommenderFilters from "./TreatmentRecommenderFilters";
@@ -152,6 +154,8 @@ export interface TreatmentRecommenderBySuggestionProps {
   onOpenTreatmentPlanWithItem?: (item: DiscussedItem) => void;
   /** Ref set by parent; when treatment plan modal closes, parent will call this so we clear "just added" state. */
   treatmentPlanModalClosedRef?: React.MutableRefObject<(() => void) | null>;
+  /** Region filter chips — used when sending post-visit blueprint (AI mirror highlights). */
+  onRecommenderRegionsChange?: (regions: readonly string[]) => void;
 }
 
 export default function TreatmentRecommenderBySuggestion({
@@ -163,7 +167,9 @@ export default function TreatmentRecommenderBySuggestion({
   onOpenTreatmentPlanWithPrefill,
   onOpenTreatmentPlanWithItem,
   treatmentPlanModalClosedRef,
+  onRecommenderRegionsChange,
 }: TreatmentRecommenderBySuggestionProps) {
+  const { provider } = useDashboard();
   /** Item we just added so we can open it for editing when user clicks "Add additional details". Cleared when modal closes. */
   const [lastAddedItem, setLastAddedItem] = useState<DiscussedItem | null>(
     null,
@@ -172,6 +178,11 @@ export default function TreatmentRecommenderBySuggestion({
     useState<TreatmentRecommenderFilterState>(() => ({
       ...DEFAULT_RECOMMENDER_FILTER_STATE,
     }));
+
+  useEffect(() => {
+    onRecommenderRegionsChange?.(filterState.region);
+  }, [filterState.region, onRecommenderRegionsChange]);
+
   const [clientFrontPhotoUrl, setClientFrontPhotoUrl] = useState<string | null>(
     null,
   );
@@ -233,14 +244,14 @@ export default function TreatmentRecommenderBySuggestion({
     }
     if (filterState.sameDayAddOn) {
       list = list.filter((name) => {
-        const treatments = getTreatmentsForInterest(name);
+        const treatments = getTreatmentsForInterest(name, provider?.code);
         return treatments.some((t) =>
           (SAME_DAY_TREATMENTS as readonly string[]).includes(t),
         );
       });
     }
     return list;
-  }, [filterState.region, filterState.sameDayAddOn, effectiveFindings]);
+  }, [filterState.region, filterState.sameDayAddOn, effectiveFindings, provider?.code]);
 
   /** When we have API cards, filter and sort them (focus first, then by name). Otherwise use static list. */
   const displayCards = useMemo(():
@@ -271,7 +282,7 @@ export default function TreatmentRecommenderBySuggestion({
     }
     if (filterState.sameDayAddOn) {
       list = list.filter((c) => {
-        const treatments = getTreatmentsForInterest(c.suggestionName);
+        const treatments = getTreatmentsForInterest(c.suggestionName, provider?.code);
         return treatments.some((t) =>
           (SAME_DAY_TREATMENTS as readonly string[]).includes(t),
         );
@@ -288,6 +299,7 @@ export default function TreatmentRecommenderBySuggestion({
     filterState.sameDayAddOn,
     effectiveFindings,
     staticSuggestionList,
+    provider?.code,
   ]);
 
   type CardViewItem =
@@ -317,7 +329,7 @@ export default function TreatmentRecommenderBySuggestion({
       region,
       treatment:
         (addToPlanForSuggestion.what?.trim() ||
-          getTreatmentsForInterest(addToPlanForSuggestion.suggestionName)[0]) ??
+          getTreatmentsForInterest(addToPlanForSuggestion.suggestionName, provider?.code)[0]) ??
         "",
       timeline: addToPlanForSuggestion.when,
       treatmentProduct: addToPlanForSuggestion.product?.trim() || undefined,
@@ -375,19 +387,12 @@ export default function TreatmentRecommenderBySuggestion({
     ];
 
     if (!client || client.tableSource !== "Patients") {
-      if (
-        client?.frontPhoto &&
-        Array.isArray(client.frontPhoto) &&
-        client.frontPhoto.length > 0
-      ) {
-        const url = getUrlFromAttachment(client.frontPhoto[0]);
-        setClientFrontPhotoUrl(url ?? null);
-      } else {
-        setClientFrontPhotoUrl(null);
-      }
+      setClientFrontPhotoUrl(getClientFrontPhotoDisplayUrl(client?.frontPhoto));
       setAreaPhotoUrls({});
       return;
     }
+
+    setClientFrontPhotoUrl(getClientFrontPhotoDisplayUrl(client.frontPhoto));
 
     let mounted = true;
     const fieldsToFetch = ["Front Photo", ...areaPhotoFieldList];
@@ -404,7 +409,9 @@ export default function TreatmentRecommenderBySuggestion({
           const url = getUrlFromAttachment(front[0]);
           setClientFrontPhotoUrl(url ?? null);
         } else {
-          setClientFrontPhotoUrl(null);
+          setClientFrontPhotoUrl(
+            getClientFrontPhotoDisplayUrl(client.frontPhoto),
+          );
         }
 
         const areaUrls: Record<string, string> = {};
@@ -420,7 +427,9 @@ export default function TreatmentRecommenderBySuggestion({
         setAreaPhotoUrls(areaUrls);
       })
       .catch(() => {
-        setClientFrontPhotoUrl(null);
+        setClientFrontPhotoUrl(
+          getClientFrontPhotoDisplayUrl(client.frontPhoto),
+        );
         setAreaPhotoUrls({});
       });
     return () => {
@@ -789,10 +798,11 @@ export default function TreatmentRecommenderBySuggestion({
                             suggestionName ? (
                             <div className="treatment-recommender-by-suggestion__add-form">
                               <div className="treatment-recommender-by-suggestion__add-row">
-                                <span>What:</span>
+                                <span>Type:</span>
                                 <div className="treatment-recommender-by-suggestion__chips">
                                   {getTreatmentsForInterest(
                                     addToPlanForSuggestion.suggestionName,
+                                    provider?.code,
                                   ).map((t) => (
                                     <button
                                       key={t}
@@ -960,7 +970,7 @@ export default function TreatmentRecommenderBySuggestion({
                               className="treatment-recommender-by-suggestion__add-btn"
                               onClick={() => {
                                 const treatments =
-                                  getTreatmentsForInterest(suggestionName);
+                                  getTreatmentsForInterest(suggestionName, provider?.code);
                                 setAddToPlanForSuggestion({
                                   suggestionName,
                                   what: treatments[0] ?? "",
@@ -1002,10 +1012,14 @@ export default function TreatmentRecommenderBySuggestion({
           selectedRegion={SUGGESTION_TO_AREA[photoExplorerInterest]}
           onClose={() => setPhotoExplorerInterest(null)}
           onUpdate={onUpdate}
-          onAddToPlanWithPrefill={(prefill) => {
-            setPhotoExplorerInterest(null);
-            onOpenTreatmentPlanWithPrefill?.(prefill);
-          }}
+          onAddToPlanWithPrefill={
+            onOpenTreatmentPlanWithPrefill
+              ? (prefill) => {
+                  setPhotoExplorerInterest(null);
+                  onOpenTreatmentPlanWithPrefill(prefill);
+                }
+              : undefined
+          }
           planItems={client.discussedItems ?? []}
         />
       )}

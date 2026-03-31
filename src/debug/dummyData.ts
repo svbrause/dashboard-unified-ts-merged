@@ -21,6 +21,7 @@ export function getDummyClient(): Client {
     ageRange: "30-39",
     dateOfBirth: null,
     goals: ["Balance Lips", "Smoothen Fine Lines"],
+    wellnessGoals: [],
     concerns: "",
     areas: ["Lips", "Forehead"],
     aestheticGoals: "",
@@ -124,7 +125,7 @@ export function getDummyTreatmentPhotos(): TreatmentPhoto[] {
       price: "$500–$2,000+",
     },
     {
-      name: "Laser",
+      name: "Energy Device",
       area: "Nasolabial",
       longevity: "6–12+ months",
       downtime: "3–7 days",

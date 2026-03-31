@@ -2,6 +2,11 @@
 // Supports drill-down into category detail and area detail views.
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import {
+  AreaThemeFeatureRow,
+  SubScoreFeatureRow,
+} from "../analysisOverview/FeatureBreakdownRows";
+import { useDashboard } from "../../context/DashboardContext";
 import { Client, TreatmentPhoto } from "../../types";
 import { fetchTreatmentPhotos, fetchTableRecords, fetchAIAssessment, fetchCategoryAssessment } from "../../services/api";
 import type { AirtableRecord } from "../../services/api";
@@ -14,7 +19,6 @@ import {
   computeOverall,
   computeAreas,
   scoreTier,
-  tierLabel,
   tierColor,
   summarizeAreaThemes,
   generateAssessment,
@@ -23,11 +27,16 @@ import {
   type CategoryResult,
   type AreaResult,
 } from "../../config/analysisOverviewConfig";
+import {
+  getDetectedIssuesFromClient,
+  getInterestAreaNamesFromClient,
+} from "../../utils/analysisOverviewClient";
 import { getSuggestedTreatmentsForFindings } from "./DiscussedTreatmentsModal/utils";
 import { TREATMENT_META } from "./DiscussedTreatmentsModal/constants";
 import type { TreatmentPlanPrefill } from "./DiscussedTreatmentsModal/TreatmentPhotos";
 import PhotoViewerModal from "./PhotoViewerModal";
-import aiLogoUrl from "../../assets/images/ai.svg";
+import { AiSparkleLogo, GeminiWordmark } from "../ai/AiGeminiBrand";
+import { RadarChart } from "../postVisitBlueprint/RadarChart";
 import "./AnalysisOverviewModal.css";
 
 /** Typewriter text – animates char-by-char on first render only */
@@ -69,16 +78,16 @@ function TypewriterText({
   );
 }
 
-/** Reusable dual-sparkle AI logo (uses ai.svg with CSS gradient mask) */
-function AILogo({ size = 18, className }: { size?: number; className?: string }) {
+/** Section titles that pair LLM-backed copy with AI + Gemini brand */
+function OverviewSectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <img
-      src={aiLogoUrl}
-      alt=""
-      aria-hidden
-      className={`ao-ai-logo ${className || ""}`}
-      style={{ width: size, height: size }}
-    />
+    <h3 className="analysis-overview-modal__area-group-title">
+      <span className="analysis-overview-modal__area-group-title-inner">
+        <AiSparkleLogo size={14} className="ao-ai-logo" />
+        <span>{children}</span>
+        <GeminiWordmark />
+      </span>
+    </h3>
   );
 }
 
@@ -103,12 +112,14 @@ function ScoreGauge({
   strokeWidth = 10,
   animate,
   label,
+  className,
 }: {
   score: number;
   size?: number;
   strokeWidth?: number;
   animate: boolean;
   label?: string;
+  className?: string;
 }) {
   const radius = (size - strokeWidth * 2) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -117,7 +128,7 @@ function ScoreGauge({
   const color = tierColor(scoreTier(score));
 
   return (
-    <div className="ao-modal-gauge" style={{ width: size, height: size }}>
+    <div className={`ao-modal-gauge ${className ?? ""}`.trim()} style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle
           cx={size / 2}
@@ -384,6 +395,11 @@ function TreatmentRowContent({
                 loading="lazy"
               />
               <span className="ao-detail__photo-single-label">Before/after example</span>
+              <span className="ao-detail__photo-expand" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+              </span>
             </button>
           </div>
         ) : null}
@@ -424,89 +440,6 @@ function TreatmentRowContent({
         </div>
       )}
     </>
-  );
-}
-
-/** SVG radar/spider chart for category sub-scores */
-function RadarChart({
-  data,
-  size = 180,
-  animate,
-}: {
-  data: { name: string; score: number }[];
-  size?: number;
-  animate: boolean;
-}) {
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 28;
-  const n = data.length;
-  if (n < 3) return null;
-  const angleStep = (2 * Math.PI) / n;
-  const rings = [25, 50, 75, 100];
-
-  const pointAt = (i: number, val: number) => {
-    const angle = -Math.PI / 2 + i * angleStep;
-    const dist = (val / 100) * r;
-    return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) };
-  };
-
-  const dataPoints = data.map((d, i) => pointAt(i, animate ? d.score : 0));
-  const polygon = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
-
-  return (
-    <div className="ao-radar">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Grid rings */}
-        {rings.map((ringVal) => (
-          <polygon
-            key={ringVal}
-            points={Array.from({ length: n }, (_, i) => {
-              const p = pointAt(i, ringVal);
-              return `${p.x},${p.y}`;
-            }).join(" ")}
-            fill="none"
-            stroke="rgba(0,0,0,0.08)"
-            strokeWidth="1"
-          />
-        ))}
-        {/* Axis lines */}
-        {data.map((_, i) => {
-          const p = pointAt(i, 100);
-          return (
-            <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(0,0,0,0.06)" strokeWidth="1" />
-          );
-        })}
-        {/* Data polygon */}
-        <polygon
-          points={polygon}
-          fill="rgba(59,130,246,0.15)"
-          stroke="#3b82f6"
-          strokeWidth="2"
-          style={{ transition: "all 0.6s ease-out" }}
-        />
-        {/* Data points */}
-        {dataPoints.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#3b82f6" style={{ transition: "all 0.6s ease-out" }} />
-        ))}
-        {/* Labels */}
-        {data.map((d, i) => {
-          const p = pointAt(i, 118);
-          return (
-            <text
-              key={d.name}
-              x={p.x}
-              y={p.y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="ao-radar__label"
-            >
-              {d.name}
-            </text>
-          );
-        })}
-      </svg>
-    </div>
   );
 }
 
@@ -556,7 +489,6 @@ function CategoryCard({
   animate: boolean;
   onExploreDetails: (categoryKey: string) => void;
 }) {
-  const color = tierColor(cat.tier);
   const desc = CATEGORY_DESCRIPTIONS[cat.key] || "";
 
   return (
@@ -567,17 +499,33 @@ function CategoryCard({
         className="ao-modal-cat-card__header"
         onClick={onToggle}
         type="button"
+        aria-expanded={isOpen}
+        aria-label={`${cat.scoreLabel}, ${cat.score}. ${isOpen ? "Collapse" : "Expand"} breakdown`}
       >
         <div className="ao-modal-cat-card__header-left">
-          <span className="ao-modal-cat-card__name">{cat.name}</span>
+          <div className="ao-modal-cat-card__header-gauge">
+            <ScoreGauge
+              score={cat.score}
+              size={88}
+              strokeWidth={7}
+              animate={animate}
+              label={cat.scoreLabel}
+              className="ao-modal-gauge--category"
+            />
+          </div>
+          {cat.subScores.length >= 3 && (
+            <div className="ao-modal-cat-card__header-radar" aria-hidden>
+              <RadarChart
+                data={cat.subScores.map((s) => ({ name: s.name, score: s.score }))}
+                size={70}
+                animate={animate}
+                showLabels={false}
+                className="ao-radar--compact"
+              />
+            </div>
+          )}
         </div>
         <div className="ao-modal-cat-card__right">
-          <span
-            className="ao-modal-cat-card__score"
-            style={{ background: color }}
-          >
-            {cat.score}
-          </span>
           <span className="ao-modal-cat-card__chev" aria-hidden>
             {isOpen ? "▲" : "▼"}
           </span>
@@ -638,142 +586,10 @@ function AreaCard({
     >
       <div className="ao-modal-area-card__left">
         <span className="ao-modal-area-card__dot" style={{ background: color }} />
-        {area.hasInterest && (
-          <span className="ao-modal-area-card__star" aria-hidden>
-            ★
-          </span>
-        )}
         <span className="ao-modal-area-card__name">{area.name}</span>
       </div>
       <span className="ao-modal-area-card__chev" aria-hidden>→</span>
     </button>
-  );
-}
-
-/** Collapsible sub-score row with check/x pill list */
-function SubScoreRow({
-  subScore,
-  issues,
-  detectedIssues,
-  animate,
-}: {
-  subScore: { name: string; score: number; tier: string; total: number; detected: number };
-  issues: string[];
-  detectedIssues: Set<string>;
-  animate: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const color = tierColor(scoreTier(subScore.score));
-
-  const goodIssues = issues.filter(i => !detectedIssues.has(normalizeIssue(i)));
-  const badIssues = issues.filter(i => detectedIssues.has(normalizeIssue(i)));
-
-  return (
-    <div className={`ao-subscore-row ${expanded ? "ao-subscore-row--open" : ""}`}>
-      <button
-        type="button"
-        className="ao-subscore-row__header"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className="ao-subscore-row__name">{subScore.name}</span>
-        <div className="ao-subscore-row__bar-wrap">
-          <div className="ao-subscore-row__bar-track">
-            <div
-              className="ao-subscore-row__bar-fill"
-              style={{
-                width: animate ? `${subScore.score}%` : "0%",
-                background: color,
-                transition: animate ? "width 0.8s ease-out" : "none",
-              }}
-            />
-          </div>
-          <span className="ao-subscore-row__score" style={{ color }}>
-            {subScore.score}
-          </span>
-        </div>
-        <span className="ao-subscore-row__chev" aria-hidden>
-          {expanded ? "▲" : "▼"}
-        </span>
-      </button>
-      {expanded && (
-        <div className="ao-subscore-row__pills">
-          {goodIssues.map(issue => (
-            <span key={issue} className="ao-pill ao-pill--good">
-              <span className="ao-pill__icon">✓</span>
-              {issue}
-            </span>
-          ))}
-          {badIssues.map(issue => (
-            <span key={issue} className="ao-pill ao-pill--concern">
-              <span className="ao-pill__icon">✕</span>
-              {issue}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Collapsible area theme row with check/x pill list */
-function AreaThemeRow({
-  theme,
-  detectedIssues,
-}: {
-  theme: { label: string; totalCount: number; detectedCount: number; issues: string[] };
-  detectedIssues: Set<string>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const score = theme.totalCount > 0
-    ? Math.round(((theme.totalCount - theme.detectedCount) / theme.totalCount) * 100)
-    : 100;
-  const color = tierColor(scoreTier(score));
-  const goodIssues = theme.issues.filter(i => !detectedIssues.has(normalizeIssue(i)));
-  const badIssues = theme.issues.filter(i => detectedIssues.has(normalizeIssue(i)));
-
-  return (
-    <div className={`ao-subscore-row ${expanded ? "ao-subscore-row--open" : ""}`}>
-      <button
-        type="button"
-        className="ao-subscore-row__header"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className="ao-subscore-row__name">{theme.label}</span>
-        <div className="ao-subscore-row__bar-wrap">
-          <div className="ao-subscore-row__bar-track">
-            <div
-              className="ao-subscore-row__bar-fill"
-              style={{
-                width: `${score}%`,
-                background: color,
-              }}
-            />
-          </div>
-          <span className="ao-subscore-row__score" style={{ color }}>
-            {score}
-          </span>
-        </div>
-        <span className="ao-subscore-row__chev" aria-hidden>
-          {expanded ? "▲" : "▼"}
-        </span>
-      </button>
-      {expanded && (
-        <div className="ao-subscore-row__pills">
-          {goodIssues.map(issue => (
-            <span key={issue} className="ao-pill ao-pill--good">
-              <span className="ao-pill__icon">✓</span>
-              {issue}
-            </span>
-          ))}
-          {badIssues.map(issue => (
-            <span key={issue} className="ao-pill ao-pill--concern">
-              <span className="ao-pill__icon">✕</span>
-              {issue}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -785,6 +601,7 @@ function CategoryDetailContent({
   onAddToPlan,
   treatmentPhotos,
   treatmentPhotosLoading,
+  providerCode,
 }: {
   categoryKey: string;
   detectedIssues: Set<string>;
@@ -792,6 +609,7 @@ function CategoryDetailContent({
   onAddToPlan?: (prefill: TreatmentPlanPrefill) => void;
   treatmentPhotos: TreatmentPhoto[];
   treatmentPhotosLoading: boolean;
+  providerCode?: string;
 }) {
   const [animate, setAnimate] = useState(false);
   useEffect(() => {
@@ -814,8 +632,8 @@ function CategoryDetailContent({
   }, [catDef, detectedIssues]);
 
   const suggestedTreatments = useMemo(
-    () => getSuggestedTreatmentsForFindings(detectedIssueNames),
-    [detectedIssueNames]
+    () => getSuggestedTreatmentsForFindings(detectedIssueNames, providerCode),
+    [detectedIssueNames, providerCode]
   );
 
   if (!catDef || !catResult) {
@@ -877,49 +695,47 @@ function CategoryDetailContent({
         ← Back to Overview
       </button>
 
-      <section className="ao-detail__hero">
-        <div className="ao-detail__hero-left">
-          <div className="ao-detail__hero-score-stack">
-            <span className="ao-detail__hero-score-number">{catResult.score}</span>
-            <span
-              className="ao-detail__hero-score-tier"
-              style={{ color: tierColor(catResult.tier) }}
-            >
-              {tierLabel(catResult.tier)}
-            </span>
+      <section className="ao-detail__hero ao-detail__hero--with-ai">
+        <div className="ao-detail__hero-gauge">
+          <ScoreGauge
+            score={catResult.score}
+            size={110}
+            strokeWidth={10}
+            animate={animate}
+            label={CATEGORIES.find(c => c.key === categoryKey)?.scoreLabel ?? CATEGORIES.find(c => c.key === categoryKey)?.name ?? ""}
+          />
+        </div>
+        <div className="ao-detail__hero-ai">
+          <div className="ao-detail__ai-header">
+            <AiSparkleLogo size={14} className="ao-ai-logo" />
+            <span className="ao-detail__ai-label">Aesthetic Intelligence</span>
+            <GeminiWordmark />
           </div>
-          <div className="ao-detail__hero-info">
-            <p className="ao-detail__desc">
-              {categoryDescription}
+          {aiCatLoading ? (
+            <div className="ao-ai-summary__loading">
+              <span className="ao-ai-summary__shimmer" />
+              <span className="ao-ai-summary__shimmer ao-ai-summary__shimmer--short" />
+            </div>
+          ) : (
+            <p className="ao-detail__ai-text">
+              <TypewriterText text={displayCatAssessment} speed={20} />
             </p>
-          </div>
+          )}
         </div>
-      </section>
-
-      {/* AI-powered insight section */}
-      <section className="ao-detail__ai-section">
-        <div className="ao-detail__ai-header">
-          <AILogo size={14} />
-          <span className="ao-detail__ai-label">Aesthetic Intelligence</span>
-        </div>
-        {aiCatLoading ? (
-          <div className="ao-ai-summary__loading">
-            <span className="ao-ai-summary__shimmer" />
-            <span className="ao-ai-summary__shimmer ao-ai-summary__shimmer--short" />
-          </div>
-        ) : (
-          <p className="ao-detail__ai-text">
-            <TypewriterText text={displayCatAssessment} speed={20} />
-          </p>
-        )}
       </section>
 
       {/* Sub-score breakdown with collapsible check/x pills */}
       <section className="ao-detail__section">
-        <h3 className="ao-detail__section-title">Feature Breakdown</h3>
+        <h3 className="ao-detail__section-title ao-detail__section-title--with-ai">
+          <span className="ao-detail__section-title-inner">
+            <AiSparkleLogo size={13} className="ao-ai-logo" />
+            <span>Feature Breakdown</span>
+            <GeminiWordmark />
+          </span>
+        </h3>
         <div className="ao-detail__subscore-list">
           {catResult.subScores.map((s) => (
-            <SubScoreRow
+            <SubScoreFeatureRow
               key={s.name}
               subScore={s}
               issues={CATEGORIES.find(c => c.key === categoryKey)?.subScores.find(ss => ss.name === s.name)?.issues || []}
@@ -975,6 +791,7 @@ function AreaDetailContent({
   onAddToPlan,
   treatmentPhotos,
   treatmentPhotosLoading,
+  providerCode,
 }: {
   areaName: string;
   detectedIssues: Set<string>;
@@ -983,6 +800,7 @@ function AreaDetailContent({
   onAddToPlan?: (prefill: TreatmentPlanPrefill) => void;
   treatmentPhotos: TreatmentPhoto[];
   treatmentPhotosLoading: boolean;
+  providerCode?: string;
 }) {
   const areaResults = useMemo(
     () => computeAreas(detectedIssues, interestAreaNames),
@@ -1003,8 +821,8 @@ function AreaDetailContent({
   }, [areaDef, detectedIssues]);
 
   const suggestedTreatments = useMemo(
-    () => getSuggestedTreatmentsForFindings(detectedIssueNames),
-    [detectedIssueNames]
+    () => getSuggestedTreatmentsForFindings(detectedIssueNames, providerCode),
+    [detectedIssueNames, providerCode]
   );
 
   if (!areaDef || !areaResult) {
@@ -1064,52 +882,47 @@ function AreaDetailContent({
         ← Back to Overview
       </button>
 
-      <section className="ao-detail__hero">
-        <div className="ao-detail__hero-left">
-          <div className="ao-detail__hero-score-stack">
-            <span className="ao-detail__hero-score-number">{areaResult.score}</span>
-            <span
-              className="ao-detail__hero-score-tier"
-              style={{ color: tierColor(areaResult.tier) }}
-            >
-              {tierLabel(areaResult.tier)}
-            </span>
+      <section className="ao-detail__hero ao-detail__hero--with-ai">
+        <div className="ao-detail__hero-gauge">
+          <ScoreGauge
+            score={areaResult.score}
+            size={110}
+            strokeWidth={10}
+            animate={true}
+            label={areaResult.name}
+          />
+        </div>
+        <div className="ao-detail__hero-ai">
+          <div className="ao-detail__ai-header">
+            <AiSparkleLogo size={14} className="ao-ai-logo" />
+            <span className="ao-detail__ai-label">Aesthetic Intelligence</span>
+            <GeminiWordmark />
           </div>
-          <div className="ao-detail__hero-info">
-            {areaResult.hasInterest && (
-              <span className="ao-detail__focus-badge">★ Focus Area</span>
-            )}
-            <p className="ao-detail__desc">
-              {areaDescription}
+          {aiAreaLoading ? (
+            <div className="ao-ai-summary__loading">
+              <span className="ao-ai-summary__shimmer" />
+              <span className="ao-ai-summary__shimmer ao-ai-summary__shimmer--short" />
+            </div>
+          ) : (
+            <p className="ao-detail__ai-text">
+              <TypewriterText text={displayAreaAssessment} speed={20} />
             </p>
-          </div>
+          )}
         </div>
-      </section>
-
-      {/* AI-powered insight section */}
-      <section className="ao-detail__ai-section">
-        <div className="ao-detail__ai-header">
-          <AILogo size={14} />
-          <span className="ao-detail__ai-label">Aesthetic Intelligence</span>
-        </div>
-        {aiAreaLoading ? (
-          <div className="ao-ai-summary__loading">
-            <span className="ao-ai-summary__shimmer" />
-            <span className="ao-ai-summary__shimmer ao-ai-summary__shimmer--short" />
-          </div>
-        ) : (
-          <p className="ao-detail__ai-text">
-            <TypewriterText text={displayAreaAssessment} speed={20} />
-          </p>
-        )}
       </section>
 
       {/* Theme-based feature breakdown with check/x pills */}
       <section className="ao-detail__section">
-        <h3 className="ao-detail__section-title">Feature Breakdown</h3>
+        <h3 className="ao-detail__section-title ao-detail__section-title--with-ai">
+          <span className="ao-detail__section-title-inner">
+            <AiSparkleLogo size={13} className="ao-ai-logo" />
+            <span>Feature Breakdown</span>
+            <GeminiWordmark />
+          </span>
+        </h3>
         <div className="ao-detail__subscore-list">
           {themes.map((theme) => (
-            <AreaThemeRow
+            <AreaThemeFeatureRow
               key={theme.label}
               theme={theme}
               detectedIssues={detectedIssues}
@@ -1154,58 +967,13 @@ function AreaDetailContent({
   );
 }
 
-/** Build detected issues Set from client.allIssues (comma-separated or array). */
-function getDetectedIssues(client: Client): Set<string> {
-  const set = new Set<string>();
-  const raw = client.allIssues;
-  if (!raw) return set;
-  const list = Array.isArray(raw)
-    ? raw
-    : String(raw)
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-  list.forEach((issue) => set.add(normalizeIssue(issue)));
-  return set;
-}
-
-/** Build interest area names (lowercase) from client form/regions. */
-function getInterestAreaNames(client: Client): Set<string> {
-  const names = new Set<string>();
-  const sources = [
-    client.processedAreasOfInterest,
-    client.areasOfInterestFromForm,
-    client.whichRegions,
-  ].filter(Boolean) as string[];
-
-  sources.forEach((str) => {
-    const s = typeof str === "string" ? str : String(str);
-    s.split(",").forEach((part) => {
-      const trimmed = part.trim().toLowerCase();
-      if (trimmed) names.add(trimmed);
-    });
-  });
-
-  // Map common phrases to area names
-  names.forEach((n) => {
-    if (n.includes("jaw") || n.includes("chin")) names.add("jawline");
-    if (n.includes("eye")) names.add("eyes");
-    if (n.includes("lip")) names.add("lips");
-    if (n.includes("forehead") || n.includes("brow")) names.add("forehead");
-    if (n.includes("cheek")) names.add("cheeks");
-    if (n.includes("nose")) names.add("nose");
-    if (n.includes("skin")) names.add("skin");
-  });
-
-  return names;
-}
-
 export default function AnalysisOverviewModal({
   client,
   onClose,
   onAddToPlan,
   initialDetailView,
 }: AnalysisOverviewModalProps) {
+  const { provider } = useDashboard();
   const [animate, setAnimate] = useState(false);
   const [detailView, setDetailView] = useState<DetailView>(null);
 
@@ -1286,10 +1054,13 @@ export default function AnalysisOverviewModal({
     };
   }, [detailView]);
 
-  const detectedIssues = useMemo(() => getDetectedIssues(client), [client]);
+  const detectedIssues = useMemo(
+    () => getDetectedIssuesFromClient(client),
+    [client],
+  );
   const interestAreaNames = useMemo(
-    () => getInterestAreaNames(client),
-    [client]
+    () => getInterestAreaNamesFromClient(client),
+    [client],
   );
 
   const categories = useMemo(
@@ -1297,7 +1068,6 @@ export default function AnalysisOverviewModal({
     [detectedIssues]
   );
   const overall = useMemo(() => computeOverall(categories), [categories]);
-  const overallTier = scoreTier(overall);
 
   const areaResults = useMemo(
     () => computeAreas(detectedIssues, interestAreaNames),
@@ -1306,6 +1076,9 @@ export default function AnalysisOverviewModal({
 
   const focusAreas = areaResults
     .filter((a) => a.hasInterest)
+    .sort((a, b) => a.score - b.score);
+  const otherAreas = areaResults
+    .filter((a) => !a.hasInterest)
     .sort((a, b) => a.score - b.score);
   const focusCount = focusAreas.length;
 
@@ -1352,7 +1125,10 @@ export default function AnalysisOverviewModal({
   const [aiSummaryOpen, setAiSummaryOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
-  const [openCategoryKey, setOpenCategoryKey] = useState<string | null>(null);
+  // Default: open first category so at least one radar is visible without clicks.
+  const [openCategoryKey, setOpenCategoryKey] = useState<string | null>(
+    CATEGORIES[0]?.key ?? null
+  );
 
   // Inline treatment plan handler – records additions without navigating away
   const handleInlineAddToPlan = (prefill: TreatmentPlanPrefill) => {
@@ -1370,7 +1146,7 @@ export default function AnalysisOverviewModal({
         <div className="analysis-overview-modal__header">
           <h2 id="ao-modal-title" className="analysis-overview-modal__title">
             {showCategoryDetail && detailView?.type === "category"
-              ? (categories.find((c) => c.key === detailView.key)?.name ?? detailView.key)
+              ? (categories.find((c) => c.key === detailView.key)?.scoreLabel ?? detailView.key)
               : showAreaDetail && detailView?.type === "area"
                 ? (detailView.name)
                 : showAreasPage
@@ -1411,6 +1187,7 @@ export default function AnalysisOverviewModal({
               onAddToPlan={handleInlineAddToPlan}
               treatmentPhotos={treatmentPhotos}
               treatmentPhotosLoading={treatmentPhotosLoading}
+              providerCode={provider?.code}
             />
           ) : showAreaDetail && detailView?.type === "area" ? (
             <AreaDetailContent
@@ -1421,6 +1198,7 @@ export default function AnalysisOverviewModal({
               onAddToPlan={handleInlineAddToPlan}
               treatmentPhotos={treatmentPhotos}
               treatmentPhotosLoading={treatmentPhotosLoading}
+              providerCode={provider?.code}
             />
           ) : showAreasPage ? (
             /* ===== All Areas inner page with face map ===== */
@@ -1546,7 +1324,7 @@ export default function AnalysisOverviewModal({
           ) : (
             /* ===== Main overview ===== */
             <>
-              {/* Hero: front photo + score gauge + tier */}
+              {/* Hero: front photo */}
               <section className="analysis-overview-modal__hero">
                 <div className="analysis-overview-modal__hero-card">
                   {clientFrontPhotoUrl && (
@@ -1563,23 +1341,13 @@ export default function AnalysisOverviewModal({
                         className="analysis-overview-modal__client-photo"
                       />
                       <span className="analysis-overview-modal__photo-overlay">View</span>
+                      <span className="analysis-overview-modal__photo-expand" aria-hidden>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                        </svg>
+                      </span>
                     </div>
                   )}
-                  <div className="analysis-overview-modal__score-block">
-                    <ScoreGauge
-                      score={overall}
-                      size={110}
-                      strokeWidth={10}
-                      animate={animate}
-                      label="Aesthetic Score"
-                    />
-                    <span
-                      className="analysis-overview-modal__tier"
-                      style={{ color: tierColor(overallTier) }}
-                    >
-                      {tierLabel(overallTier)}
-                    </span>
-                  </div>
                 </div>
               </section>
 
@@ -1591,8 +1359,9 @@ export default function AnalysisOverviewModal({
                   onClick={() => setAiSummaryOpen(!aiSummaryOpen)}
                 >
                   <div className="ao-ai-summary__brand">
-                    <AILogo size={16} className="ao-ai-summary__icon" />
+                    <AiSparkleLogo size={16} className="ao-ai-summary__icon ao-ai-logo" />
                     <span className="ao-ai-summary__label">Aesthetic Intelligence</span>
+                    <GeminiWordmark />
                   </div>
                   <span className="ao-ai-summary__chev" aria-hidden>
                     {aiSummaryOpen ? "▲" : "▼"}
@@ -1614,30 +1383,57 @@ export default function AnalysisOverviewModal({
                 )}
               </section>
 
-              {/* Category sub-scores – horizontal row with visual connection to gauge */}
+              {/* Category sub-scores – circle inside each collapsible card */}
               <section className="analysis-overview-modal__categories">
-                <div className="analysis-overview-modal__cat-connector" />
-                <div className="analysis-overview-modal__cat-cards">
+                <div
+                  className="analysis-overview-modal__categories-brand"
+                  aria-label="AI-assisted category scores"
+                >
+                  <AiSparkleLogo size={14} className="ao-ai-logo" />
+                  <span className="analysis-overview-modal__categories-brand-label">
+                    Category scores
+                  </span>
+                  <GeminiWordmark />
+                </div>
+                <div className="analysis-overview-modal__cat-columns">
                   {categories.map((c) => (
-                    <CategoryCard
-                      key={c.key}
-                      cat={c}
-                      isOpen={openCategoryKey === c.key}
-                      onToggle={() => setOpenCategoryKey(openCategoryKey === c.key ? null : c.key)}
-                      animate={animate}
-                      onExploreDetails={(key) => setDetailView({ type: "category", key })}
-                    />
+                    <div key={c.key} className="analysis-overview-modal__cat-column">
+                      <CategoryCard
+                        cat={c}
+                        isOpen={openCategoryKey === c.key}
+                        onToggle={() => setOpenCategoryKey(openCategoryKey === c.key ? null : c.key)}
+                        animate={animate}
+                        onExploreDetails={(key) => setDetailView({ type: "category", key })}
+                      />
+                    </div>
                   ))}
                 </div>
               </section>
 
-              {/* Focus Areas (if any) */}
+              {/* Client's focus areas */}
               {focusAreas.length > 0 && (
                 <section className="analysis-overview-modal__areas">
-                  <h3 className="analysis-overview-modal__area-group-title">
-                    <span className="analysis-overview-modal__area-group-icon" aria-hidden>★</span>
-                    Focus Areas
-                  </h3>
+                  <OverviewSectionHeading>
+                    Client&apos;s focus areas
+                  </OverviewSectionHeading>
+                  <div className="analysis-overview-modal__area-dot-legend">
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("excellent") }} />
+                      Excellent
+                    </span>
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("good") }} />
+                      Very Good
+                    </span>
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("moderate") }} />
+                      Good
+                    </span>
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("attention") }} />
+                      Needs Attention
+                    </span>
+                  </div>
                   <div className="analysis-overview-modal__area-grid">
                     {focusAreas.map((a) => (
                       <AreaCard
@@ -1650,14 +1446,39 @@ export default function AnalysisOverviewModal({
                 </section>
               )}
 
-              {/* View All Areas link */}
-              <button
-                type="button"
-                className="analysis-overview-modal__view-all-areas"
-                onClick={() => setDetailView({ type: "areas" })}
-              >
-                View All Areas →
-              </button>
+              {/* Other areas */}
+              {otherAreas.length > 0 && (
+                <section className="analysis-overview-modal__areas">
+                  <OverviewSectionHeading>Other areas</OverviewSectionHeading>
+                  <div className="analysis-overview-modal__area-dot-legend">
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("excellent") }} />
+                      Excellent
+                    </span>
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("good") }} />
+                      Very Good
+                    </span>
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("moderate") }} />
+                      Good
+                    </span>
+                    <span className="analysis-overview-modal__area-legend-item">
+                      <span className="analysis-overview-modal__area-legend-dot" style={{ background: tierColor("attention") }} />
+                      Needs Attention
+                    </span>
+                  </div>
+                  <div className="analysis-overview-modal__area-grid">
+                    {otherAreas.map((a) => (
+                      <AreaCard
+                        key={a.name}
+                        area={a}
+                        onExploreDetails={(name) => setDetailView({ type: "area", name })}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
             </>
           )}
         </div>
