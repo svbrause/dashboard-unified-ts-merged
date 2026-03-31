@@ -2862,7 +2862,8 @@ body.theme-warm .kanban-cards.drag-over {
   }
 
   .main-content {
-    padding-bottom: 0;
+    /* Reserve space for fixed bottom tab bar + home indicator (DashboardLayout mobile) */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
     min-width: 0 !important;
     max-width: 100%;
     width: 100%;
