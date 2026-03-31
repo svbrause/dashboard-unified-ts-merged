@@ -35,13 +35,16 @@
 }
 
 @media (max-width: 768px) {
+  /* Lock app to one viewport tall so only the list area scrolls (header + controls stay put). */
   .dashboard-wrapper {
     background: #fff;
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: hidden;
+    overflow: hidden;
     box-sizing: border-box;
+    height: 100dvh;
+    max-height: 100dvh;
   }
 
   .main-content {
@@ -49,15 +52,30 @@
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: hidden;
+    min-height: 0;
+    flex: 1 1 0;
+    overflow: hidden;
     box-sizing: border-box;
+    height: auto;
+    max-height: none;
+  }
+
+  .main-content > .main-header,
+  .main-content > .view-controls-container {
+    flex-shrink: 0;
   }
 
   .dashboard-views-wrap {
+    flex: 1 1 0;
     min-width: 0;
     max-width: 100%;
     width: 100%;
+    min-height: 0;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   .dashboard-wrapper--sidebar-collapsed .main-content {

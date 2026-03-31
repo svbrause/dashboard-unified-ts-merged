@@ -48,7 +48,13 @@ function DashboardViews() {
   }
 }
 
-const VIEWS_WITH_CONTROLS = ["list", "cards", "kanban", "facial-analysis", "archived"];
+const VIEWS_WITH_CONTROLS = [
+  "list",
+  "cards",
+  "kanban",
+  "facial-analysis",
+  "archived",
+];
 
 export default function DashboardLayout({ onLogout }: DashboardLayoutProps) {
   const { currentView, setCurrentView, provider } = useDashboard();
@@ -71,7 +77,9 @@ export default function DashboardLayout({ onLogout }: DashboardLayoutProps) {
   }, [currentView, setCurrentView]);
 
   return (
-    <div className={`dashboard-wrapper ${sidebarCollapsed ? "dashboard-wrapper--sidebar-collapsed" : ""}`}>
+    <div
+      className={`dashboard-wrapper ${sidebarCollapsed ? "dashboard-wrapper--sidebar-collapsed" : ""}`}
+    >
       <Sidebar
         onLogout={onLogout}
         collapsed={sidebarCollapsed}

@@ -129,6 +129,13 @@ export type PvbMainOverviewPersonalization = {
   findings?: string[];
   focusAreas?: string[];
   chapterNames?: string[];
+  /** Per-item interests from discussed items (e.g. "wrinkle prevention", "hydration"). */
+  interests?: string[];
+  /** Per-item display areas (e.g. "forehead", "lower face"). */
+  displayAreas?: string[];
+  patientFirstName?: string;
+  ageRange?: string | null;
+  skinType?: string | null;
 };
 
 function dedupeText(items: string[]): string[] {
@@ -156,41 +163,60 @@ export function buildPvbMainPlanFramingParagraphs(
 ): string[] {
   if (shape.chapterCount <= 0) return [];
 
-  const priorities = dedupeText([
-    ...(personalization?.findings ?? []),
-    ...(personalization?.goals ?? []),
-  ]).slice(0, 3);
+  const goals = dedupeText(personalization?.goals ?? []).slice(0, 3);
+  const findings = dedupeText(personalization?.findings ?? []).slice(0, 3);
   const focus = dedupeText(personalization?.focusAreas ?? []).slice(0, 2);
-  const namedChapters = dedupeText(personalization?.chapterNames ?? []).slice(0, 3);
+  const interests = dedupeText(personalization?.interests ?? []).slice(0, 3);
+  const areas = dedupeText(personalization?.displayAreas ?? []).slice(0, 3);
+  const namedChapters = dedupeText(personalization?.chapterNames ?? []).slice(0, 4);
+  const firstName = personalization?.patientFirstName?.trim() || "";
+  const ageRange = personalization?.ageRange?.trim() || "";
+  const skinType = personalization?.skinType?.trim() || "";
 
-  const open = priorities.length > 0
-    ? `Everything below is one coordinated plan built around ${formatEnglishList(priorities)}${focus.length > 0 ? `, with added focus on ${formatEnglishList(focus)}` : ""}.`
-    : "Everything below is one coordinated plan built around your goals and what came up in your visit.";
+  const forName = firstName ? `For ${firstName}` : "For you";
+
+  let open: string;
+  if (goals.length > 0 && findings.length > 0) {
+    open = `${forName}, this plan was built around ${formatEnglishList(goals)}\u2014informed by what your analysis found, including ${formatEnglishList(findings)}.`;
+  } else if (goals.length > 0) {
+    open = `${forName}, this plan is designed around ${formatEnglishList(goals)}.${focus.length > 0 ? ` Your provider focused on ${formatEnglishList(focus)}.` : ""}`;
+  } else if (findings.length > 0) {
+    open = `${forName}, your team identified ${formatEnglishList(findings)}\u2014the plan below addresses each of these.`;
+  } else if (interests.length > 0 && areas.length > 0) {
+    open = `${forName}, this plan targets ${formatEnglishList(interests)} across ${formatEnglishList(areas)}, based on what you discussed with your provider.`;
+  } else if (interests.length > 0) {
+    open = `${forName}, this plan is focused on ${formatEnglishList(interests)}, based on what came up during your visit.`;
+  } else if (areas.length > 0) {
+    open = `${forName}, this plan was put together to address ${formatEnglishList(areas)}, based on your visit.`;
+  } else if (namedChapters.length > 0) {
+    open = `${forName}, your provider put together a plan covering ${formatEnglishList(namedChapters)} based on what you discussed during your visit.`;
+  } else {
+    open = `${forName}, your provider put together this plan based on what you discussed during your visit.`;
+  }
+
+  const profileParts: string[] = [];
+  if (ageRange) profileParts.push(ageRange);
+  if (skinType) profileParts.push(`${skinType} skin`);
+  const profileNote = profileParts.length > 0
+    ? ` Given your profile (${profileParts.join(", ")}), the approach and product selection were tailored to match.`
+    : "";
 
   let bridge: string;
   if (shape.includesSkincare && shape.includesInOfficeOrProcedures) {
-    bridge =
-      "Your plan starts with medical-grade skincare as a daily foundation, adds maintenance between visits, and layers in-office treatments for your top aesthetic goals. Each section below shows how these pieces support one another.";
-  } else if (shape.includesSkincare && !shape.includesInOfficeOrProcedures) {
-    bridge =
-      "Your plan centers on a strong at-home skincare foundation paired with steady maintenance to keep results consistent over time.";
-  } else if (!shape.includesSkincare && shape.includesInOfficeOrProcedures) {
-    bridge =
-      "Your plan pairs in-office treatments with a maintenance rhythm so timing and upkeep stay aligned with your goals.";
+    bridge = namedChapters.length > 0
+      ? `Your plan covers ${formatEnglishList(namedChapters)}\u2014starting with medical-grade skincare as a daily foundation, then layering in-office treatments to target your top concerns.${profileNote}`
+      : `Your plan starts with medical-grade skincare for daily care, then layers in-office treatments that target your top aesthetic concerns.${profileNote}`;
+  } else if (shape.includesSkincare) {
+    bridge = `Your plan focuses on a strong at-home skincare foundation to keep your results consistent over time.${profileNote}`;
+  } else if (shape.includesInOfficeOrProcedures) {
+    bridge = namedChapters.length > 0
+      ? `Your plan includes ${formatEnglishList(namedChapters)}, paired together so each treatment reinforces the others.${profileNote}`
+      : `Your plan pairs in-office treatments with a maintenance rhythm so timing and upkeep stay aligned with your goals.${profileNote}`;
   } else {
-    bridge =
-      "Each step advances the same goals and keeps next actions clear.";
+    bridge = `Each step advances the same goals and keeps next actions clear.${profileNote}`;
   }
 
-  const out = [open, bridge];
-
-  if (namedChapters.length > 0) {
-    out.push(
-      `The sections below walk through ${formatEnglishList(namedChapters)} and how each one contributes to your results.`,
-    );
-  }
-
-  return out;
+  return [open, bridge];
 }
 
 export type ChapterOverviewParts = {

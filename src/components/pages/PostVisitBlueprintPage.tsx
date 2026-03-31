@@ -452,11 +452,27 @@ export default function PostVisitBlueprintPage() {
         ?.filter((a) => a.hasInterest)
         .map((a) => a.name)
         .slice(0, 4) ?? [];
+    const interests = Array.from(
+      new Set(
+        (blueprint?.discussedItems ?? [])
+          .map((i) => (i.interest ?? "").trim())
+          .filter(Boolean),
+      ),
+    ).slice(0, 4);
+    const displayAreas = Array.from(
+      new Set(
+        chapters
+          .map((c) => (c.displayArea ?? "").trim())
+          .filter(Boolean),
+      ),
+    ).slice(0, 4);
     return {
       goals: analysisDisplay.goals.slice(0, 4),
       findings: analysisDisplay.globalPlanInsights.findings.slice(0, 4),
       focusAreas,
       chapterNames: chapters.map((c) => c.displayName).slice(0, 5),
+      interests,
+      displayAreas,
       patientFirstName: blueprint?.patient.name.split(/\s+/)[0] || undefined,
       ageRange: blueprint?.patient.ageRange,
       skinType: blueprint?.patient.skinType,
@@ -903,23 +919,7 @@ export default function PostVisitBlueprintPage() {
       ? blueprint.recommenderFocusRegions.slice(0, 8)
       : discussedHotspotLabels;
 
-  const concernPills = Array.from(
-    new Set([
-      ...(analysisDisplay?.overviewSnapshot?.detectedIssueLabels ?? []),
-      ...(analysisDisplay?.globalPlanInsights?.findings ?? []),
-      ...blueprint.discussedItems.flatMap((item) => [
-        ...(item.findings ?? []),
-        item.interest ?? "",
-      ]),
-    ]),
-  )
-    .map((v) => normalizeBlueprintAnalysisText(String(v).trim()))
-    .filter(Boolean)
-    .slice(0, 8);
-
-  const heroPills = Array.from(
-    new Set([...visibleHotspots, ...concernPills]),
-  ).slice(0, 8);
+  const heroPills = visibleHotspots.slice(0, 8);
 
   const lineItems = blueprint.quote.lineItems;
   const { skincare: skincareQuoteIdxs, treatment: treatmentQuoteIdxs } =
