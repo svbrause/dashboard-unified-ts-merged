@@ -13,7 +13,9 @@ import { isWellnestWellnessProviderCode } from "../../data/wellnestOfferings";
 import { showToast } from "../../utils/toast";
 import "./Header.css";
 
-const THE_TREATMENT_LOGO_PATH = "/post-visit-blueprint/videos/The Treatment Mint and Gray.png";
+/** Encoded path — spaces in filenames can 404 on some static hosts */
+const THE_TREATMENT_LOGO_PATH =
+  "/post-visit-blueprint/videos/The%20Treatment%20Mint%20and%20Gray.png";
 
 function getProviderLogoUrl(provider: any): string | null {
   if (!provider) return null;
