@@ -57,11 +57,9 @@ function getMobileLogoUrl(provider: any): string | null {
 
 interface HeaderProps {
   onLogout?: () => void;
-  /** Opens the sidebar drawer on narrow screens (Archived, Settings, etc.). */
-  onOpenMobileMenu?: () => void;
 }
 
-export default function Header({ onLogout, onOpenMobileMenu }: HeaderProps) {
+export default function Header({ onLogout }: HeaderProps) {
   const { provider, refreshClients } = useDashboard();
   const [showAddClient, setShowAddClient] = useState(false);
   const [showScanDropdown, setShowScanDropdown] = useState(false);
@@ -111,30 +109,6 @@ export default function Header({ onLogout, onOpenMobileMenu }: HeaderProps) {
     <>
       <header className="main-header">
         <div className="header-left">
-          {onOpenMobileMenu && (
-            <button
-              type="button"
-              className="header-mobile-menu-btn"
-              onClick={onOpenMobileMenu}
-              aria-label="Open menu"
-              title="Menu"
-            >
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="18" x2="20" y2="18" />
-              </svg>
-            </button>
-          )}
           {mobileLogoUrl && (
             <img
               src={mobileLogoUrl}

@@ -53,7 +53,6 @@ const VIEWS_WITH_CONTROLS = ["list", "cards", "kanban", "facial-analysis", "arch
 export default function DashboardLayout({ onLogout }: DashboardLayoutProps) {
   const { currentView, setCurrentView, provider } = useDashboard();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const showViewControls = VIEWS_WITH_CONTROLS.includes(currentView);
 
   useEffect(() => {
@@ -71,24 +70,15 @@ export default function DashboardLayout({ onLogout }: DashboardLayoutProps) {
     }
   }, [currentView, setCurrentView]);
 
-  useEffect(() => {
-    setMobileSidebarOpen(false);
-  }, [currentView]);
-
   return (
     <div className={`dashboard-wrapper ${sidebarCollapsed ? "dashboard-wrapper--sidebar-collapsed" : ""}`}>
       <Sidebar
         onLogout={onLogout}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
-        mobileOpen={mobileSidebarOpen}
-        onMobileClose={() => setMobileSidebarOpen(false)}
       />
       <main className="main-content">
-        <Header
-          onLogout={onLogout}
-          onOpenMobileMenu={() => setMobileSidebarOpen(true)}
-        />
+        <Header onLogout={onLogout} />
         {showViewControls && <ViewControls />}
         <div className="dashboard-views-wrap">
           <DashboardViews />
