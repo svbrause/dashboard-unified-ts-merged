@@ -457,8 +457,11 @@ export default function PostVisitBlueprintPage() {
       findings: analysisDisplay.globalPlanInsights.findings.slice(0, 4),
       focusAreas,
       chapterNames: chapters.map((c) => c.displayName).slice(0, 5),
+      patientFirstName: blueprint?.patient.name.split(/\s+/)[0] || undefined,
+      ageRange: blueprint?.patient.ageRange,
+      skinType: blueprint?.patient.skinType,
     };
-  }, [analysisDisplay, chapters]);
+  }, [analysisDisplay, chapters, blueprint]);
 
   const mainPlanFramingParagraphs = useMemo(() => {
     if (!mainOverviewPlanShape) return [];
@@ -916,7 +919,7 @@ export default function PostVisitBlueprintPage() {
 
   const heroPills = Array.from(
     new Set([...visibleHotspots, ...concernPills]),
-  ).slice(0, 12);
+  ).slice(0, 8);
 
   const lineItems = blueprint.quote.lineItems;
   const { skincare: skincareQuoteIdxs, treatment: treatmentQuoteIdxs } =
