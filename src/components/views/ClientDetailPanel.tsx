@@ -82,6 +82,7 @@ import {
   formatProviderDisplayName,
   isPostVisitBlueprintSender,
   isUniqueAestheticsProvider,
+  providerShowsTheTreatmentPreviewUi,
 } from "../../utils/providerHelpers";
 import {
   splitName,
@@ -116,6 +117,7 @@ export default function ClientDetailPanel({
   onUpdate,
 }: ClientDetailPanelProps) {
   const { provider } = useDashboard();
+  const treatmentPreviewUiEnabled = providerShowsTheTreatmentPreviewUi(provider);
 
   const intakeIssuePartition = useMemo(() => {
     if (!client) {
@@ -1399,8 +1401,9 @@ export default function ClientDetailPanel({
                   </div>
                 </div>
 
-                {(intakeWellnessInterests.length > 0 ||
-                  wellnessPlanItems.length > 0) && (
+                {treatmentPreviewUiEnabled &&
+                  (intakeWellnessInterests.length > 0 ||
+                    wellnessPlanItems.length > 0) && (
                   <div className="detail-section detail-section-wellness-overview">
                     <div className="detail-section-title">Wellness</div>
                     <p className="skin-analysis-description">
@@ -1499,6 +1502,7 @@ export default function ClientDetailPanel({
                     <div className="detail-actions-inline">
                       {facialAnalysisFormHasData && (
                         <>
+                          {treatmentPreviewUiEnabled && (
                           <button
                             type="button"
                             className="btn-secondary btn-sm"
@@ -1509,6 +1513,7 @@ export default function ClientDetailPanel({
                           >
                             Analysis Overview
                           </button>
+                          )}
                           <button
                             type="button"
                             className="btn-secondary btn-sm"
@@ -1989,7 +1994,7 @@ export default function ClientDetailPanel({
               }}
             />
           )}
-          {showAnalysisOverview && client && (
+          {showAnalysisOverview && client && treatmentPreviewUiEnabled && (
             <AnalysisOverviewModal
               client={client}
               onClose={() => {
@@ -2201,7 +2206,7 @@ export default function ClientDetailPanel({
                 setInitialEditingItem(null);
                 treatmentPlanModalClosedRef.current?.();
                 onUpdate();
-                if (returnToOverviewView !== null) {
+                if (returnToOverviewView !== null && treatmentPreviewUiEnabled) {
                   setShowAnalysisOverview(true);
                 }
               }}

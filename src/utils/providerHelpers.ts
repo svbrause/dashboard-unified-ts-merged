@@ -54,13 +54,40 @@ export function isAdminBlueprintProvider(provider: Provider | null): boolean {
   return isAdminBlueprintCode(provider.code) || name === "admin";
 }
 
-/** Dashboard: who may send a Post-Visit Blueprint (The Treatment locations + Wellnest MD + Admin). */
+/**
+ * In-development dashboard (and share) features for The Treatment: Post-Visit Blueprint link,
+ * Analysis Overview entry points, wellness overview in client detail, etc.
+ *
+ * Production for The Treatment: leave unset or anything other than `"true"` (features hidden).
+ * Staging / internal: `VITE_THE_TREATMENT_PREVIEW_FEATURES=true`.
+ *
+ * Wellnest MD and admin/demo logins are not gated by this flag.
+ */
+export function theTreatmentPreviewFeaturesEnabled(): boolean {
+  return import.meta.env.VITE_THE_TREATMENT_PREVIEW_FEATURES === "true";
+}
+
+/**
+ * Whether UI that we gate for The Treatment until launch should show for the current login.
+ * Non–The-Treatment providers always get full UI; missing provider does not hide anything.
+ */
+export function providerShowsTheTreatmentPreviewUi(
+  provider: Provider | null | undefined,
+): boolean {
+  if (!provider) return true;
+  if (!isTheTreatmentProvider(provider)) return true;
+  return theTreatmentPreviewFeaturesEnabled();
+}
+
+/** Dashboard: who may send a Post-Visit Blueprint (The Treatment when preview on + Wellnest MD + Admin). */
 export function isPostVisitBlueprintSender(provider: Provider | null): boolean {
-  return (
-    isTheTreatmentProvider(provider) ||
-    isAdminBlueprintProvider(provider) ||
-    isWellnestWellnessProviderCode(provider?.code)
-  );
+  if (!provider) return false;
+  if (isAdminBlueprintProvider(provider)) return true;
+  if (isTheTreatmentProvider(provider)) {
+    return theTreatmentPreviewFeaturesEnabled();
+  }
+  if (isWellnestWellnessProviderCode(provider.code)) return true;
+  return false;
 }
 
 /** Patient micro-site: blueprint payload must have been issued by an allowed sender (code on payload). */
