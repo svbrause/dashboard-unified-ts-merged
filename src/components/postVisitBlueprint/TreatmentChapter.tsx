@@ -352,53 +352,32 @@ export function TreatmentChapterView({
       {chapter.meta.notes && <p className="tc-fact-note">{chapter.meta.notes}</p>}
 
       {chapterGlossaryTerms && chapterGlossaryTerms.length > 0 && (
-        <details
-          className="pvb-plan-glossary pvb-plan-glossary--collapsible tc-chapter-glossary"
-          open
-          onToggle={(e) => {
-            if (!blueprintPatientAnalytics) return;
-            const el = e.currentTarget;
-            trackPostVisitBlueprintEvent("blueprint_glossary_section_toggled", {
-              ...blueprintPatientAnalytics,
-              chapter_key: chapter.key,
-              section_open: el.open,
-            });
-          }}
-        >
-          <summary className="pvb-plan-glossary__section-summary">
-            <span className="pvb-plan-glossary__section-summary-text">
-              <span className="pvb-plan-glossary__section-title">Technical terms</span>
-            </span>
-            <span className="pvb-plan-glossary__section-chev" aria-hidden>
-              ▼
-            </span>
-          </summary>
-          <div className="pvb-plan-glossary__section-body">
-            <p className="pvb-plan-glossary-lead">
-              Quick definitions for abbreviations and add-ons that appear in this part of your plan.
-            </p>
-            <ul className="pvb-plan-glossary-list" aria-label="Technical terms for this treatment">
-              {chapterGlossaryTerms.map((term) => (
-                <li key={term.id} className="pvb-plan-glossary-item">
-                  <details className="pvb-plan-glossary-term-details">
-                    <summary className="pvb-plan-glossary__term-summary">
-                      <span className="pvb-plan-glossary-term">{term.title}</span>
-                      <span className="pvb-plan-glossary__term-chev" aria-hidden>
-                        ▼
-                      </span>
-                    </summary>
-                    <div className="pvb-plan-glossary__term-body">
-                      <p className="pvb-plan-glossary-body">{term.body}</p>
-                      {term.relationToYou ? (
-                        <p className="pvb-plan-glossary-relation">{term.relationToYou}</p>
-                      ) : null}
-                    </div>
-                  </details>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </details>
+        <div className="pvb-plan-glossary tc-chapter-glossary">
+          <h4 className="pvb-plan-glossary__section-title">Technical terms</h4>
+          <p className="pvb-plan-glossary-lead">
+            Quick definitions for abbreviations and add-ons that appear in this part of your plan.
+          </p>
+          <ul className="pvb-plan-glossary-list" aria-label="Technical terms for this treatment">
+            {chapterGlossaryTerms.map((term) => (
+              <li key={term.id} className="pvb-plan-glossary-item">
+                <details className="pvb-plan-glossary-term-details">
+                  <summary className="pvb-plan-glossary__term-summary">
+                    <span className="pvb-plan-glossary-term">{term.title}</span>
+                    <span className="pvb-plan-glossary__term-chev" aria-hidden>
+                      ▼
+                    </span>
+                  </summary>
+                  <div className="pvb-plan-glossary__term-body">
+                    <p className="pvb-plan-glossary-body">{term.body}</p>
+                    {term.relationToYou ? (
+                      <p className="pvb-plan-glossary-relation">{term.relationToYou}</p>
+                    ) : null}
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Videos — all clinic clips as compact thumbnails; tap to expand & play */}

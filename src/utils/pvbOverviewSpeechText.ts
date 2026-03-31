@@ -107,13 +107,13 @@ export function buildPvbMainOverviewSections(
   const framing = (planFramingParagraphs ?? []).map((s) => s.trim()).filter(Boolean);
 
   if (framing.length > 0) {
-    out.push({ heading: "The big picture", text: framing[0]! });
+    out.push({ heading: "Why this plan was created for you", text: framing[0]! });
   }
   if (framing.length > 1) {
-    out.push({ heading: "How your plan is structured", text: framing[1]! });
+    out.push({ heading: "How it all fits together", text: framing[1]! });
   }
   if (framing.length > 2) {
-    out.push({ heading: "What's included", text: framing[2]! });
+    out.push({ heading: "What\u2019s included", text: framing[2]! });
   }
 
   if (analysisDisplay.overviewSnapshot) {

@@ -413,6 +413,7 @@
 }
 
 .pvb-plan-glossary__section-title {
+  margin: 0 0 4px;
   font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;

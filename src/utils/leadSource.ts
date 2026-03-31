@@ -1,6 +1,6 @@
 /**
  * Source value stored in Airtable when a lead is added via the dashboard "Add Client" button.
- * These leads are shown on the All Clients tab; other Web Popup Leads (from the web form) appear on the Leads tab.
+ * Dashboard list includes all non-archived patients and web popup leads (including Add Client source).
  */
 export const SOURCE_ADD_CLIENT = "Add Client";
 

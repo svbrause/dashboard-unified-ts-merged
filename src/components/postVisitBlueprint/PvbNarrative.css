@@ -126,8 +126,6 @@
   -webkit-background-clip: text;
   color: transparent !important;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 6px rgba(13, 148, 136, 0.35))
-    drop-shadow(0 0 14px rgba(59, 82, 139, 0.2));
   animation: pvb-ai-heading-shimmer 7s ease-in-out infinite;
 }
 
@@ -155,7 +153,6 @@
   .pvb-aesthetic-intelligence-heading {
     animation: none;
     background-position: 50% center;
-    filter: drop-shadow(0 0 4px rgba(13, 148, 136, 0.3));
   }
   .pvb-ai-sparkle-glow {
     animation: none;
