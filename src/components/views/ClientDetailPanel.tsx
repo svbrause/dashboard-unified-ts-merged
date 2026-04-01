@@ -102,7 +102,6 @@ import {
 import { formatZipCodeInput } from "../../utils/validation";
 import { useDashboard } from "../../context/DashboardContext";
 import { createPortal } from "react-dom";
-import { useRecommenderTreatmentPlanModalDisabled } from "../../hooks/useRecommenderTreatmentPlanModalDisabled";
 import "./ClientDetailPanel.css";
 
 interface ClientDetailPanelProps {
@@ -192,10 +191,6 @@ export default function ClientDetailPanel({
   const [recommenderFocusRegions, setRecommenderFocusRegions] = useState<string[]>([]);
   const scanDropdownRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  /** Called when treatment plan modal closes so recommenders can clear "just added" state */
-  const treatmentPlanModalClosedRef = useRef<(() => void) | null>(null);
-  const recommenderTreatmentPlanModalDisabled =
-    useRecommenderTreatmentPlanModalDisabled();
 
   useEffect(() => {
     if (client) {
@@ -602,34 +597,7 @@ export default function ClientDetailPanel({
                     throw e;
                   }
                 }}
-                onOpenTreatmentPlan={
-                  recommenderTreatmentPlanModalDisabled
-                    ? undefined
-                    : () => {
-                        setShowDiscussedTreatments(true);
-                        setInitialAddFormPrefill(null);
-                        setInitialEditingItem(null);
-                      }
-                }
                 onOpenCheckout={() => setShowCheckoutModal(true)}
-                onOpenTreatmentPlanWithPrefill={
-                  recommenderTreatmentPlanModalDisabled
-                    ? undefined
-                    : (prefill) => {
-                        setInitialAddFormPrefill(prefill);
-                        setInitialEditingItem(null);
-                        setShowDiscussedTreatments(true);
-                      }
-                }
-                onOpenTreatmentPlanWithItem={
-                  recommenderTreatmentPlanModalDisabled
-                    ? undefined
-                    : (item) => {
-                        setInitialEditingItem(item);
-                        setInitialAddFormPrefill(null);
-                        setShowDiscussedTreatments(true);
-                      }
-                }
                 onRemovePlanItem={async (itemId) => {
                   const nextItems = (client.discussedItems || []).filter(
                     (i) => i.id !== itemId,
@@ -644,7 +612,21 @@ export default function ClientDetailPanel({
                     );
                   }
                 }}
-                treatmentPlanModalClosedRef={treatmentPlanModalClosedRef}
+                onUpdatePlanItem={async (itemId, patch) => {
+                  const nextItems = (client.discussedItems || []).map((i) =>
+                    i.id === itemId ? { ...i, ...patch } : i,
+                  );
+                  try {
+                    await persistClientDiscussedItems(client, nextItems);
+                    showToast("Plan updated");
+                    onUpdate();
+                  } catch (e) {
+                    showError(
+                      e instanceof Error ? e.message : "Failed to update plan",
+                    );
+                    throw e;
+                  }
+                }}
                 onShareTreatmentPlan={
                   (client.discussedItems?.length ?? 0) > 0 &&
                   (isPostVisitBlueprintSender(provider) ||
@@ -692,34 +674,6 @@ export default function ClientDetailPanel({
                     throw e;
                   }
                 }}
-                onOpenTreatmentPlan={
-                  recommenderTreatmentPlanModalDisabled
-                    ? undefined
-                    : () => {
-                        setShowDiscussedTreatments(true);
-                        setInitialAddFormPrefill(null);
-                        setInitialEditingItem(null);
-                      }
-                }
-                onOpenTreatmentPlanWithPrefill={
-                  recommenderTreatmentPlanModalDisabled
-                    ? undefined
-                    : (prefill) => {
-                        setInitialAddFormPrefill(prefill);
-                        setInitialEditingItem(null);
-                        setShowDiscussedTreatments(true);
-                      }
-                }
-                onOpenTreatmentPlanWithItem={
-                  recommenderTreatmentPlanModalDisabled
-                    ? undefined
-                    : (item) => {
-                        setInitialEditingItem(item);
-                        setInitialAddFormPrefill(null);
-                        setShowDiscussedTreatments(true);
-                      }
-                }
-                treatmentPlanModalClosedRef={treatmentPlanModalClosedRef}
               />
             )}
             {!recommenderMode ? (
@@ -1304,16 +1258,18 @@ export default function ClientDetailPanel({
                             Treatment Recommender
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="btn-secondary btn-sm client-detail-plan-open-modal-btn"
-                          onClick={() => setShowDiscussedTreatments(true)}
-                        >
-                          {client.discussedItems &&
-                          client.discussedItems.length > 0
-                            ? "Manage"
-                            : "Add"}
-                        </button>
+                        {/* Plan Manage/Add — hidden for now (re-enable when Discussed Treatments modal flow is ready). */}
+                        {false && (
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm client-detail-plan-open-modal-btn"
+                            onClick={() => setShowDiscussedTreatments(true)}
+                          >
+                            {(client?.discussedItems?.length ?? 0) > 0
+                              ? "Manage"
+                              : "Add"}
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="discussed-treatments-in-facial-summary-row">
@@ -2002,11 +1958,32 @@ export default function ClientDetailPanel({
                 setReturnToOverviewView(null);
               }}
               initialDetailView={returnToOverviewView ?? undefined}
-              onAddToPlan={(prefill, detailView) => {
-                setShowAnalysisOverview(false);
-                setReturnToOverviewView(detailView ?? null);
-                setInitialAddFormPrefill(prefill);
-                setShowDiscussedTreatments(true);
+              onAddToPlanDirect={async (prefill) => {
+                const newItem: DiscussedItem = {
+                  id: generateId(),
+                  addedAt: new Date().toISOString(),
+                  interest: prefill.interest?.trim() || undefined,
+                  findings: prefill.findings?.length
+                    ? prefill.findings
+                    : undefined,
+                  treatment: prefill.treatment?.trim() || "",
+                  product: prefill.treatmentProduct?.trim() || undefined,
+                  region: prefill.region?.trim() || undefined,
+                  timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+                  quantity: prefill.quantity?.trim() || undefined,
+                  notes: prefill.notes?.trim() || undefined,
+                };
+                const nextItems = [...(client.discussedItems || []), newItem];
+                try {
+                  await persistClientDiscussedItems(client, nextItems);
+                  showToast("Added to treatment plan");
+                  onUpdate();
+                } catch (e) {
+                  showError(
+                    e instanceof Error ? e.message : "Failed to add to plan",
+                  );
+                  throw e;
+                }
               }}
             />
           )}
@@ -2204,7 +2181,6 @@ export default function ClientDetailPanel({
                 setShowDiscussedTreatments(false);
                 setInitialAddFormPrefill(null);
                 setInitialEditingItem(null);
-                treatmentPlanModalClosedRef.current?.();
                 onUpdate();
                 if (returnToOverviewView !== null && treatmentPreviewUiEnabled) {
                   setShowAnalysisOverview(true);

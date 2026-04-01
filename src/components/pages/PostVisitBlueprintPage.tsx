@@ -37,6 +37,7 @@ import { TreatmentChapterView } from "../postVisitBlueprint/TreatmentChapter";
 import { getPostVisitBlueprintVideoCatalog } from "../../config/postVisitBlueprintVideos";
 import { buildTreatmentChapters } from "../../utils/blueprintTreatmentChapters";
 import {
+  derivePlanInterestsFromDiscussedItems,
   getBlueprintAnalysisDisplay,
   normalizeBlueprintAnalysisText,
   PVB_ANALYSIS_SECTION_ID,
@@ -193,8 +194,7 @@ export default function PostVisitBlueprintPage() {
     () => (token ? getStoredPostVisitBlueprint(token) : null),
     [token],
   );
-  const shouldFetchRemoteBlueprint =
-    !inlinePayload && !!token && !storedPayload;
+  const shouldFetchRemoteBlueprint = !inlinePayload && !!token;
 
   const [remoteBlueprint, setRemoteBlueprint] =
     useState<PostVisitBlueprintPayload | null>(null);
@@ -205,6 +205,8 @@ export default function PostVisitBlueprintPage() {
   useEffect(() => {
     if (!shouldFetchRemoteBlueprint || !token) return;
     let cancelled = false;
+    setRemoteBlueprint(null);
+    setRemoteBlueprintResolved(false);
     void (async () => {
       const raw = await fetchPostVisitBlueprintFromServer(token);
       if (cancelled) return;
@@ -220,9 +222,9 @@ export default function PostVisitBlueprintPage() {
     };
   }, [shouldFetchRemoteBlueprint, token]);
 
-  const blueprint = inlinePayload ?? storedPayload ?? remoteBlueprint;
+  const blueprint = inlinePayload ?? remoteBlueprint ?? storedPayload;
   const waitingForRemoteBlueprint =
-    shouldFetchRemoteBlueprint && !remoteBlueprintResolved;
+    shouldFetchRemoteBlueprint && !remoteBlueprintResolved && !storedPayload;
 
   /** Keep a local copy so repeat visits work with `?t=` only (same browser) after the full link was opened once. */
   useEffect(() => {
@@ -278,11 +280,18 @@ export default function PostVisitBlueprintPage() {
       setHeroPhotoUrl(null);
       return;
     }
-    const resolved = resolveHeroPhotoDisplayUrl(blueprint.patient, {
-      blueprintToken: blueprint.token,
-    });
-    setHeroPhotoUrl(resolved);
-    if (hasStableHeroPhotoSource(blueprint.patient, blueprint.token)) {
+    const hasStableSource = hasStableHeroPhotoSource(
+      blueprint.patient,
+      blueprint.token,
+    );
+    setHeroPhotoUrl(
+      hasStableSource
+        ? resolveHeroPhotoDisplayUrl(blueprint.patient, {
+            blueprintToken: blueprint.token,
+          })
+        : null,
+    );
+    if (hasStableSource) {
       return;
     }
     let cancelled = false;
@@ -466,9 +475,33 @@ export default function PostVisitBlueprintPage() {
           .filter(Boolean),
       ),
     ).slice(0, 4);
+    /** Merge global chips, per-plan-item findings, and scan labels so the top overview matches lower sections even when global insights are empty (per-treatment mode). */
+    const mergedFindings = (() => {
+      const seen = new Set<string>();
+      const out: string[] = [];
+      const push = (raw: string) => {
+        const t = normalizeBlueprintAnalysisText(raw);
+        if (!t) return;
+        const k = t.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(t);
+      };
+      for (const f of analysisDisplay.globalPlanInsights.findings) push(f);
+      for (const f of derivePlanInterestsFromDiscussedItems(
+        blueprint?.discussedItems ?? [],
+      ).findings) {
+        push(f);
+      }
+      for (const f of analysisDisplay.overviewSnapshot?.detectedIssueLabels ??
+        []) {
+        push(f);
+      }
+      return out.slice(0, 6);
+    })();
     return {
       goals: analysisDisplay.goals.slice(0, 4),
-      findings: analysisDisplay.globalPlanInsights.findings.slice(0, 4),
+      findings: mergedFindings,
       focusAreas,
       chapterNames: chapters.map((c) => c.displayName).slice(0, 5),
       interests,

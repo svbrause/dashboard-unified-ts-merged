@@ -35,7 +35,10 @@ import {
   SUGGESTION_TO_AREA,
   SUGGESTION_TO_ISSUES,
 } from "../modals/DiscussedTreatmentsModal/suggestionsMapping";
-import { getTreatmentsForInterest } from "../modals/DiscussedTreatmentsModal/utils";
+import {
+  getTreatmentsForInterest,
+  getQuantityContext,
+} from "../modals/DiscussedTreatmentsModal/utils";
 import {
   REGION_OPTIONS,
   TIMELINE_OPTIONS,
@@ -138,22 +141,30 @@ function getIssuesForSuggestion(suggestionName: string): string[] {
   return SUGGESTION_TO_ISSUES[suggestionName] ?? [];
 }
 
+function initialAddToPlanRowForSuggestion(suggestionName: string, what: string) {
+  const quantity =
+    what === "Skincare"
+      ? ""
+      : getQuantityContext(what, undefined).options[0] ?? "";
+  return {
+    suggestionName,
+    what,
+    where: [] as string[],
+    when: TIMELINE_OPTIONS[0],
+    product: "",
+    quantity,
+    notes: "",
+  };
+}
+
 export interface TreatmentRecommenderBySuggestionProps {
   client: Client;
   onBack: () => void;
   onUpdate?: () => void | Promise<void>;
-  /** Add item directly to plan and show success; then user can click "Add additional details" to open the plan modal. Returns the new item so we can open it for editing. */
+  /** Add item directly to plan and show success. Returns the new item for immediate UI. */
   onAddToPlanDirect?: (
     prefill: TreatmentPlanPrefill,
   ) => Promise<DiscussedItem | void> | void;
-  /** Open the treatment plan modal (e.g. for "Add additional details"). */
-  onOpenTreatmentPlan?: () => void;
-  /** Open the treatment plan modal with prefill (e.g. from View examples → Add to plan). */
-  onOpenTreatmentPlanWithPrefill?: (prefill: TreatmentPlanPrefill) => void;
-  /** Open the treatment plan modal with this item selected for editing ("Add additional details"). */
-  onOpenTreatmentPlanWithItem?: (item: DiscussedItem) => void;
-  /** Ref set by parent; when treatment plan modal closes, parent will call this so we clear "just added" state. */
-  treatmentPlanModalClosedRef?: React.MutableRefObject<(() => void) | null>;
   /** Region filter chips — used when sending post-visit blueprint (AI mirror highlights). */
   onRecommenderRegionsChange?: (regions: readonly string[]) => void;
 }
@@ -163,10 +174,6 @@ export default function TreatmentRecommenderBySuggestion({
   onBack: _onBack,
   onUpdate,
   onAddToPlanDirect,
-  onOpenTreatmentPlan,
-  onOpenTreatmentPlanWithPrefill,
-  onOpenTreatmentPlanWithItem,
-  treatmentPlanModalClosedRef,
   onRecommenderRegionsChange,
 }: TreatmentRecommenderBySuggestionProps) {
   const { provider } = useDashboard();
@@ -345,7 +352,7 @@ export default function TreatmentRecommenderBySuggestion({
     }
   };
 
-  /** Whether this suggestion is already in the treatment plan (so we show "Added" and "Add additional details"). */
+  /** Whether this suggestion is already in the treatment plan (so we show "Added"). */
   const isSuggestionInPlan = (suggestionName: string): boolean => {
     if (lastAddedItem && lastAddedItem.interest === suggestionName) return true;
     return (client.discussedItems ?? []).some(
@@ -354,13 +361,25 @@ export default function TreatmentRecommenderBySuggestion({
   };
 
   useEffect(() => {
-    if (!treatmentPlanModalClosedRef) return;
-    treatmentPlanModalClosedRef.current = () => setLastAddedItem(null);
-    return () => {
-      if (treatmentPlanModalClosedRef)
-        treatmentPlanModalClosedRef.current = null;
-    };
-  }, [treatmentPlanModalClosedRef]);
+    if (!addToPlanForSuggestion || addToPlanForSuggestion.what === "Skincare")
+      return;
+    const { options } = getQuantityContext(
+      addToPlanForSuggestion.what,
+      addToPlanForSuggestion.product?.trim() || undefined,
+    );
+    const q = (addToPlanForSuggestion.quantity ?? "").trim();
+    if (q && options.includes(q)) return;
+    const next = options[0] ?? "";
+    if (q !== next) {
+      setAddToPlanForSuggestion((prev) =>
+        prev ? { ...prev, quantity: next } : null,
+      );
+    }
+  }, [
+    addToPlanForSuggestion?.what,
+    addToPlanForSuggestion?.product,
+    addToPlanForSuggestion?.quantity,
+  ]);
 
   const isInPlanOrInterests = (suggestionName: string): boolean => {
     const interested = client.interestedIssues;
@@ -761,38 +780,6 @@ export default function TreatmentRecommenderBySuggestion({
                               <p className="treatment-recommender-by-suggestion__added-message">
                                 Added to treatment plan
                               </p>
-                              {onOpenTreatmentPlanWithItem ? (
-                                <button
-                                  type="button"
-                                  className="treatment-recommender-by-suggestion__add-details-btn"
-                                  onClick={() => {
-                                    const itemToEdit =
-                                      lastAddedItem &&
-                                      lastAddedItem.interest === suggestionName
-                                        ? lastAddedItem
-                                        : [...(client.discussedItems ?? [])]
-                                            .reverse()
-                                            .find(
-                                              (i) =>
-                                                i.interest === suggestionName,
-                                            );
-                                    if (itemToEdit)
-                                      onOpenTreatmentPlanWithItem(itemToEdit);
-                                    else if (onOpenTreatmentPlan)
-                                      onOpenTreatmentPlan();
-                                  }}
-                                >
-                                  Add additional details
-                                </button>
-                              ) : onOpenTreatmentPlan ? (
-                                <button
-                                  type="button"
-                                  className="treatment-recommender-by-suggestion__add-details-btn"
-                                  onClick={() => onOpenTreatmentPlan()}
-                                >
-                                  Add additional details
-                                </button>
-                              ) : null}
                             </div>
                           ) : addToPlanForSuggestion?.suggestionName ===
                             suggestionName ? (
@@ -885,6 +872,46 @@ export default function TreatmentRecommenderBySuggestion({
                               <details className="treatment-recommender-by-suggestion__details">
                                 <summary>Optional details</summary>
                                 <div className="treatment-recommender-by-suggestion__details-fields">
+                                  {addToPlanForSuggestion.what !== "Skincare"
+                                    ? (() => {
+                                        const qtyCtx = getQuantityContext(
+                                          addToPlanForSuggestion.what,
+                                          addToPlanForSuggestion.product?.trim() ||
+                                            undefined,
+                                        );
+                                        return (
+                                          <label className="treatment-recommender-by-suggestion__details-label">
+                                            {qtyCtx.unitLabel}
+                                            <select
+                                              className="treatment-recommender-by-suggestion__details-input treatment-recommender-by-suggestion__quantity-select"
+                                              aria-label={qtyCtx.unitLabel}
+                                              value={
+                                                addToPlanForSuggestion.quantity ??
+                                                ""
+                                              }
+                                              onChange={(e) =>
+                                                setAddToPlanForSuggestion(
+                                                  (prev) =>
+                                                    prev
+                                                      ? {
+                                                          ...prev,
+                                                          quantity:
+                                                            e.target.value,
+                                                        }
+                                                      : null,
+                                                )
+                                              }
+                                            >
+                                              {qtyCtx.options.map((opt) => (
+                                                <option key={opt} value={opt}>
+                                                  {opt}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </label>
+                                        );
+                                      })()
+                                    : null}
                                   <label className="treatment-recommender-by-suggestion__details-label">
                                     Product
                                     <input
@@ -900,27 +927,6 @@ export default function TreatmentRecommenderBySuggestion({
                                             ? {
                                                 ...prev,
                                                 product: e.target.value,
-                                              }
-                                            : null,
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                  <label className="treatment-recommender-by-suggestion__details-label">
-                                    Quantity
-                                    <input
-                                      type="text"
-                                      className="treatment-recommender-by-suggestion__details-input"
-                                      placeholder="e.g. 2"
-                                      value={
-                                        addToPlanForSuggestion.quantity ?? ""
-                                      }
-                                      onChange={(e) =>
-                                        setAddToPlanForSuggestion((prev) =>
-                                          prev
-                                            ? {
-                                                ...prev,
-                                                quantity: e.target.value,
                                               }
                                             : null,
                                         )
@@ -970,16 +976,17 @@ export default function TreatmentRecommenderBySuggestion({
                               className="treatment-recommender-by-suggestion__add-btn"
                               onClick={() => {
                                 const treatments =
-                                  getTreatmentsForInterest(suggestionName, provider?.code);
-                                setAddToPlanForSuggestion({
-                                  suggestionName,
-                                  what: treatments[0] ?? "",
-                                  where: [],
-                                  when: TIMELINE_OPTIONS[0],
-                                  product: "",
-                                  quantity: "",
-                                  notes: "",
-                                });
+                                  getTreatmentsForInterest(
+                                    suggestionName,
+                                    provider?.code,
+                                  );
+                                const what = treatments[0] ?? "";
+                                setAddToPlanForSuggestion(
+                                  initialAddToPlanRowForSuggestion(
+                                    suggestionName,
+                                    what,
+                                  ),
+                                );
                               }}
                             >
                               Add to plan
@@ -1012,11 +1019,11 @@ export default function TreatmentRecommenderBySuggestion({
           selectedRegion={SUGGESTION_TO_AREA[photoExplorerInterest]}
           onClose={() => setPhotoExplorerInterest(null)}
           onUpdate={onUpdate}
-          onAddToPlanWithPrefill={
-            onOpenTreatmentPlanWithPrefill
-              ? (prefill) => {
+          onAddToPlanDirect={
+            onAddToPlanDirect
+              ? async (prefill) => {
                   setPhotoExplorerInterest(null);
-                  onOpenTreatmentPlanWithPrefill(prefill);
+                  await onAddToPlanDirect(prefill);
                 }
               : undefined
           }

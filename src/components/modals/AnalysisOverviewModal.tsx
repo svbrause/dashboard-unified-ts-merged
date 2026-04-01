@@ -7,7 +7,7 @@ import {
   SubScoreFeatureRow,
 } from "../analysisOverview/FeatureBreakdownRows";
 import { useDashboard } from "../../context/DashboardContext";
-import { Client, TreatmentPhoto } from "../../types";
+import { Client, DiscussedItem, TreatmentPhoto } from "../../types";
 import { fetchTreatmentPhotos, fetchTableRecords, fetchAIAssessment, fetchCategoryAssessment } from "../../services/api";
 import type { AirtableRecord } from "../../services/api";
 import {
@@ -31,8 +31,15 @@ import {
   getDetectedIssuesFromClient,
   getInterestAreaNamesFromClient,
 } from "../../utils/analysisOverviewClient";
-import { getSuggestedTreatmentsForFindings } from "./DiscussedTreatmentsModal/utils";
-import { TREATMENT_META } from "./DiscussedTreatmentsModal/constants";
+import {
+  getSuggestedTreatmentsForFindings,
+  getQuantityContext,
+} from "./DiscussedTreatmentsModal/utils";
+import {
+  TREATMENT_META,
+  REGION_OPTIONS,
+  TIMELINE_OPTIONS,
+} from "./DiscussedTreatmentsModal/constants";
 import type { TreatmentPlanPrefill } from "./DiscussedTreatmentsModal/TreatmentPhotos";
 import PhotoViewerModal from "./PhotoViewerModal";
 import { AiSparkleLogo, GeminiWordmark } from "../ai/AiGeminiBrand";
@@ -100,8 +107,10 @@ export type DetailView =
 interface AnalysisOverviewModalProps {
   client: Client;
   onClose: () => void;
-  /** When provided, "Add to plan" in detail views opens the treatment plan with this prefill (parent should close overview and open DiscussedTreatmentsModal). Second arg is current drill-down state so parent can reopen overview there when treatment plan closes. */
-  onAddToPlan?: (prefill: TreatmentPlanPrefill, returnState?: DetailView) => void;
+  /** Add suggested treatment directly to the plan (same flow as treatment recommender — no full plan modal). */
+  onAddToPlanDirect?: (
+    prefill: TreatmentPlanPrefill,
+  ) => Promise<void> | void;
   /** If set, the modal opens with this detail view (e.g. after returning from treatment plan). */
   initialDetailView?: DetailView | null;
 }
@@ -275,48 +284,135 @@ function getWhyThisTreatment(
   return `We noticed some ${exampleFinding.toLowerCase()} in this area, which is very common. ${treatment} is a gentle, effective approach to help with ${goal.toLowerCase()}.`;
 }
 
-/** Single treatment row: one relevant photo, why text, meta (longevity/downtime/price), Add to plan */
-const TIMELINE_OPTIONS = ["Now", "Next Visit", "Wishlist"] as const;
-type TimelineOption = typeof TIMELINE_OPTIONS[number];
+const TIMELINE_OPTIONS_ADD = TIMELINE_OPTIONS.filter((t) => t !== "Completed");
 
+function parseWhereChipsFromOverviewRegion(region: string): string[] {
+  const opts = REGION_OPTIONS.filter(
+    (r) => r !== "Multiple" && r !== "Other",
+  );
+  const raw = region.trim();
+  if (!raw) return [];
+  const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const out: string[] = [];
+  for (const p of parts) {
+    if (opts.includes(p)) {
+      if (!out.includes(p)) out.push(p);
+      continue;
+    }
+    const found = opts.find((o) => o.toLowerCase() === p.toLowerCase());
+    if (found && !out.includes(found)) out.push(found);
+  }
+  if (out.length === 0 && opts.includes(raw)) return [raw];
+  return out;
+}
+
+function overviewSuggestionOnPlan(
+  s: { treatment: string; goal: string; region: string },
+  items: DiscussedItem[] | undefined,
+): boolean {
+  if (!items?.length) return false;
+  const t = s.treatment.trim();
+  const g = s.goal.trim().toLowerCase();
+  const reg = s.region.trim().toLowerCase();
+  return items.some((i) => {
+    if ((i.treatment ?? "").trim() !== t) return false;
+    const ig = (i.interest ?? "").trim().toLowerCase();
+    if (g && ig !== g) return false;
+    const ir = (i.region ?? "").trim().toLowerCase();
+    if (!reg || !ir) return true;
+    return ir === reg || ir.includes(reg) || reg.includes(ir);
+  });
+}
+
+/** Single treatment row: photo, meta, inline add form (aligned with treatment recommender). */
 function TreatmentRowContent({
   suggestion,
   bestPhoto,
-  onAddToPlan,
+  discussedItems,
+  onAddToPlanDirect,
 }: {
   suggestion: { treatment: string; goal: string; region: string; exampleFinding: string };
   bestPhoto: TreatmentPhoto | null;
-  onAddToPlan?: (prefill: TreatmentPlanPrefill) => void;
+  discussedItems?: DiscussedItem[];
+  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => Promise<void> | void;
 }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [showTimeline, setShowTimeline] = useState(false);
-  const [addedTimeline, setAddedTimeline] = useState<TimelineOption | null>(null);
-  // (inline confirmation is handled by addedTimeline state)
+  const [formOpen, setFormOpen] = useState(false);
+  const [when, setWhen] = useState(TIMELINE_OPTIONS_ADD[0] ?? "Now");
+  const [where, setWhere] = useState<string[]>([]);
+  const [product, setProduct] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
   const meta = TREATMENT_META[suggestion.treatment];
   const whyText = getWhyThisTreatment(
     suggestion.exampleFinding,
     suggestion.goal,
-    suggestion.treatment
+    suggestion.treatment,
   );
 
-  const handleAddWithTimeline = (timeline: TimelineOption) => {
-    setShowTimeline(false);
-    // Build the prefill for the inline confirmation
-    const prefill: TreatmentPlanPrefill = {
-      interest: suggestion.goal,
-      region: suggestion.region,
-      treatment: suggestion.treatment,
-      findings: [suggestion.exampleFinding],
-      timeline,
-    };
-    // Confirm inline – don't navigate away
-    setAddedTimeline(timeline);
-    // Notify parent for persistence (but parent should NOT close modal)
-    onAddToPlan?.(prefill);
+  const isSkincare = suggestion.treatment === "Skincare";
+  const isLaser = suggestion.treatment === "Energy Device";
+  const onPlan = overviewSuggestionOnPlan(suggestion, discussedItems);
+  const showWhereRow = !isSkincare && !isLaser;
+
+  const openForm = () => {
+    setWhere(parseWhereChipsFromOverviewRegion(suggestion.region));
+    setWhen(TIMELINE_OPTIONS_ADD[0] ?? "Now");
+    setProduct("");
+    setNotes("");
+    setQuantity(
+      isSkincare
+        ? ""
+        : getQuantityContext(suggestion.treatment, undefined).options[0] ?? "",
+    );
+    setFormOpen(true);
   };
 
-  const handleRemove = () => {
-    setAddedTimeline(null);
+  useEffect(() => {
+    if (!formOpen || isSkincare) return;
+    const { options } = getQuantityContext(
+      suggestion.treatment,
+      product.trim() || undefined,
+    );
+    const q = quantity.trim();
+    if (q && options.includes(q)) return;
+    const next = options[0] ?? "";
+    if (q !== next) setQuantity(next);
+  }, [formOpen, isSkincare, suggestion.treatment, product, quantity]);
+
+  const handleConfirm = async () => {
+    if (!onAddToPlanDirect) return;
+    const region =
+      isSkincare || isLaser
+        ? ""
+        : where.length > 0
+          ? where.join(", ")
+          : suggestion.region.trim();
+    const prefill: TreatmentPlanPrefill = {
+      interest: suggestion.goal,
+      region,
+      treatment: suggestion.treatment,
+      findings: [suggestion.exampleFinding],
+      timeline: when,
+      treatmentProduct: product.trim() || undefined,
+      quantity: quantity.trim() || undefined,
+      notes: notes.trim() || undefined,
+    };
+    setSaving(true);
+    try {
+      await onAddToPlanDirect(prefill);
+      setFormOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleWhere = (r: string) => {
+    setWhere((prev) =>
+      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r],
+    );
   };
 
   return (
@@ -339,41 +435,131 @@ function TreatmentRowContent({
               {meta.priceRange && <span>Price: {meta.priceRange}</span>}
             </div>
           )}
-          <div className="ao-detail__treatment-actions">
-            {addedTimeline ? (
-              <>
-                <span className="ao-detail__treatment-added">
-                  ✓ Added · {addedTimeline}
-                </span>
-                <button
-                  type="button"
-                  className="ao-detail__treatment-remove"
-                  onClick={handleRemove}
-                >
-                  Remove
-                </button>
-              </>
-            ) : showTimeline ? (
-              <div className="ao-detail__inline-panel">
-                <span className="ao-detail__inline-panel-label">When?</span>
-                <div className="ao-detail__timeline-picker">
-                  {TIMELINE_OPTIONS.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      className="ao-detail__timeline-btn"
-                      onClick={() => handleAddWithTimeline(t)}
-                    >
-                      {t}
-                    </button>
-                  ))}
+          <div className="ao-detail__treatment-actions ao-detail__treatment-actions--stack">
+            {onPlan && !formOpen ? (
+              <div className="ao-detail__added-row">
+                <span className="ao-detail__treatment-added">✓ Added to plan</span>
+                {onAddToPlanDirect ? (
+                  <button
+                    type="button"
+                    className="ao-detail__treatment-add ao-detail__treatment-add--subtle"
+                    onClick={openForm}
+                  >
+                    Add again
+                  </button>
+                ) : null}
+              </div>
+            ) : formOpen ? (
+              <div className="ao-detail__add-form">
+                <div className="ao-detail__add-row">
+                  <span>When</span>
+                  <div className="ao-detail__add-chip-row">
+                    {TIMELINE_OPTIONS_ADD.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        className={`ao-detail__timeline-btn${when === t ? " ao-detail__timeline-btn--selected" : ""}`}
+                        onClick={() => setWhen(t)}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {showWhereRow ? (
+                  <div className="ao-detail__add-row">
+                    <span>Where</span>
+                    <div className="ao-detail__add-chip-row">
+                      {REGION_OPTIONS.filter(
+                        (r) => r !== "Multiple" && r !== "Other",
+                      ).map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          className={`ao-detail__timeline-btn${where.includes(r) ? " ao-detail__timeline-btn--selected" : ""}`}
+                          onClick={() => toggleWhere(r)}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {!isSkincare
+                  ? (() => {
+                      const qtyCtx = getQuantityContext(
+                        suggestion.treatment,
+                        product.trim() || undefined,
+                      );
+                      return (
+                        <div className="ao-detail__add-row">
+                          <span>{qtyCtx.unitLabel}</span>
+                          <select
+                            className="ao-detail__quantity-select"
+                            aria-label={qtyCtx.unitLabel}
+                            value={quantity}
+                            onChange={(e) => setQuantity(e.target.value)}
+                          >
+                            {qtyCtx.options.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()
+                  : null}
+                <details className="ao-detail__add-details">
+                  <summary>Optional details</summary>
+                  <div className="ao-detail__add-details-fields">
+                    <label className="ao-detail__add-field">
+                      Product
+                      <input
+                        type="text"
+                        className="ao-detail__add-input"
+                        placeholder="e.g. Juvederm, Moxi"
+                        value={product}
+                        onChange={(e) => setProduct(e.target.value)}
+                      />
+                    </label>
+                    <label className="ao-detail__add-field">
+                      Notes
+                      <textarea
+                        className="ao-detail__add-textarea"
+                        placeholder="Optional notes"
+                        rows={2}
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                </details>
+                <div className="ao-detail__add-actions">
+                  <button
+                    type="button"
+                    className="ao-detail__add-confirm"
+                    disabled={saving || !onAddToPlanDirect}
+                    onClick={() => void handleConfirm()}
+                  >
+                    {saving ? "Adding…" : "Confirm"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ao-detail__add-cancel"
+                    disabled={saving}
+                    onClick={() => setFormOpen(false)}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
               <button
                 type="button"
                 className="ao-detail__treatment-add"
-                onClick={() => setShowTimeline(true)}
+                disabled={!onAddToPlanDirect}
+                onClick={openForm}
               >
                 Add to plan
               </button>
@@ -598,7 +784,8 @@ function CategoryDetailContent({
   categoryKey,
   detectedIssues,
   onBack,
-  onAddToPlan,
+  discussedItems,
+  onAddToPlanDirect,
   treatmentPhotos,
   treatmentPhotosLoading,
   providerCode,
@@ -606,7 +793,8 @@ function CategoryDetailContent({
   categoryKey: string;
   detectedIssues: Set<string>;
   onBack: () => void;
-  onAddToPlan?: (prefill: TreatmentPlanPrefill) => void;
+  discussedItems?: DiscussedItem[];
+  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => Promise<void> | void;
   treatmentPhotos: TreatmentPhoto[];
   treatmentPhotosLoading: boolean;
   providerCode?: string;
@@ -770,7 +958,8 @@ function CategoryDetailContent({
                   <TreatmentRowContent
                     suggestion={s}
                     bestPhoto={bestPhoto}
-                    onAddToPlan={onAddToPlan}
+                    discussedItems={discussedItems}
+                    onAddToPlanDirect={onAddToPlanDirect}
                   />
                 </li>
               );
@@ -788,7 +977,8 @@ function AreaDetailContent({
   detectedIssues,
   interestAreaNames,
   onBack,
-  onAddToPlan,
+  discussedItems,
+  onAddToPlanDirect,
   treatmentPhotos,
   treatmentPhotosLoading,
   providerCode,
@@ -797,7 +987,8 @@ function AreaDetailContent({
   detectedIssues: Set<string>;
   interestAreaNames: Set<string>;
   onBack: () => void;
-  onAddToPlan?: (prefill: TreatmentPlanPrefill) => void;
+  discussedItems?: DiscussedItem[];
+  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => Promise<void> | void;
   treatmentPhotos: TreatmentPhoto[];
   treatmentPhotosLoading: boolean;
   providerCode?: string;
@@ -955,7 +1146,8 @@ function AreaDetailContent({
                   <TreatmentRowContent
                     suggestion={s}
                     bestPhoto={bestPhoto}
-                    onAddToPlan={onAddToPlan}
+                    discussedItems={discussedItems}
+                    onAddToPlanDirect={onAddToPlanDirect}
                   />
                 </li>
               );
@@ -970,14 +1162,14 @@ function AreaDetailContent({
 export default function AnalysisOverviewModal({
   client,
   onClose,
-  onAddToPlan,
+  onAddToPlanDirect,
   initialDetailView,
 }: AnalysisOverviewModalProps) {
   const { provider } = useDashboard();
   const [animate, setAnimate] = useState(false);
   const [detailView, setDetailView] = useState<DetailView>(null);
 
-  // Restore drill-down when reopening from treatment plan
+  // Restore drill-down when parent re-opens with a saved view (e.g. after closing another modal).
   useEffect(() => {
     if (initialDetailView !== undefined) {
       setDetailView(initialDetailView ?? null);
@@ -1130,13 +1322,6 @@ export default function AnalysisOverviewModal({
     CATEGORIES[0]?.key ?? null
   );
 
-  // Inline treatment plan handler – records additions without navigating away
-  const handleInlineAddToPlan = (prefill: TreatmentPlanPrefill) => {
-    // Notify parent for persistence if available, but DON'T navigate away
-    // Parent should check if inline mode is active and skip closing the overview
-    onAddToPlan?.(prefill, detailView);
-  };
-
   return (
     <div className="modal-overlay active" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="ao-modal-title">
       <div
@@ -1184,7 +1369,8 @@ export default function AnalysisOverviewModal({
               categoryKey={detailView.key}
               detectedIssues={detectedIssues}
               onBack={() => setDetailView(null)}
-              onAddToPlan={handleInlineAddToPlan}
+              discussedItems={client.discussedItems}
+              onAddToPlanDirect={onAddToPlanDirect}
               treatmentPhotos={treatmentPhotos}
               treatmentPhotosLoading={treatmentPhotosLoading}
               providerCode={provider?.code}
@@ -1195,7 +1381,8 @@ export default function AnalysisOverviewModal({
               detectedIssues={detectedIssues}
               interestAreaNames={interestAreaNames}
               onBack={() => setDetailView(null)}
-              onAddToPlan={handleInlineAddToPlan}
+              discussedItems={client.discussedItems}
+              onAddToPlanDirect={onAddToPlanDirect}
               treatmentPhotos={treatmentPhotos}
               treatmentPhotosLoading={treatmentPhotosLoading}
               providerCode={provider?.code}

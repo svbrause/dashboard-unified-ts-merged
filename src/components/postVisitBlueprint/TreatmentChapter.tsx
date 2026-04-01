@@ -191,7 +191,10 @@ export function TreatmentChapterView({
     };
   }, [chapter, chapterOverview.planBullets, chapterAnalysisContext]);
 
+  const [cardRef, cardInView] = useInViewOnce<HTMLElement>("0px 0px -5% 0px", 0.05);
+
   useEffect(() => {
+    if (!cardInView) return;
     let cancelled = false;
     setAiChapterAnalysis(null);
     void (async () => {
@@ -202,7 +205,7 @@ export function TreatmentChapterView({
     return () => {
       cancelled = true;
     };
-  }, [aiChapterPayload]);
+  }, [aiChapterPayload, cardInView]);
 
   const chapterOverviewResolved = useMemo(
     () => {
@@ -261,8 +264,6 @@ export function TreatmentChapterView({
     },
     [onCaseDetail],
   );
-
-  const [cardRef, cardInView] = useInViewOnce<HTMLElement>("0px 0px -5% 0px", 0.05);
 
   return (
     <article

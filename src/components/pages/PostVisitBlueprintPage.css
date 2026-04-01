@@ -2036,12 +2036,20 @@
   border: none;
   width: 32px;
   height: 32px;
+  min-width: 32px;
+  /* Override global mobile `button { min-height: 44px }` — that stretched 32×32 into ovals */
+  min-height: 32px;
+  aspect-ratio: 1;
+  padding: 0;
+  box-sizing: border-box;
   border-radius: 50%;
   display: grid;
   place-items: center;
   font-size: 1.3rem;
+  line-height: 1;
   color: #64748b;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .pvb-drawer-scroll {

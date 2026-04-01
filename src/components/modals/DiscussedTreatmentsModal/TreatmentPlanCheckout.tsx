@@ -1376,19 +1376,17 @@ function matchSkincareProductForQuote(
 }
 
 /**
- * Quote line items and total for non-wishlist rows — matches the checkout "quote" payload
- * (no per-row UI overrides; uses stored plan fields only).
+ * One checkout line per discussed row (same index as `items`) — used by share modal preview
+ * and {@link computeQuoteSheetDataForDiscussedItems}.
  */
-export function computeQuoteSheetDataForDiscussedItems(
+export function getAlignedCheckoutLineItemsForDiscussedItems(
   items: DiscussedItem[],
-): {
-  lineItems: CheckoutLineItemDetail[];
-  total: number;
-  hasUnknownPrices: boolean;
-} | null {
-  if (items.length === 0) return null;
+): CheckoutLineItemDetail[] {
+  if (items.length === 0) return [];
   const carouselItems = getSkincareCarouselItems();
-  const getSkincareProductInfo = (productName: string): SkincareProductInfo | null => {
+  const getSkincareProductInfo = (
+    productName: string,
+  ): SkincareProductInfo | null => {
     const found = matchSkincareProductForQuote(productName, carouselItems);
     if (!found) return null;
     const priceStr = found.price;
@@ -1412,6 +1410,22 @@ export function computeQuoteSheetDataForDiscussedItems(
     (item) => getCheckoutDisplayName(item as DiscussedItem),
     getSkincareProductInfo,
   );
+  return lineItems;
+}
+
+/**
+ * Quote line items and total for non-wishlist rows — matches the checkout "quote" payload
+ * (no per-row UI overrides; uses stored plan fields only).
+ */
+export function computeQuoteSheetDataForDiscussedItems(
+  items: DiscussedItem[],
+): {
+  lineItems: CheckoutLineItemDetail[];
+  total: number;
+  hasUnknownPrices: boolean;
+} | null {
+  if (items.length === 0) return null;
+  const lineItems = getAlignedCheckoutLineItemsForDiscussedItems(items);
   const skincareIndices: number[] = [];
   const treatmentIndices: number[] = [];
   items.forEach((eff, idx) => {

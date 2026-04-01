@@ -173,7 +173,10 @@ export default function PlanListColumn({
                         }
                       }}
                       aria-label={`Select ${getTreatmentDisplayName(item)}${
-                        item.product ? ` / ${item.product}` : ""
+                        item.product &&
+                        (item.treatment || "").trim() !== "Skincare"
+                          ? ` / ${item.product}`
+                          : ""
                       }`}
                       aria-selected={
                         selectedPlanItemId === item.id || editingId === item.id

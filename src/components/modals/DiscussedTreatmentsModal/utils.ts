@@ -27,6 +27,7 @@ import {
   isWellnestWellnessProviderCode,
   WELLNEST_OFFERINGS,
 } from "../../../data/wellnestOfferings";
+import { patientFacingSkincareShortName } from "../../../utils/pvbSkincareDisplay";
 
 export function getRecommendedProducts(
   treatment: string,
@@ -232,6 +233,8 @@ export function getQuantityContext(
   if (
     t === "laser" ||
     t.includes("laser") ||
+    t === "energy device" ||
+    t.includes("energy device") ||
     t === "rf" ||
     t === "radiofrequency" ||
     t.includes("radiofrequency") ||
@@ -306,7 +309,11 @@ export function getTreatmentDisplayName(item: DiscussedItem): string {
   if (item.treatment === TREATMENT_GOAL_ONLY && item.interest?.trim()) {
     return item.interest.trim();
   }
-  return (item.treatment || "").trim() || "—";
+  const t = (item.treatment || "").trim();
+  if (t === "Skincare" && (item.product || "").trim()) {
+    return patientFacingSkincareShortName(item.product!.trim());
+  }
+  return t || "—";
 }
 
 /** Display name for checkout: for Skincare with a product, show the product name (e.g. "SkinCeuticals C E Ferulic"); otherwise same as getTreatmentDisplayName. */
@@ -323,14 +330,15 @@ export function formatTreatmentPlanRecordMetaLine(item: DiscussedItem): string {
   const area = getDisplayAreaForItem(item);
   if (area) parts.push(area);
   const product = (item.product || "").trim();
-  if (product) parts.push(product);
+  const isSkincare = (item.treatment || "").trim() === "Skincare";
+  if (product && !isSkincare) parts.push(product);
   if (item.quantity && String(item.quantity).trim()) parts.push(`Qty: ${item.quantity}`);
   return parts.join(TREATMENT_PLAN_BULLET);
 }
 
 /** Build a single line of non-empty parts: treatment, area, product, quantity (timeline omitted; sections group by timeline). */
 export function formatTreatmentPlanRecordLine(item: DiscussedItem): string {
-  const treatment = (item.treatment || "").trim();
+  const heading = getTreatmentDisplayName(item);
   const meta = formatTreatmentPlanRecordMetaLine(item);
-  return treatment && meta ? `${treatment}${TREATMENT_PLAN_BULLET}${meta}` : treatment || meta;
+  return heading && meta ? `${heading}${TREATMENT_PLAN_BULLET}${meta}` : heading || meta;
 }

@@ -180,6 +180,8 @@ export function buildPvbMainPlanFramingParagraphs(
     open = `${forName}, this plan was built around ${formatEnglishList(goals)}\u2014informed by what your analysis found, including ${formatEnglishList(findings)}.`;
   } else if (goals.length > 0) {
     open = `${forName}, this plan is designed around ${formatEnglishList(goals)}.${focus.length > 0 ? ` Your provider focused on ${formatEnglishList(focus)}.` : ""}`;
+  } else if (findings.length > 0 && areas.length > 0) {
+    open = `${forName}, this plan was put together for ${formatEnglishList(areas)}, to address ${formatEnglishList(findings)}\u2014the concerns your team tied to those areas during your visit and assessment.`;
   } else if (findings.length > 0) {
     open = `${forName}, your team identified ${formatEnglishList(findings)}\u2014the plan below addresses each of these.`;
   } else if (interests.length > 0 && areas.length > 0) {

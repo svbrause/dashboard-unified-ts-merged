@@ -1227,6 +1227,17 @@ export interface TreatmentChapterOverviewPayload {
 }
 
 const LLM_BACKEND_TIMEOUT_MS = 28_000;
+const chapterOverviewCache = new Map<string, string | null>();
+const chapterOverviewInFlight = new Map<string, Promise<string | null>>();
+
+function chapterOverviewCacheKey(payload: TreatmentChapterOverviewPayload): string {
+  return JSON.stringify(payload);
+}
+
+function canUseLocalDevChapterFallback(): boolean {
+  if (!import.meta.env.DEV) return false;
+  return /localhost|127\.0\.0\.1/i.test(API_BASE_URL);
+}
 
 /**
  * Server-side chapter overview; falls back to localhost Vite Gemini/OpenAI only if the backend fails.
@@ -1234,28 +1245,58 @@ const LLM_BACKEND_TIMEOUT_MS = 28_000;
 export async function fetchTreatmentChapterOverview(
   payload: TreatmentChapterOverviewPayload,
 ): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), LLM_BACKEND_TIMEOUT_MS);
-    const res = await fetch(
-      `${API_BASE_URL}/api/pvb/treatment-chapter-overview`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      },
-    );
-    clearTimeout(timeout);
-    if (res.ok) {
-      const data = (await res.json()) as { overview?: string };
-      const t = data.overview?.trim();
-      if (t && t.length > 0) return t;
-    }
-  } catch {
-    /* try dev fallback */
+  const cacheKey = chapterOverviewCacheKey(payload);
+  if (chapterOverviewCache.has(cacheKey)) {
+    return chapterOverviewCache.get(cacheKey) ?? null;
   }
-  return fetchTreatmentChapterOverviewViaDevGemini(payload);
+  const existing = chapterOverviewInFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const pending = (async (): Promise<string | null> => {
+    let shouldTryDevFallback = canUseLocalDevChapterFallback();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), LLM_BACKEND_TIMEOUT_MS);
+      const res = await fetch(
+        `${API_BASE_URL}/api/pvb/treatment-chapter-overview`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        },
+      );
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = (await res.json()) as { overview?: string };
+        const t = data.overview?.trim();
+        const result = t && t.length > 0 ? t : null;
+        chapterOverviewCache.set(cacheKey, result);
+        return result;
+      }
+
+      // If the hosted backend responded explicitly, do not hammer local Gemini too.
+      shouldTryDevFallback = false;
+      chapterOverviewCache.set(cacheKey, null);
+      return null;
+    } catch {
+      if (!shouldTryDevFallback) {
+        chapterOverviewCache.set(cacheKey, null);
+        return null;
+      }
+    }
+
+    const fallback = await fetchTreatmentChapterOverviewViaDevGemini(payload);
+    chapterOverviewCache.set(cacheKey, fallback);
+    return fallback;
+  })();
+
+  chapterOverviewInFlight.set(cacheKey, pending);
+  try {
+    return await pending;
+  } finally {
+    chapterOverviewInFlight.delete(cacheKey);
+  }
 }
 
 /**
