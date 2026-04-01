@@ -35,7 +35,7 @@ import { isWellnestWellnessProviderCode } from "../../data/wellnestOfferings";
 import { buildWellnestBlueprintCasePhotos } from "../../utils/wellnestBlueprintCases";
 import { AiMirrorCanvas } from "../postVisitBlueprint/AiMirrorCanvas";
 import { PvbNarrativeAudioControls } from "../postVisitBlueprint/PvbNarrativeAudioControls";
-import { PvbTypewriterParagraphs } from "../postVisitBlueprint/PvbTypewriterParagraphs";
+import { PvbOverviewSectionsSequentialTypewriter } from "../postVisitBlueprint/PvbTypewriterParagraphs";
 import { TreatmentChapterView } from "../postVisitBlueprint/TreatmentChapter";
 import { getPostVisitBlueprintVideoCatalog } from "../../config/postVisitBlueprintVideos";
 import { buildTreatmentChapters } from "../../utils/blueprintTreatmentChapters";
@@ -1095,16 +1095,12 @@ export default function PostVisitBlueprintPage() {
               role="region"
               aria-labelledby="pvb-analysis-heading"
             >
-              {mainOverviewSections.map((sec, i) => (
-                <section className="pvb-overview-section" key={i}>
-                  <h3 className="pvb-overview-section-title">{sec.heading}</h3>
-                  <PvbTypewriterParagraphs
-                    paragraphs={[sec.text]}
-                    paragraphClassName="pvb-overview-section-body"
-                    msPerChar={15}
-                  />
-                </section>
-              ))}
+              <PvbOverviewSectionsSequentialTypewriter
+                sections={mainOverviewSections}
+                titleClassName="pvb-overview-section-title"
+                paragraphClassName="pvb-overview-section-body"
+                msPerChar={15}
+              />
 
               {analysisDisplay.profileLabels.length > 0 && (
                 <section className="pvb-overview-section">
