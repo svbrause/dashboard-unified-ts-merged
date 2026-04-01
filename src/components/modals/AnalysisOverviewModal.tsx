@@ -436,17 +436,21 @@ function SuggestionCard({
     setProduct("");
     setNotes("");
     setQuantity(
-      isSkincare ? "" : getQuantityContext(treatments[0] ?? "", undefined).options[0] ?? "",
+      isSkincare
+        ? ""
+        : getQuantityContext(treatments[0] ?? "", undefined).defaultQuantity,
     );
     setFormOpen(true);
   };
 
   useEffect(() => {
     if (!formOpen || isSkincare) return;
-    const { options } = getQuantityContext(what, product.trim() || undefined);
+    const qtyCtx = getQuantityContext(what, product.trim() || undefined);
+    if (qtyCtx.quantityControl === "text") return;
+    const { options, defaultQuantity } = qtyCtx;
     const q = quantity.trim();
     if (q && options.includes(q)) return;
-    const next = options[0] ?? "";
+    const next = defaultQuantity;
     if (q !== next) setQuantity(next);
   }, [formOpen, isSkincare, what, product, quantity]);
 
@@ -628,15 +632,31 @@ function SuggestionCard({
                   return (
                     <div className="ao-suggestion-card__form-row">
                       <span>{qtyCtx.unitLabel}</span>
-                      <select
-                        className="ao-suggestion-card__select"
-                        value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
-                      >
-                        {qtyCtx.options.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
+                      {qtyCtx.quantityControl === "text" ? (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="ao-suggestion-card__select"
+                          aria-label={qtyCtx.unitLabel}
+                          placeholder={qtyCtx.defaultQuantity}
+                          value={quantity}
+                          onChange={(e) =>
+                            setQuantity(e.target.value.replace(/\D/g, ""))
+                          }
+                        />
+                      ) : (
+                        <select
+                          className="ao-suggestion-card__select"
+                          value={quantity}
+                          onChange={(e) => setQuantity(e.target.value)}
+                        >
+                          {qtyCtx.options.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   );
                 })()}

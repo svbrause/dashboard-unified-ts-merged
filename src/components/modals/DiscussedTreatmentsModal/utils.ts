@@ -28,6 +28,7 @@ import {
   WELLNEST_OFFERINGS,
 } from "../../../data/wellnestOfferings";
 import { patientFacingSkincareShortName } from "../../../utils/pvbSkincareDisplay";
+import { DEFAULT_NEUROTOXIN_UNITS_FOR_QUOTE } from "../../../data/treatmentPricing2025";
 
 export function getRecommendedProducts(
   treatment: string,
@@ -190,15 +191,30 @@ export function getTreatmentsForInterest(
   return filtered;
 }
 
+/** Preset dropdown vs freeform text (e.g. neurotoxin units). */
+export type QuantityControl = "select" | "text";
+
+export interface QuantityContext {
+  unitLabel: string;
+  options: string[];
+  quantityControl: QuantityControl;
+  /** Default when opening a form or when quantity is empty (string for API/pricing). */
+  defaultQuantity: string;
+}
+
 export function getQuantityContext(
   treatment: string | undefined,
   product?: string,
-): {
-  unitLabel: string;
-  options: string[];
-} {
+): QuantityContext {
+  const select = (unitLabel: string, options: readonly string[]): QuantityContext => ({
+    unitLabel,
+    options: [...options],
+    quantityControl: "select",
+    defaultQuantity: options[0] ?? "",
+  });
+
   if (!treatment || !treatment.trim()) {
-    return { unitLabel: "Quantity", options: QUANTITY_QUICK_OPTIONS_DEFAULT };
+    return select("Quantity", QUANTITY_QUICK_OPTIONS_DEFAULT);
   }
   const t = treatment.trim().toLowerCase();
   if (
@@ -207,7 +223,7 @@ export function getQuantityContext(
     t === "hyaluronic acid" ||
     t === "ha"
   ) {
-    return { unitLabel: "Syringes", options: QUANTITY_OPTIONS_FILLER };
+    return select("Syringes", QUANTITY_OPTIONS_FILLER);
   }
   if (
     t === "neurotoxin" ||
@@ -218,17 +234,23 @@ export function getQuantityContext(
     t === "dysport" ||
     t === "xeomin"
   ) {
-    return { unitLabel: "Units (Botox/Dysport)", options: QUANTITY_OPTIONS_TOX };
+    const defaultQuantity = String(DEFAULT_NEUROTOXIN_UNITS_FOR_QUOTE);
+    return {
+      unitLabel: "Units (Botox/Dysport)",
+      options: [...QUANTITY_OPTIONS_TOX],
+      quantityControl: "text",
+      defaultQuantity,
+    };
   }
   if (t === "biostimulants" || t.includes("biostimulant")) {
     const p = (product ?? "").trim().toLowerCase();
     if (p.includes("radiesse")) {
-      return { unitLabel: "Syringes", options: [...QUANTITY_OPTIONS_RADIESSE] };
+      return select("Syringes", QUANTITY_OPTIONS_RADIESSE);
     }
     if (p.includes("sculptra")) {
-      return { unitLabel: "Vials", options: [...QUANTITY_OPTIONS_SCULPTRA] };
+      return select("Vials", QUANTITY_OPTIONS_SCULPTRA);
     }
-    return { unitLabel: "Syringes / Vials", options: QUANTITY_OPTIONS_BIOSTIMULANTS };
+    return select("Syringes / Vials", QUANTITY_OPTIONS_BIOSTIMULANTS);
   }
   if (
     t === "laser" ||
@@ -241,15 +263,12 @@ export function getQuantityContext(
     t === "microneedling" ||
     t.includes("microneedling")
   ) {
-    return { unitLabel: "Sessions", options: QUANTITY_QUICK_OPTIONS_DEFAULT };
+    return select("Sessions", QUANTITY_QUICK_OPTIONS_DEFAULT);
   }
   if (getWellnestOfferingByTreatmentName(treatment)) {
-    return {
-      unitLabel: "Supply (protocol)",
-      options: QUANTITY_QUICK_OPTIONS_DEFAULT,
-    };
+    return select("Supply (protocol)", QUANTITY_QUICK_OPTIONS_DEFAULT);
   }
-  return { unitLabel: "Quantity", options: QUANTITY_QUICK_OPTIONS_DEFAULT };
+  return select("Quantity", QUANTITY_QUICK_OPTIONS_DEFAULT);
 }
 
 export function parseInterestedIssues(client: Client): string[] {

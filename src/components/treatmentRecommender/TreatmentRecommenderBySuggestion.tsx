@@ -145,7 +145,7 @@ function initialAddToPlanRowForSuggestion(suggestionName: string, what: string) 
   const quantity =
     what === "Skincare"
       ? ""
-      : getQuantityContext(what, undefined).options[0] ?? "";
+      : getQuantityContext(what, undefined).defaultQuantity;
   return {
     suggestionName,
     what,
@@ -363,13 +363,15 @@ export default function TreatmentRecommenderBySuggestion({
   useEffect(() => {
     if (!addToPlanForSuggestion || addToPlanForSuggestion.what === "Skincare")
       return;
-    const { options } = getQuantityContext(
+    const qtyCtx = getQuantityContext(
       addToPlanForSuggestion.what,
       addToPlanForSuggestion.product?.trim() || undefined,
     );
+    if (qtyCtx.quantityControl === "text") return;
+    const { options, defaultQuantity } = qtyCtx;
     const q = (addToPlanForSuggestion.quantity ?? "").trim();
     if (q && options.includes(q)) return;
-    const next = options[0] ?? "";
+    const next = defaultQuantity;
     if (q !== next) {
       setAddToPlanForSuggestion((prev) =>
         prev ? { ...prev, quantity: next } : null,
@@ -882,32 +884,67 @@ export default function TreatmentRecommenderBySuggestion({
                                         return (
                                           <label className="treatment-recommender-by-suggestion__details-label">
                                             {qtyCtx.unitLabel}
-                                            <select
-                                              className="treatment-recommender-by-suggestion__details-input treatment-recommender-by-suggestion__quantity-select"
-                                              aria-label={qtyCtx.unitLabel}
-                                              value={
-                                                addToPlanForSuggestion.quantity ??
-                                                ""
-                                              }
-                                              onChange={(e) =>
-                                                setAddToPlanForSuggestion(
-                                                  (prev) =>
-                                                    prev
-                                                      ? {
-                                                          ...prev,
-                                                          quantity:
-                                                            e.target.value,
-                                                        }
-                                                      : null,
-                                                )
-                                              }
-                                            >
-                                              {qtyCtx.options.map((opt) => (
-                                                <option key={opt} value={opt}>
-                                                  {opt}
-                                                </option>
-                                              ))}
-                                            </select>
+                                            {qtyCtx.quantityControl === "text" ? (
+                                              <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                className="treatment-recommender-by-suggestion__details-input"
+                                                aria-label={qtyCtx.unitLabel}
+                                                placeholder={
+                                                  qtyCtx.defaultQuantity
+                                                }
+                                                value={
+                                                  addToPlanForSuggestion.quantity ??
+                                                  ""
+                                                }
+                                                onChange={(e) => {
+                                                  const v =
+                                                    e.target.value.replace(
+                                                      /\D/g,
+                                                      "",
+                                                    );
+                                                  setAddToPlanForSuggestion(
+                                                    (prev) =>
+                                                      prev
+                                                        ? {
+                                                            ...prev,
+                                                            quantity: v,
+                                                          }
+                                                        : null,
+                                                  );
+                                                }}
+                                              />
+                                            ) : (
+                                              <select
+                                                className="treatment-recommender-by-suggestion__details-input treatment-recommender-by-suggestion__quantity-select"
+                                                aria-label={qtyCtx.unitLabel}
+                                                value={
+                                                  addToPlanForSuggestion.quantity ??
+                                                  ""
+                                                }
+                                                onChange={(e) =>
+                                                  setAddToPlanForSuggestion(
+                                                    (prev) =>
+                                                      prev
+                                                        ? {
+                                                            ...prev,
+                                                            quantity:
+                                                              e.target.value,
+                                                          }
+                                                        : null,
+                                                  )
+                                                }
+                                              >
+                                                {qtyCtx.options.map((opt) => (
+                                                  <option
+                                                    key={opt}
+                                                    value={opt}
+                                                  >
+                                                    {opt}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
                                           </label>
                                         );
                                       })()

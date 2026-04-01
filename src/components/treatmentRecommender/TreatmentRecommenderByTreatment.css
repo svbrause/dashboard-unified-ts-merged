@@ -1806,18 +1806,27 @@
   min-height: 36px;
 }
 
-/* To address (optional) — same role as main treatment plan modal */
-.treatment-recommender-by-treatment__to-address {
+/* To address (optional) — nested disclosure inside Optional details (collapsed by default) */
+.treatment-recommender-by-treatment__to-address.treatment-recommender-by-treatment__to-address-details {
   padding-bottom: 10px;
   border-bottom: 1px solid var(--theme-border, #e8e8e8);
   margin-bottom: 4px;
 }
 
-.treatment-recommender-by-treatment__to-address-title {
+.treatment-recommender-by-treatment__to-address-details > summary {
+  cursor: pointer;
+  color: var(--theme-text-secondary, #616161);
+  list-style-position: outside;
+}
+
+.treatment-recommender-by-treatment__to-address-summary {
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--theme-text-primary, #212121);
-  margin: 0 0 4px;
+}
+
+.treatment-recommender-by-treatment__to-address-inner {
+  margin-top: 8px;
 }
 
 .treatment-recommender-by-treatment__to-address-hint {

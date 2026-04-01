@@ -202,7 +202,7 @@ function initialAddToPlanRowForTreatment(
       : getQuantityContext(
           treatment,
           treatmentProductHintForQuantity(row),
-        ).options[0] ?? "";
+        ).defaultQuantity;
   return { ...row, quantity };
 }
 
@@ -404,10 +404,10 @@ function discussedItemToAddPlanFormState(
     treatment === "Skincare"
       ? ""
       : qtyTrim ||
-        (getQuantityContext(
+        getQuantityContext(
           treatment,
           treatmentProductHintForQuantity(hintRow),
-        ).options[0] ?? "");
+        ).defaultQuantity;
 
   return {
     ...base,
@@ -1683,13 +1683,15 @@ export default function TreatmentRecommenderByTreatment({
   useEffect(() => {
     if (!addToPlanForTreatment || addToPlanForTreatment.treatment === "Skincare")
       return;
-    const { options } = getQuantityContext(
+    const qtyCtx = getQuantityContext(
       addToPlanForTreatment.treatment,
       treatmentProductHintForQuantity(addToPlanForTreatment),
     );
+    if (qtyCtx.quantityControl === "text") return;
+    const { options, defaultQuantity } = qtyCtx;
     const q = (addToPlanForTreatment.quantity ?? "").trim();
     if (q && options.includes(q)) return;
-    const next = options[0] ?? "";
+    const next = defaultQuantity;
     if (q !== next) {
       setAddToPlanForTreatment((prev) =>
         prev ? { ...prev, quantity: next } : null,
@@ -3378,14 +3380,14 @@ export default function TreatmentRecommenderByTreatment({
                                     });
                                   };
                                   return (
-                                    <div
-                                      className="treatment-recommender-by-treatment__to-address"
-                                      role="group"
-                                      aria-label="To address (optional)"
-                                    >
-                                      <div className="treatment-recommender-by-treatment__to-address-title">
+                                    <details className="treatment-recommender-by-treatment__to-address treatment-recommender-by-treatment__to-address-details">
+                                      <summary className="treatment-recommender-by-treatment__to-address-summary">
                                         To address (optional)
-                                      </div>
+                                        {selected.length > 0
+                                          ? ` · ${selected.length} selected`
+                                          : ""}
+                                      </summary>
+                                      <div className="treatment-recommender-by-treatment__to-address-inner">
                                       <p className="treatment-recommender-by-treatment__to-address-hint">
                                         Concerns this treatment relates to
                                         (from analysis or clinic assessment).
@@ -3544,7 +3546,8 @@ export default function TreatmentRecommenderByTreatment({
                                           )}
                                         </div>
                                       </div>
-                                    </div>
+                                      </div>
+                                    </details>
                                   );
                                 })()}
                                 {addToPlanForTreatment.treatment !== "Skincare"
@@ -3560,35 +3563,63 @@ export default function TreatmentRecommenderByTreatment({
                                       return (
                                         <label className="treatment-recommender-by-treatment__details-label">
                                           {qtyCtx.unitLabel}
-                                          <select
-                                            className="treatment-recommender-by-treatment__details-input treatment-recommender-by-treatment__quantity-select"
-                                            aria-label={qtyCtx.unitLabel}
-                                            value={
-                                              addToPlanForTreatment.quantity ??
-                                              ""
-                                            }
-                                            onChange={(e) =>
-                                              setAddToPlanForTreatment(
-                                                (prev) =>
-                                                  prev
-                                                    ? {
-                                                        ...prev,
-                                                        quantity:
-                                                          e.target.value,
-                                                      }
-                                                    : null,
-                                              )
-                                            }
-                                          >
-                                            {qtyCtx.options.map((opt, qIdx) => (
-                                              <option
-                                                key={`qty-${qIdx}-${opt}`}
-                                                value={opt}
-                                              >
-                                                {opt}
-                                              </option>
-                                            ))}
-                                          </select>
+                                          {qtyCtx.quantityControl === "text" ? (
+                                            <input
+                                              type="text"
+                                              inputMode="numeric"
+                                              className="treatment-recommender-by-treatment__details-input"
+                                              aria-label={qtyCtx.unitLabel}
+                                              placeholder={qtyCtx.defaultQuantity}
+                                              value={
+                                                addToPlanForTreatment.quantity ??
+                                                ""
+                                              }
+                                              onChange={(e) => {
+                                                const v = e.target.value.replace(
+                                                  /\D/g,
+                                                  "",
+                                                );
+                                                setAddToPlanForTreatment(
+                                                  (prev) =>
+                                                    prev
+                                                      ? { ...prev, quantity: v }
+                                                      : null,
+                                                );
+                                              }}
+                                            />
+                                          ) : (
+                                            <select
+                                              className="treatment-recommender-by-treatment__details-input treatment-recommender-by-treatment__quantity-select"
+                                              aria-label={qtyCtx.unitLabel}
+                                              value={
+                                                addToPlanForTreatment.quantity ??
+                                                ""
+                                              }
+                                              onChange={(e) =>
+                                                setAddToPlanForTreatment(
+                                                  (prev) =>
+                                                    prev
+                                                      ? {
+                                                          ...prev,
+                                                          quantity:
+                                                            e.target.value,
+                                                        }
+                                                      : null,
+                                                )
+                                              }
+                                            >
+                                              {qtyCtx.options.map(
+                                                (opt, qIdx) => (
+                                                  <option
+                                                    key={`qty-${qIdx}-${opt}`}
+                                                    value={opt}
+                                                  >
+                                                    {opt}
+                                                  </option>
+                                                ),
+                                              )}
+                                            </select>
+                                          )}
                                         </label>
                                       );
                                     })()
