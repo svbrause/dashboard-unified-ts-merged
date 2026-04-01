@@ -32,7 +32,7 @@ import { DEFAULT_NEUROTOXIN_UNITS_FOR_QUOTE } from "../../../data/treatmentPrici
 
 export function getRecommendedProducts(
   treatment: string,
-  contextString: string
+  contextString: string,
 ): string[] {
   if (!contextString.trim()) return [];
   const lower = contextString.toLowerCase();
@@ -52,7 +52,7 @@ export function getRecommendedProducts(
 }
 
 export function getGoalRegionTreatmentsForFinding(
-  finding: string
+  finding: string,
 ): { goal: string; region: string; treatments: string[] } | null {
   if (!finding || finding === OTHER_FINDING_LABEL) return null;
   const lower = finding.toLowerCase();
@@ -79,7 +79,12 @@ export function getSuggestedTreatmentsForFindings(
 }[] {
   const allowed = new Set(getTreatmentOptionsForProvider(providerCode));
   const seen = new Set<string>();
-  const result: { treatment: string; goal: string; region: string; exampleFinding: string }[] = [];
+  const result: {
+    treatment: string;
+    goal: string;
+    region: string;
+    exampleFinding: string;
+  }[] = [];
   for (const finding of findings) {
     const mapped = getGoalRegionTreatmentsForFinding(finding);
     if (!mapped) continue;
@@ -132,7 +137,7 @@ export function getFindingsForTreatment(treatment: string): string[] {
 
 /** Findings for treatment grouped by area. */
 export function getFindingsByAreaForTreatment(
-  treatment: string
+  treatment: string,
 ): { area: string; findings: string[] }[] {
   const findingsForTx = new Set(getFindingsForTreatment(treatment));
   return ASSESSMENT_FINDINGS_BY_AREA.map(({ area, findings }) => ({
@@ -206,7 +211,10 @@ export function getQuantityContext(
   treatment: string | undefined,
   product?: string,
 ): QuantityContext {
-  const select = (unitLabel: string, options: readonly string[]): QuantityContext => ({
+  const select = (
+    unitLabel: string,
+    options: readonly string[],
+  ): QuantityContext => ({
     unitLabel,
     options: [...options],
     quantityControl: "select",
@@ -288,17 +296,34 @@ export function generateId(): string {
 }
 
 /** Maps region/interest/finding text to a single display area (Forehead, Eyes, Nose, Cheeks, Lips, Chin, Jawline, Neck, Skin, Full face), or null if no match. */
-function normalizeToDisplayArea(text: string | null | undefined): string | null {
+function normalizeToDisplayArea(
+  text: string | null | undefined,
+): string | null {
   if (!text || !String(text).trim()) return null;
   const lower = String(text).toLowerCase().trim();
   if (lower.includes("forehead")) return "Forehead";
-  if (lower.includes("under eye") || lower.includes("tear trough") || (lower.includes("eye") && !lower.includes("eyebrow"))) return "Eyes";
-  if (lower.includes("eyelid") || lower.includes("crow") || lower.includes("bunny")) return "Eyes";
+  if (
+    lower.includes("under eye") ||
+    lower.includes("tear trough") ||
+    (lower.includes("eye") && !lower.includes("eyebrow"))
+  )
+    return "Eyes";
+  if (
+    lower.includes("eyelid") ||
+    lower.includes("crow") ||
+    lower.includes("bunny")
+  )
+    return "Eyes";
   if (lower.includes("nose") || lower.includes("nasal")) return "Nose";
   if (lower.includes("cheek") || lower.includes("mid cheek")) return "Cheeks";
   if (lower.includes("lip")) return "Lips";
   if (lower.includes("chin")) return "Chin";
-  if (lower.includes("jaw") || lower.includes("jowl") || lower.includes("prejowl")) return "Jawline";
+  if (
+    lower.includes("jaw") ||
+    lower.includes("jowl") ||
+    lower.includes("prejowl")
+  )
+    return "Jawline";
   if (lower.includes("neck") || lower.includes("platysma")) return "Neck";
   if (lower.includes("full face")) return "Full face";
   if (lower === "skin" || lower.includes("skin")) return "Skin";
@@ -337,7 +362,10 @@ export function getTreatmentDisplayName(item: DiscussedItem): string {
 
 /** Display name for checkout: for Skincare with a product, show the product name (e.g. "SkinCeuticals C E Ferulic"); otherwise same as getTreatmentDisplayName. */
 export function getCheckoutDisplayName(item: DiscussedItem): string {
-  if ((item.treatment || "").trim() === "Skincare" && (item.product || "").trim()) {
+  if (
+    (item.treatment || "").trim() === "Skincare" &&
+    (item.product || "").trim()
+  ) {
     return item.product!.trim();
   }
   return getTreatmentDisplayName(item);
@@ -351,7 +379,8 @@ export function formatTreatmentPlanRecordMetaLine(item: DiscussedItem): string {
   const product = (item.product || "").trim();
   const isSkincare = (item.treatment || "").trim() === "Skincare";
   if (product && !isSkincare) parts.push(product);
-  if (item.quantity && String(item.quantity).trim()) parts.push(`Qty: ${item.quantity}`);
+  if (item.quantity && String(item.quantity).trim())
+    parts.push(`Qty: ${item.quantity}`);
   return parts.join(TREATMENT_PLAN_BULLET);
 }
 
@@ -359,5 +388,7 @@ export function formatTreatmentPlanRecordMetaLine(item: DiscussedItem): string {
 export function formatTreatmentPlanRecordLine(item: DiscussedItem): string {
   const heading = getTreatmentDisplayName(item);
   const meta = formatTreatmentPlanRecordMetaLine(item);
-  return heading && meta ? `${heading}${TREATMENT_PLAN_BULLET}${meta}` : heading || meta;
+  return heading && meta
+    ? `${heading}${TREATMENT_PLAN_BULLET}${meta}`
+    : heading || meta;
 }

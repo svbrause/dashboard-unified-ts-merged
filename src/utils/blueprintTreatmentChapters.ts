@@ -11,6 +11,7 @@ import {
   getTreatmentDisplayName,
   getDisplayAreaForItem,
 } from "../components/modals/DiscussedTreatmentsModal/utils";
+import { getAlignedCheckoutLineItemsForDiscussedItems } from "../components/modals/DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import { normalizeBlueprintAnalysisText } from "./postVisitBlueprintAnalysis";
 import type { CheckoutLineItemDetail } from "../data/treatmentPricing2025";
 import {
@@ -97,7 +98,8 @@ function resolveChapterPriceDisplay(
   categoryPriceRange: string | undefined,
 ): { priceRange: string | undefined; priceFactLabel: "price" | "range" } {
   if (quoteLineItems?.length) {
-    const order = getQuoteLineDiscussedItemIndexOrder(discussedItems);
+    const aligned = getAlignedCheckoutLineItemsForDiscussedItems(discussedItems);
+    const order = getQuoteLineDiscussedItemIndexOrder(discussedItems, aligned);
     if (order.length === quoteLineItems.length) {
       const fromQuote: string[] = [];
       for (let i = 0; i < quoteLineItems.length; i++) {

@@ -60,7 +60,8 @@
   background: #fff;
 }
 
-.share-tp-link-dialog-footer .treatment-plan-checkout-blueprint-compose-actions {
+.share-tp-link-dialog-footer
+  .treatment-plan-checkout-blueprint-compose-actions {
   margin-top: 0;
   justify-content: flex-end;
   align-items: stretch;

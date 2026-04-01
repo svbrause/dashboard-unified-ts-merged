@@ -34,6 +34,7 @@ import DiscussedTreatmentsModal from "./DiscussedTreatmentsModal";
 import TreatmentPlanCheckoutModal, {
   prefetchCheckoutImages,
 } from "./TreatmentPlanCheckoutModal";
+import { getDiscussedPlanItemPriceLabels } from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import TreatmentPhotosModal from "./TreatmentPhotosModal";
 import AnalysisOverviewModal, {
   type DetailView,
@@ -42,10 +43,16 @@ import type { TreatmentPlanPrefill } from "./DiscussedTreatmentsModal/TreatmentP
 import TreatmentRecommenderByTreatment from "../treatmentRecommender/TreatmentRecommenderByTreatment";
 import TreatmentRecommenderBySuggestion from "../treatmentRecommender/TreatmentRecommenderBySuggestion";
 import SkinTypeQuizModal from "./SkinTypeQuizModal";
-import SkinQuizProductModal, { type SkinQuizProduct } from "./SkinQuizProductModal";
+import SkinQuizProductModal, {
+  type SkinQuizProduct,
+} from "./SkinQuizProductModal";
 import WellnessQuizModal from "./WellnessQuizModal";
 import WellnessQuizResultsCards from "../wellnessQuiz/WellnessQuizResultsCards";
-import { getSuggestedWellnessTreatments, getWellnessQuizResultsSMSMessage, WELLNESS_QUIZ_ENABLED } from "../../data/wellnessQuiz";
+import {
+  getSuggestedWellnessTreatments,
+  getWellnessQuizResultsSMSMessage,
+  WELLNESS_QUIZ_ENABLED,
+} from "../../data/wellnessQuiz";
 import {
   computeQuizScores,
   computeQuizProfile,
@@ -110,11 +117,15 @@ export default function ClientDetailModal({
   onUpdate,
 }: ClientDetailModalProps) {
   const { provider } = useDashboard();
-  const treatmentPreviewUiEnabled = providerShowsTheTreatmentPreviewUi(provider);
+  const treatmentPreviewUiEnabled =
+    providerShowsTheTreatmentPreviewUi(provider);
 
   const intakeIssuePartition = useMemo(() => {
     if (!client) {
-      return { facialInterests: [] as string[], wellnessInterests: [] as string[] };
+      return {
+        facialInterests: [] as string[],
+        wellnessInterests: [] as string[],
+      };
     }
     const part = partitionInterestedIssuesForFacialVsWellness(
       parseInterestedIssuesList(client),
@@ -134,6 +145,12 @@ export default function ClientDetailModal({
     if (!client?.discussedItems?.length) return [];
     return client.discussedItems.filter(discussedItemMatchesWellnessOffering);
   }, [client?.id, client?.discussedItems]);
+
+  const discussedPlanPriceLabels = useMemo(
+    () => getDiscussedPlanItemPriceLabels(client?.discussedItems ?? []),
+    [client?.discussedItems],
+  );
+
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedClient, setEditedClient] = useState<Partial<Client> | null>(
     null,
@@ -154,7 +171,9 @@ export default function ClientDetailModal({
   const [showNewClientSMS, setShowNewClientSMS] = useState(false);
   const [showSendSMS, setShowSendSMS] = useState(false);
   const [showSmsPopup, setShowSmsPopup] = useState(false);
-  const [smsInitialMessage, setSMSInitialMessage] = useState<string | null>(null);
+  const [smsInitialMessage, setSMSInitialMessage] = useState<string | null>(
+    null,
+  );
   const [showDiscussedTreatments, setShowDiscussedTreatments] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showAnalysisOverview, setShowAnalysisOverview] = useState(false);
@@ -174,8 +193,10 @@ export default function ClientDetailModal({
   >(null);
   const [showSkinTypeQuiz, setShowSkinTypeQuiz] = useState(false);
   const [showWellnessQuiz, setShowWellnessQuiz] = useState(false);
-  const [selectedSkinProduct, setSelectedSkinProduct] = useState<SkinQuizProduct | null>(null);
-  const [enrichedSkincareQuiz, setEnrichedSkincareQuiz] = useState<Client["skincareQuiz"]>(undefined);
+  const [selectedSkinProduct, setSelectedSkinProduct] =
+    useState<SkinQuizProduct | null>(null);
+  const [enrichedSkincareQuiz, setEnrichedSkincareQuiz] =
+    useState<Client["skincareQuiz"]>(undefined);
   const scanDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -277,7 +298,8 @@ export default function ClientDetailModal({
 
   if (!client) return null;
 
-  const skincareQuiz: Client["skincareQuiz"] = client.skincareQuiz ?? enrichedSkincareQuiz;
+  const skincareQuiz: Client["skincareQuiz"] =
+    client.skincareQuiz ?? enrichedSkincareQuiz;
 
   const lastActivityRelative = client.lastContact
     ? formatRelativeDate(client.lastContact)
@@ -520,7 +542,7 @@ export default function ClientDetailModal({
                 };
                 const nextItems = [...(client.discussedItems || []), newItem];
                 try {
-                    await persistClientDiscussedItems(client, nextItems);
+                  await persistClientDiscussedItems(client, nextItems);
                   showToast("Added to treatment plan");
                   onUpdate();
                   return newItem;
@@ -533,13 +555,17 @@ export default function ClientDetailModal({
               }}
               onOpenCheckout={() => setShowCheckoutModal(true)}
               onRemovePlanItem={async (itemId) => {
-                const nextItems = (client.discussedItems || []).filter((i) => i.id !== itemId);
+                const nextItems = (client.discussedItems || []).filter(
+                  (i) => i.id !== itemId,
+                );
                 try {
-                    await persistClientDiscussedItems(client, nextItems);
+                  await persistClientDiscussedItems(client, nextItems);
                   showToast("Removed from plan");
                   onUpdate();
                 } catch (e) {
-                  showError(e instanceof Error ? e.message : "Failed to remove");
+                  showError(
+                    e instanceof Error ? e.message : "Failed to remove",
+                  );
                 }
               }}
               onUpdatePlanItem={async (itemId, patch) => {
@@ -591,7 +617,7 @@ export default function ClientDetailModal({
                 };
                 const nextItems = [...(client.discussedItems || []), newItem];
                 try {
-                    await persistClientDiscussedItems(client, nextItems);
+                  await persistClientDiscussedItems(client, nextItems);
                   showToast("Added to treatment plan");
                   onUpdate();
                   return newItem;
@@ -945,16 +971,27 @@ export default function ClientDetailModal({
                                 ? "detail-coupon-badge--yes"
                                 : "detail-coupon-badge--no"
                             }`}
-                            aria-label={client.offerEarned !== false ? "Earned: Yes" : "Earned: No"}
+                            aria-label={
+                              client.offerEarned !== false
+                                ? "Earned: Yes"
+                                : "Earned: No"
+                            }
                           >
                             {client.offerEarned !== false ? (
                               <>
-                                <span className="detail-coupon-check" aria-hidden>✓</span>
+                                <span
+                                  className="detail-coupon-check"
+                                  aria-hidden
+                                >
+                                  ✓
+                                </span>
                                 <span>Yes</span>
                               </>
                             ) : (
                               <>
-                                <span className="detail-coupon-x" aria-hidden>✗</span>
+                                <span className="detail-coupon-x" aria-hidden>
+                                  ✗
+                                </span>
                                 <span>No</span>
                               </>
                             )}
@@ -967,7 +1004,9 @@ export default function ClientDetailModal({
                               className="detail-coupon-badge detail-coupon-badge--yes"
                               aria-label="Claimed: Yes"
                             >
-                              <span className="detail-coupon-check" aria-hidden>✓</span>
+                              <span className="detail-coupon-check" aria-hidden>
+                                ✓
+                              </span>
                               <span>Yes</span>
                             </span>
                           ) : (
@@ -976,7 +1015,9 @@ export default function ClientDetailModal({
                                 className="detail-coupon-badge detail-coupon-badge--no"
                                 aria-label="Claimed: No"
                               >
-                                <span className="detail-coupon-x" aria-hidden>✗</span>
+                                <span className="detail-coupon-x" aria-hidden>
+                                  ✗
+                                </span>
                                 <span>No</span>
                               </span>
                               <button
@@ -989,7 +1030,9 @@ export default function ClientDetailModal({
                                     onUpdate();
                                   } catch (e) {
                                     showError(
-                                      e instanceof Error ? e.message : "Failed to mark as redeemed",
+                                      e instanceof Error
+                                        ? e.message
+                                        : "Failed to mark as redeemed",
                                     );
                                   }
                                 }}
@@ -1054,9 +1097,7 @@ export default function ClientDetailModal({
                     <div className="detail-label">Demographics</div>
                     <div className="detail-grid detail-grid-demographics">
                       <div className="detail-item">
-                        <label className="detail-label-small">
-                          Skin Type
-                        </label>
+                        <label className="detail-label-small">Skin Type</label>
                         <div className="detail-value detail-value-small">
                           {client.skinType && String(client.skinType).trim()
                             ? client.skinType.length > 0
@@ -1067,9 +1108,7 @@ export default function ClientDetailModal({
                         </div>
                       </div>
                       <div className="detail-item">
-                        <label className="detail-label-small">
-                          Skin Tone
-                        </label>
+                        <label className="detail-label-small">Skin Tone</label>
                         <div className="detail-value detail-value-small">
                           {client.skinTone && String(client.skinTone).trim()
                             ? client.skinTone.length > 0
@@ -1105,7 +1144,7 @@ export default function ClientDetailModal({
                   <div className="discussed-treatments-in-facial-title-row">
                     <div className="discussed-treatments-in-facial-heading-block">
                       <span className="discussed-treatments-in-facial-heading">
-                        {(client.name?.trim().split(/\s+/)[0] || "Patient")}
+                        {client.name?.trim().split(/\s+/)[0] || "Patient"}
                         &apos;s plan
                       </span>
                       <span className="discussed-treatments-in-facial-subheading">
@@ -1118,18 +1157,18 @@ export default function ClientDetailModal({
                         client.discussedItems.length > 0 &&
                         (isPostVisitBlueprintSender(provider) ||
                           facialAnalysisFormHasData) && (
-                        <button
-                          type="button"
-                          className="btn-secondary btn-sm"
-                          onClick={() =>
-                            isPostVisitBlueprintSender(provider)
-                              ? setShowShareTreatmentPlanLink(true)
-                              : setShowShareTreatmentPlan(true)
-                          }
-                        >
-                          Share
-                        </button>
-                      )}
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() =>
+                              isPostVisitBlueprintSender(provider)
+                                ? setShowShareTreatmentPlanLink(true)
+                                : setShowShareTreatmentPlan(true)
+                            }
+                          >
+                            Share
+                          </button>
+                        )}
                       {showTreatmentRecommenderShortcut && (
                         <button
                           type="button"
@@ -1162,38 +1201,81 @@ export default function ClientDetailModal({
                       <div className="discussed-treatments-plan-sections-outer">
                         {(() => {
                           const items = client.discussedItems || [];
-                          const skincareItems = items.filter((i) => i.treatment?.trim() === "Skincare").sort((a, b) => (a.product || "").localeCompare(b.product || ""));
+                          const skincareItems = items
+                            .filter((i) => i.treatment?.trim() === "Skincare")
+                            .sort((a, b) =>
+                              (a.product || "").localeCompare(b.product || ""),
+                            );
                           const hasSkincare = skincareItems.length > 0;
-                          const sectionLabels = hasSkincare ? [SKINCARE_SECTION_LABEL, ...PLAN_SECTIONS] : [...PLAN_SECTIONS];
+                          const sectionLabels = hasSkincare
+                            ? [SKINCARE_SECTION_LABEL, ...PLAN_SECTIONS]
+                            : [...PLAN_SECTIONS];
                           return sectionLabels.map((sectionLabel) => {
                             const sectionItems =
                               sectionLabel === SKINCARE_SECTION_LABEL
                                 ? skincareItems
-                                : (client.discussedItems || []).filter((item) => {
-                                    if (item.treatment?.trim() === "Skincare") return false;
-                                    const t = item.timeline?.trim();
-                                    if (sectionLabel === "Now") return t === "Now";
-                                    if (sectionLabel === "Add next visit") return t === "Add next visit";
-                                    if (sectionLabel === "Completed") return t === "Completed";
-                                    return t === "Wishlist" || !t;
-                                  }).sort((a, b) => (a.treatment || "").localeCompare(b.treatment || ""));
+                                : (client.discussedItems || [])
+                                    .filter((item) => {
+                                      if (item.treatment?.trim() === "Skincare")
+                                        return false;
+                                      const t = item.timeline?.trim();
+                                      if (sectionLabel === "Now")
+                                        return t === "Now";
+                                      if (sectionLabel === "Add next visit")
+                                        return t === "Add next visit";
+                                      if (sectionLabel === "Completed")
+                                        return t === "Completed";
+                                      return t === "Wishlist" || !t;
+                                    })
+                                    .sort((a, b) =>
+                                      (a.treatment || "").localeCompare(
+                                        b.treatment || "",
+                                      ),
+                                    );
                             if (sectionItems.length === 0) return null;
                             return (
-                              <div key={sectionLabel} className="discussed-treatments-plan-section-outer">
-                                <h4 className="discussed-treatments-plan-section-title-outer">{sectionLabel}</h4>
+                              <div
+                                key={sectionLabel}
+                                className="discussed-treatments-plan-section-outer"
+                              >
+                                <h4 className="discussed-treatments-plan-section-title-outer">
+                                  {sectionLabel}
+                                </h4>
                                 <div className="discussed-treatments-records-list-outer">
-                                  {sectionItems.map((item) => (
-                                    <div key={item.id} className="discussed-treatments-record-row-outer discussed-treatments-record-row-heading-meta">
-                                      <div className="discussed-treatments-record-treatment-heading-outer">
-                                        {getTreatmentDisplayName(item)}
-                                      </div>
-                                      {formatTreatmentPlanRecordMetaLine(item) ? (
-                                        <div className="discussed-treatments-record-meta-line-outer">
-                                          {formatTreatmentPlanRecordMetaLine(item)}
+                                  {sectionItems.map((item) => {
+                                    const priceLabel =
+                                      discussedPlanPriceLabels.get(item.id) ??
+                                      null;
+                                    return (
+                                      <div
+                                        key={item.id}
+                                        className="discussed-treatments-record-row-outer discussed-treatments-record-row-heading-meta discussed-treatments-record-row-with-price"
+                                      >
+                                        <div className="discussed-treatments-record-row-main">
+                                          <div className="discussed-treatments-record-treatment-heading-outer">
+                                            {getTreatmentDisplayName(item)}
+                                          </div>
+                                          {formatTreatmentPlanRecordMetaLine(
+                                            item,
+                                          ) ? (
+                                            <div className="discussed-treatments-record-meta-line-outer">
+                                              {formatTreatmentPlanRecordMetaLine(
+                                                item,
+                                              )}
+                                            </div>
+                                          ) : null}
                                         </div>
-                                      ) : null}
-                                    </div>
-                                  ))}
+                                        {priceLabel ? (
+                                          <div
+                                            className="discussed-treatments-record-price-outer"
+                                            title="From practice price list / checkout"
+                                          >
+                                            {priceLabel}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             );
@@ -1212,93 +1294,93 @@ export default function ClientDetailModal({
               {treatmentPreviewUiEnabled &&
                 (intakeWellnessInterests.length > 0 ||
                   wellnessPlanItems.length > 0) && (
-                <div className="detail-section detail-section-wellness-overview">
-                  <div className="detail-section-title">Wellness</div>
-                  <p className="skin-analysis-description">
-                    Peptide and wellness goals and plan items — separate from
-                    facial analysis and scanning.
-                  </p>
-                  {intakeWellnessInterests.length > 0 && (
-                    <div className="detail-wellness-intake-interests">
-                      <div className="detail-label">Goals from intake</div>
-                      <div
-                        className="detail-wellness-intake-chips"
-                        role="list"
-                      >
-                        {intakeWellnessInterests.map((label, idx) => (
-                          <span
-                            key={`${label}-${idx}`}
-                            className="detail-wellness-intake-chip"
-                            role="listitem"
-                          >
-                            {label}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {wellnessPlanItems.length > 0 && (
-                    <div className="detail-wellness-plan-excerpt">
-                      <div className="detail-label">On treatment plan</div>
-                      <ul className="detail-wellness-plan-list">
-                        {wellnessPlanItems.map((item) => (
-                          <li key={item.id}>
-                            <span className="detail-wellness-plan-treatment">
-                              {getTreatmentDisplayName(item)}
+                  <div className="detail-section detail-section-wellness-overview">
+                    <div className="detail-section-title">Wellness</div>
+                    <p className="skin-analysis-description">
+                      Peptide and wellness goals and plan items — separate from
+                      facial analysis and scanning.
+                    </p>
+                    {intakeWellnessInterests.length > 0 && (
+                      <div className="detail-wellness-intake-interests">
+                        <div className="detail-label">Goals from intake</div>
+                        <div
+                          className="detail-wellness-intake-chips"
+                          role="list"
+                        >
+                          {intakeWellnessInterests.map((label, idx) => (
+                            <span
+                              key={`${label}-${idx}`}
+                              className="detail-wellness-intake-chip"
+                              role="listitem"
+                            >
+                              {label}
                             </span>
-                            {item.timeline?.trim() ? (
-                              <span className="detail-wellness-plan-meta">
-                                {" "}
-                                · {item.timeline.trim()}
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {wellnessPlanItems.length > 0 && (
+                      <div className="detail-wellness-plan-excerpt">
+                        <div className="detail-label">On treatment plan</div>
+                        <ul className="detail-wellness-plan-list">
+                          {wellnessPlanItems.map((item) => (
+                            <li key={item.id}>
+                              <span className="detail-wellness-plan-treatment">
+                                {getTreatmentDisplayName(item)}
                               </span>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+                              {item.timeline?.trim() ? (
+                                <span className="detail-wellness-plan-meta">
+                                  {" "}
+                                  · {item.timeline.trim()}
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
 
               {/* Facial Analysis Section */}
               <div className="detail-section detail-section-facial-analysis">
                 <div className="detail-section-header-flex">
                   <div className="detail-section-title detail-section-title-inline detail-section-title-facial">
-                      <div className="facial-analysis-heading-row">
-                        <span>Facial Analysis</span>
-                        {(() => {
-                          const raw = client.facialAnalysisStatus?.trim();
-                          let statusForDisplay =
-                            raw ||
-                            (client.tableSource === "Web Popup Leads"
-                              ? WEB_POPUP_LEAD_NO_ANALYSIS_STATUS
-                              : "not-started");
-                          if (!facialAnalysisFormHasData) {
-                            const low = (raw ?? "").toLowerCase();
-                            if (!low || low === "pending") {
-                              statusForDisplay = "not-started";
-                            }
+                    <div className="facial-analysis-heading-row">
+                      <span>Facial Analysis</span>
+                      {(() => {
+                        const raw = client.facialAnalysisStatus?.trim();
+                        let statusForDisplay =
+                          raw ||
+                          (client.tableSource === "Web Popup Leads"
+                            ? WEB_POPUP_LEAD_NO_ANALYSIS_STATUS
+                            : "not-started");
+                        if (!facialAnalysisFormHasData) {
+                          const low = (raw ?? "").toLowerCase();
+                          if (!low || low === "pending") {
+                            statusForDisplay = "not-started";
                           }
-                          return (
-                            <span
-                              className="status-badge detail-status-badge-dynamic"
-                              style={{
-                                background: getFacialStatusColorForDisplay(
-                                  statusForDisplay,
-                                  hasFacialInterestedTreatments(client),
-                                  provider?.code,
-                                ),
-                              }}
-                            >
-                              {formatFacialStatusForDisplay(
+                        }
+                        return (
+                          <span
+                            className="status-badge detail-status-badge-dynamic"
+                            style={{
+                              background: getFacialStatusColorForDisplay(
                                 statusForDisplay,
                                 hasFacialInterestedTreatments(client),
                                 provider?.code,
-                              )}
-                            </span>
-                          );
-                        })()}
-                      </div>
+                              ),
+                            }}
+                          >
+                            {formatFacialStatusForDisplay(
+                              statusForDisplay,
+                              hasFacialInterestedTreatments(client),
+                              provider?.code,
+                            )}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     {client.tableSource === "Patients" &&
                       facialAnalysisFormHasData &&
                       client.createdAt && (
@@ -1311,16 +1393,16 @@ export default function ClientDetailModal({
                     {facialAnalysisFormHasData && (
                       <>
                         {treatmentPreviewUiEnabled && (
-                        <button
-                          type="button"
-                          className="btn-secondary btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowAnalysisOverview(true);
-                          }}
-                        >
-                          Overview
-                        </button>
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAnalysisOverview(true);
+                            }}
+                          >
+                            Overview
+                          </button>
                         )}
                         <button
                           type="button"
@@ -1420,160 +1502,191 @@ export default function ClientDetailModal({
               </div>
 
               {!isUniqueAestheticsProvider(provider) && (
-              <>
-              {/* Skin Quiz Section */}
-              <div className="detail-section detail-section-skin-analysis">
-                <div className="detail-section-header-flex skin-analysis-header">
-                  <div className="detail-section-title detail-section-title-inline skin-analysis-heading-block">
-                    <span>Skin Quiz</span>
-                    {skincareQuiz?.completedAt && (
-                      <span className="skin-analysis-result-badge detail-value-muted">
-                        · {formatDate(skincareQuiz.completedAt)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="skin-analysis-quiz-actions">
-                    <button
-                      type="button"
-                      className="btn-secondary btn-sm"
-                      onClick={() => setShowSkinTypeQuiz(true)}
-                    >
-                      {skincareQuiz ? "View Results" : "Take now"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-sm"
-                      onClick={() => {
-                        setSMSInitialMessage(getSkinQuizMessage(client));
-                        setShowSendSMS(true);
-                      }}
-                      disabled={!client.phone && !client.email}
-                      title={
-                        client.phone
-                          ? "Send quiz link via SMS"
-                          : client.email
-                            ? "Send quiz link via email"
-                            : "Add phone or email to send to patient"
-                      }
-                    >
-                      Send to Patient
-                    </button>
-                  </div>
-                </div>
-                <p className="skin-analysis-description">
-                  {skincareQuiz
-                    ? "Skin type and product recommendations from the completed quiz."
-                    : "Complete the skin type quiz to get a personalized result and product recommendations for this client."}
-                </p>
-                {skincareQuiz && (
-                  <div className="skin-analysis-details">
-                    <div className="skin-analysis-summary">
-                      {skincareQuiz.result &&
-                      GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result] ? (
-                        <span className="skin-analysis-summary-gemstone">
-                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].name}{" "}
-                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].emoji}{" "}
-                          {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].tagline}
-                        </span>
-                      ) : (
-                        <span className="skin-analysis-summary-type">
-                          {skincareQuiz.resultLabel ??
-                            (skincareQuiz.result
-                              ? skincareQuiz.result.charAt(0).toUpperCase() +
-                                skincareQuiz.result.slice(1)
-                              : "Completed")}
-                        </span>
-                      )}
+                <>
+                  {/* Skin Quiz Section */}
+                  <div className="detail-section detail-section-skin-analysis">
+                    <div className="detail-section-header-flex skin-analysis-header">
+                      <div className="detail-section-title detail-section-title-inline skin-analysis-heading-block">
+                        <span>Skin Quiz</span>
+                        {skincareQuiz?.completedAt && (
+                          <span className="skin-analysis-result-badge detail-value-muted">
+                            · {formatDate(skincareQuiz.completedAt)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="skin-analysis-quiz-actions">
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => setShowSkinTypeQuiz(true)}
+                        >
+                          {skincareQuiz ? "View Results" : "Take now"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() => {
+                            setSMSInitialMessage(getSkinQuizMessage(client));
+                            setShowSendSMS(true);
+                          }}
+                          disabled={!client.phone && !client.email}
+                          title={
+                            client.phone
+                              ? "Send quiz link via SMS"
+                              : client.email
+                                ? "Send quiz link via email"
+                                : "Add phone or email to send to patient"
+                          }
+                        >
+                          Send to Patient
+                        </button>
+                      </div>
                     </div>
-                    {skincareQuiz.resultDescription && (
-                      <p className="skin-analysis-result-description">
-                        {skincareQuiz.resultDescription}
-                      </p>
-                    )}
-                    {skincareQuiz.recommendedProductNames &&
-                      skincareQuiz.recommendedProductNames.length > 0 && (() => {
-                        const carouselItems = getSkincareCarouselItems();
-                        const products: SkinQuizProduct[] = skincareQuiz!.recommendedProductNames!
-                          .map((name: string) => {
-                            const item = carouselItems.find((p) => p.name === name);
-                            return item
-                              ? {
-                                  name,
-                                  imageUrl: item.imageUrl,
-                                  productUrl: item.productUrl,
-                                  recommendedFor: RECOMMENDED_PRODUCT_REASONS[name],
-                                  description: item.description,
-                                  price: item.price,
-                                  imageUrls: item.imageUrls,
-                                }
-                              : null;
-                          })
-                          .filter(Boolean) as SkinQuizProduct[];
-                        return (
-                          <div className="skin-analysis-products">
-                            <span className="skin-analysis-products-label">Recommended products</span>
-                            <div className="skin-analysis-product-chips">
-                              {products.map((p, idx) => (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  className="skin-analysis-product-chip"
-                                  onClick={() => setSelectedSkinProduct(p)}
-                                >
-                                  {p.imageUrl ? (
-                                    <img src={p.imageUrl} alt="" className="skin-analysis-product-chip-thumb" />
-                                  ) : (
-                                    <span className="skin-analysis-product-chip-placeholder">◆</span>
-                                  )}
-                                  <span className="skin-analysis-product-chip-name">
-                                    {p.name.split("|")[0]?.trim() ?? p.name}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    {skincareQuiz.answers &&
-                      Object.keys(skincareQuiz.answers).length > 0 &&
-                      (() => {
-                        const scores = computeQuizScores(skincareQuiz!.answers);
-                        const profile = computeQuizProfile(skincareQuiz!.answers);
-                        const maxScore = Math.max(...Object.values(scores), 1);
-                        return (
-                          <div className="skin-analysis-score-bars">
-                            <span className="skin-analysis-score-bars-title">
-                              Score breakdown
+                    <p className="skin-analysis-description">
+                      {skincareQuiz
+                        ? "Skin type and product recommendations from the completed quiz."
+                        : "Complete the skin type quiz to get a personalized result and product recommendations for this client."}
+                    </p>
+                    {skincareQuiz && (
+                      <div className="skin-analysis-details">
+                        <div className="skin-analysis-summary">
+                          {skincareQuiz.result &&
+                          GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result] ? (
+                            <span className="skin-analysis-summary-gemstone">
+                              {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].name}{" "}
+                              {GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result].emoji}{" "}
+                              {
+                                GEMSTONE_BY_SKIN_TYPE[skincareQuiz.result]
+                                  .tagline
+                              }
                             </span>
-                            {SKIN_TYPE_SCORE_ORDER.map((sectionId) => {
-                              const value = scores[sectionId] ?? 0;
-                              const pct = maxScore > 0 ? (value / maxScore) * 100 : 0;
-                              const letter = profile.sectionLetters?.[sectionId];
-                              const label = letter
-                                ? `${SKIN_TYPE_DISPLAY_LABELS[sectionId]} (${letter})`
-                                : SKIN_TYPE_DISPLAY_LABELS[sectionId];
-                              return (
-                                <div key={sectionId} className="skin-analysis-score-row">
-                                  <span className="skin-analysis-score-label">
-                                    {label}
-                                  </span>
-                                  <div className="skin-analysis-score-bar-wrap">
-                                    <div
-                                      className="skin-analysis-score-bar"
-                                      style={{ width: `${pct}%` }}
-                                    />
-                                  </div>
-                                  <span className="skin-analysis-score-value">{value}</span>
+                          ) : (
+                            <span className="skin-analysis-summary-type">
+                              {skincareQuiz.resultLabel ??
+                                (skincareQuiz.result
+                                  ? skincareQuiz.result
+                                      .charAt(0)
+                                      .toUpperCase() +
+                                    skincareQuiz.result.slice(1)
+                                  : "Completed")}
+                            </span>
+                          )}
+                        </div>
+                        {skincareQuiz.resultDescription && (
+                          <p className="skin-analysis-result-description">
+                            {skincareQuiz.resultDescription}
+                          </p>
+                        )}
+                        {skincareQuiz.recommendedProductNames &&
+                          skincareQuiz.recommendedProductNames.length > 0 &&
+                          (() => {
+                            const carouselItems = getSkincareCarouselItems();
+                            const products: SkinQuizProduct[] = skincareQuiz!
+                              .recommendedProductNames!.map((name: string) => {
+                                const item = carouselItems.find(
+                                  (p) => p.name === name,
+                                );
+                                return item
+                                  ? {
+                                      name,
+                                      imageUrl: item.imageUrl,
+                                      productUrl: item.productUrl,
+                                      recommendedFor:
+                                        RECOMMENDED_PRODUCT_REASONS[name],
+                                      description: item.description,
+                                      price: item.price,
+                                      imageUrls: item.imageUrls,
+                                    }
+                                  : null;
+                              })
+                              .filter(Boolean) as SkinQuizProduct[];
+                            return (
+                              <div className="skin-analysis-products">
+                                <span className="skin-analysis-products-label">
+                                  Recommended products
+                                </span>
+                                <div className="skin-analysis-product-chips">
+                                  {products.map((p, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      className="skin-analysis-product-chip"
+                                      onClick={() => setSelectedSkinProduct(p)}
+                                    >
+                                      {p.imageUrl ? (
+                                        <img
+                                          src={p.imageUrl}
+                                          alt=""
+                                          className="skin-analysis-product-chip-thumb"
+                                        />
+                                      ) : (
+                                        <span className="skin-analysis-product-chip-placeholder">
+                                          ◆
+                                        </span>
+                                      )}
+                                      <span className="skin-analysis-product-chip-name">
+                                        {p.name.split("|")[0]?.trim() ?? p.name}
+                                      </span>
+                                    </button>
+                                  ))}
                                 </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
+                              </div>
+                            );
+                          })()}
+                        {skincareQuiz.answers &&
+                          Object.keys(skincareQuiz.answers).length > 0 &&
+                          (() => {
+                            const scores = computeQuizScores(
+                              skincareQuiz!.answers,
+                            );
+                            const profile = computeQuizProfile(
+                              skincareQuiz!.answers,
+                            );
+                            const maxScore = Math.max(
+                              ...Object.values(scores),
+                              1,
+                            );
+                            return (
+                              <div className="skin-analysis-score-bars">
+                                <span className="skin-analysis-score-bars-title">
+                                  Score breakdown
+                                </span>
+                                {SKIN_TYPE_SCORE_ORDER.map((sectionId) => {
+                                  const value = scores[sectionId] ?? 0;
+                                  const pct =
+                                    maxScore > 0 ? (value / maxScore) * 100 : 0;
+                                  const letter =
+                                    profile.sectionLetters?.[sectionId];
+                                  const label = letter
+                                    ? `${SKIN_TYPE_DISPLAY_LABELS[sectionId]} (${letter})`
+                                    : SKIN_TYPE_DISPLAY_LABELS[sectionId];
+                                  return (
+                                    <div
+                                      key={sectionId}
+                                      className="skin-analysis-score-row"
+                                    >
+                                      <span className="skin-analysis-score-label">
+                                        {label}
+                                      </span>
+                                      <div className="skin-analysis-score-bar-wrap">
+                                        <div
+                                          className="skin-analysis-score-bar"
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                      <span className="skin-analysis-score-value">
+                                        {value}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              </>
+                </>
               )}
 
               {/* Wellness Quiz Section (hidden when WELLNESS_QUIZ_ENABLED is false) */}
@@ -1585,8 +1698,14 @@ export default function ClientDetailModal({
                       {client.wellnessQuiz && (
                         <span className="detail-value-muted">
                           {" "}
-                          · {client.wellnessQuiz.suggestedTreatmentIds.length} suggestion
-                          {client.wellnessQuiz.suggestedTreatmentIds.length !== 1 ? "s" : ""}
+                          · {
+                            client.wellnessQuiz.suggestedTreatmentIds.length
+                          }{" "}
+                          suggestion
+                          {client.wellnessQuiz.suggestedTreatmentIds.length !==
+                          1
+                            ? "s"
+                            : ""}
                           {client.wellnessQuiz.completedAt &&
                             ` · ${formatDate(client.wellnessQuiz.completedAt)}`}
                         </span>
@@ -1594,13 +1713,18 @@ export default function ClientDetailModal({
                     </div>
                     <div className="detail-section-header-actions">
                       {client.wellnessQuiz &&
-                        getSuggestedWellnessTreatments(client.wellnessQuiz).length > 0 && (
+                        getSuggestedWellnessTreatments(client.wellnessQuiz)
+                          .length > 0 && (
                           <button
                             type="button"
                             className="btn-secondary btn-sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSMSInitialMessage(getWellnessQuizResultsSMSMessage(client.wellnessQuiz!));
+                              setSMSInitialMessage(
+                                getWellnessQuizResultsSMSMessage(
+                                  client.wellnessQuiz!,
+                                ),
+                              );
                               setShowSendSMS(true);
                             }}
                           >
@@ -1625,30 +1749,47 @@ export default function ClientDetailModal({
                       : "Complete the wellness quiz to get personalized peptide/treatment suggestions from our offerings."}
                   </p>
                   {client.wellnessQuiz &&
-                    getSuggestedWellnessTreatments(client.wellnessQuiz).length > 0 && (
+                    getSuggestedWellnessTreatments(client.wellnessQuiz).length >
+                      0 && (
                       <WellnessQuizResultsCards
-                        suggestedTreatments={getSuggestedWellnessTreatments(client.wellnessQuiz)}
+                        suggestedTreatments={getSuggestedWellnessTreatments(
+                          client.wellnessQuiz,
+                        )}
                         answers={client.wellnessQuiz.answers}
                         onAddToPlan={async (prefill) => {
                           const newItem: DiscussedItem = {
                             id: generateId(),
                             addedAt: new Date().toISOString(),
                             interest: prefill.interest?.trim() || undefined,
-                            findings: prefill.findings?.length ? prefill.findings : undefined,
+                            findings: prefill.findings?.length
+                              ? prefill.findings
+                              : undefined,
                             treatment: prefill.treatment?.trim() || "",
-                            product: prefill.treatmentProduct?.trim() || undefined,
+                            product:
+                              prefill.treatmentProduct?.trim() || undefined,
                             region: prefill.region?.trim() || undefined,
-                            timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+                            timeline: (prefill.timeline?.trim() ||
+                              "Wishlist") as string,
                             quantity: prefill.quantity?.trim() || undefined,
                             notes: prefill.notes?.trim() || undefined,
                           };
-                          const nextItems = [...(client.discussedItems || []), newItem];
+                          const nextItems = [
+                            ...(client.discussedItems || []),
+                            newItem,
+                          ];
                           try {
-                    await persistClientDiscussedItems(client, nextItems);
+                            await persistClientDiscussedItems(
+                              client,
+                              nextItems,
+                            );
                             showToast("Added to treatment plan");
                             onUpdate();
                           } catch (e) {
-                            showError(e instanceof Error ? e.message : "Failed to add to plan");
+                            showError(
+                              e instanceof Error
+                                ? e.message
+                                : "Failed to add to plan",
+                            );
                             throw e;
                           }
                         }}
@@ -1897,7 +2038,7 @@ export default function ClientDetailModal({
               notes: prefill.notes?.trim() || undefined,
             };
             const nextItems = [...(client.discussedItems || []), newItem];
-                    await persistClientDiscussedItems(client, nextItems);
+            await persistClientDiscussedItems(client, nextItems);
             showToast("Added to treatment plan");
             onUpdate();
           }}
@@ -1921,7 +2062,7 @@ export default function ClientDetailModal({
               notes: prefill.notes?.trim() || undefined,
             };
             const nextItems = [...(client.discussedItems || []), newItem];
-                    await persistClientDiscussedItems(client, nextItems);
+            await persistClientDiscussedItems(client, nextItems);
             showToast("Added to treatment plan");
             setSelectedSkinProduct(null);
             onUpdate();
@@ -1952,11 +2093,13 @@ export default function ClientDetailModal({
             };
             const nextItems = [...(client.discussedItems || []), newItem];
             try {
-                    await persistClientDiscussedItems(client, nextItems);
+              await persistClientDiscussedItems(client, nextItems);
               showToast("Added to treatment plan");
               onUpdate();
             } catch (e) {
-              showError(e instanceof Error ? e.message : "Failed to add to plan");
+              showError(
+                e instanceof Error ? e.message : "Failed to add to plan",
+              );
               throw e;
             }
           }}
@@ -1970,30 +2113,30 @@ export default function ClientDetailModal({
           onClose={() => setShowCheckoutModal(false)}
           onRemoveItem={async (_item, index) => {
             const nextItems = (client.discussedItems ?? []).filter(
-              (_, i) => i !== index
+              (_, i) => i !== index,
             );
             try {
-                    await persistClientDiscussedItems(client, nextItems);
+              await persistClientDiscussedItems(client, nextItems);
               showToast("Removed from plan");
               onUpdate();
             } catch (e) {
               showError(
-                e instanceof Error ? e.message : "Failed to remove from plan"
+                e instanceof Error ? e.message : "Failed to remove from plan",
               );
             }
           }}
           onUpdateItem={async (index, patch) => {
             const current = client.discussedItems ?? [];
             const nextItems = current.map((it, i) =>
-              i === index ? { ...it, ...patch } : it
+              i === index ? { ...it, ...patch } : it,
             );
             try {
-                    await persistClientDiscussedItems(client, nextItems);
+              await persistClientDiscussedItems(client, nextItems);
               showToast("Plan updated");
               onUpdate();
             } catch (e) {
               showError(
-                e instanceof Error ? e.message : "Failed to update plan"
+                e instanceof Error ? e.message : "Failed to update plan",
               );
             }
           }}
@@ -2040,7 +2183,7 @@ export default function ClientDetailModal({
               notes: prefill.notes?.trim() || undefined,
             };
             const nextItems = [...(client.discussedItems || []), newItem];
-                    await persistClientDiscussedItems(client, nextItems);
+            await persistClientDiscussedItems(client, nextItems);
             showToast("Added to treatment plan");
             setIssuePhotosContext(null);
             onUpdate();

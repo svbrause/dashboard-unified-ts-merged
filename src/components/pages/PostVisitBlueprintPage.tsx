@@ -486,9 +486,7 @@ export default function PostVisitBlueprintPage() {
     ).slice(0, 4);
     const displayAreas = Array.from(
       new Set(
-        chapters
-          .map((c) => (c.displayArea ?? "").trim())
-          .filter(Boolean),
+        chapters.map((c) => (c.displayArea ?? "").trim()).filter(Boolean),
       ),
     ).slice(0, 4);
     /** Merge global chips, per-plan-item findings, and scan labels so the top overview matches lower sections even when global insights are empty (per-treatment mode). */

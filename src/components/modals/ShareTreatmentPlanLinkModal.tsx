@@ -47,11 +47,9 @@ function sectionLabelForShareRow(item: DiscussedItem): string {
   return t;
 }
 
-/** Per-line amount in the quote preview: prefer formatted string from checkout (ranges, per-unit math, "Price varies"). */
+/** Per-line amount in the share preview — same strings as checkout (including wishlist reference pricing). */
 function shareRowPriceDisplay(
-  line:
-    | { price?: number; displayPrice?: string }
-    | undefined,
+  line: { price?: number; displayPrice?: string } | undefined,
 ): string {
   if (line?.displayPrice?.trim()) return line.displayPrice.trim();
   return formatPrice(line?.price ?? 0);
@@ -59,7 +57,13 @@ function shareRowPriceDisplay(
 
 function shareRowPrimaryLabel(
   item: DiscussedItem,
-  line: { skuName?: string; label: string; quoteLineKind?: "skincare" | "treatment" } | undefined,
+  line:
+    | {
+        skuName?: string;
+        label: string;
+        quoteLineKind?: "skincare" | "treatment";
+      }
+    | undefined,
 ): string {
   if (!line) return getTreatmentDisplayName(item);
   const raw = (line.skuName ?? line.label ?? "").trim();
@@ -287,7 +291,9 @@ export default function ShareTreatmentPlanLinkModal({
       setStep("send");
     } catch (e) {
       showError(
-        e instanceof Error ? e.message : "Failed to prepare treatment plan link.",
+        e instanceof Error
+          ? e.message
+          : "Failed to prepare treatment plan link.",
       );
     } finally {
       setPreparingLink(false);
@@ -404,102 +410,104 @@ export default function ShareTreatmentPlanLinkModal({
         {step === "pick" ? (
           <>
             <p className="share-tp-link-dialog-subtitle">
-              Choose items for the patient link—pricing matches their plan.
-              Now, next visit &amp; Skincare default on; Wishlist off.
+              Choose items for the patient link—pricing matches their plan. Now,
+              next visit &amp; Skincare default on; Wishlist off.
             </p>
             <div className="share-tp-link-dialog-body">
-            {eligibleItems.length === 0 ? (
-              <p className="share-treatment-plan-link-empty">
-                Only Now, Add next visit, Wishlist, and Skincare can be shared.
-                Move items out of Completed, or add plan rows in those
-                sections.
-              </p>
-            ) : (
-              <div className="share-tp-link-quote">
-                {skincareShareItems.length > 0 ? (
-                  <div className="share-tp-link-quote-section">
-                    <h4 className="share-tp-link-quote-section-title">
-                      Skincare products
-                    </h4>
-                    <ul className="share-tp-link-quote-rows">
-                      {skincareShareItems.map((item) => {
-                        const line = lineForItem(item);
-                        return (
-                          <li key={item.id}>
-                            <label className="share-tp-link-quote-row">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(inclusionById[item.id])}
-                                onChange={() => toggleInclude(item.id)}
-                              />
-                              <span className="share-tp-link-quote-row-text">
-                                <span className="share-treatment-plan-link-row-title">
-                                  {shareRowPrimaryLabel(item, line)}
+              {eligibleItems.length === 0 ? (
+                <p className="share-treatment-plan-link-empty">
+                  Only Now, Add next visit, Wishlist, and Skincare can be
+                  shared. Move items out of Completed, or add plan rows in those
+                  sections.
+                </p>
+              ) : (
+                <div className="share-tp-link-quote">
+                  {skincareShareItems.length > 0 ? (
+                    <div className="share-tp-link-quote-section">
+                      <h4 className="share-tp-link-quote-section-title">
+                        Skincare products
+                      </h4>
+                      <ul className="share-tp-link-quote-rows">
+                        {skincareShareItems.map((item) => {
+                          const line = lineForItem(item);
+                          return (
+                            <li key={item.id}>
+                              <label className="share-tp-link-quote-row">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(inclusionById[item.id])}
+                                  onChange={() => toggleInclude(item.id)}
+                                />
+                                <span className="share-tp-link-quote-row-text">
+                                  <span className="share-treatment-plan-link-row-title">
+                                    {shareRowPrimaryLabel(item, line)}
+                                  </span>
+                                  <span className="share-treatment-plan-link-row-meta">
+                                    {sectionLabelForShareRow(item)}
+                                  </span>
                                 </span>
-                                <span className="share-treatment-plan-link-row-meta">
-                                  {sectionLabelForShareRow(item)}
-                                </span>
-                              </span>
-                              <strong className="share-tp-link-quote-row-price">
-                                {shareRowPriceDisplay(line)}
-                              </strong>
-                            </label>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <div className="share-tp-link-quote-subtotal">
-                      <span>Skincare subtotal</span>
-                      <strong>{formatPrice(includedSkincareSubtotal)}</strong>
+                                <strong className="share-tp-link-quote-row-price">
+                                  {shareRowPriceDisplay(line)}
+                                </strong>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="share-tp-link-quote-subtotal">
+                        <span>Skincare subtotal</span>
+                        <strong>{formatPrice(includedSkincareSubtotal)}</strong>
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-                {treatmentShareItems.length > 0 ? (
-                  <div className="share-tp-link-quote-section">
-                    <h4 className="share-tp-link-quote-section-title">
-                      Treatments
-                    </h4>
-                    <ul className="share-tp-link-quote-rows">
-                      {treatmentShareItems.map((item) => {
-                        const line = lineForItem(item);
-                        return (
-                          <li key={item.id}>
-                            <label className="share-tp-link-quote-row">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(inclusionById[item.id])}
-                                onChange={() => toggleInclude(item.id)}
-                              />
-                              <span className="share-tp-link-quote-row-text">
-                                <span className="share-treatment-plan-link-row-title">
-                                  {shareRowPrimaryLabel(item, line)}
+                  ) : null}
+                  {treatmentShareItems.length > 0 ? (
+                    <div className="share-tp-link-quote-section">
+                      <h4 className="share-tp-link-quote-section-title">
+                        Treatments
+                      </h4>
+                      <ul className="share-tp-link-quote-rows">
+                        {treatmentShareItems.map((item) => {
+                          const line = lineForItem(item);
+                          return (
+                            <li key={item.id}>
+                              <label className="share-tp-link-quote-row">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(inclusionById[item.id])}
+                                  onChange={() => toggleInclude(item.id)}
+                                />
+                                <span className="share-tp-link-quote-row-text">
+                                  <span className="share-treatment-plan-link-row-title">
+                                    {shareRowPrimaryLabel(item, line)}
+                                  </span>
+                                  <span className="share-treatment-plan-link-row-meta">
+                                    {sectionLabelForShareRow(item)}
+                                  </span>
                                 </span>
-                                <span className="share-treatment-plan-link-row-meta">
-                                  {sectionLabelForShareRow(item)}
-                                </span>
-                              </span>
-                              <strong className="share-tp-link-quote-row-price">
-                                {shareRowPriceDisplay(line)}
-                              </strong>
-                            </label>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <div className="share-tp-link-quote-subtotal">
-                      <span>Treatments subtotal</span>
-                      <strong>{formatPrice(includedTreatmentSubtotal)}</strong>
+                                <strong className="share-tp-link-quote-row-price">
+                                  {shareRowPriceDisplay(line)}
+                                </strong>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="share-tp-link-quote-subtotal">
+                        <span>Treatments subtotal</span>
+                        <strong>
+                          {formatPrice(includedTreatmentSubtotal)}
+                        </strong>
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-                <div className="share-tp-link-quote-footer">
-                  <div className="share-tp-link-quote-total">
-                    <span>Total</span>
-                    <strong>{formatPrice(includedSelectionTotal)}</strong>
+                  ) : null}
+                  <div className="share-tp-link-quote-footer">
+                    <div className="share-tp-link-quote-total">
+                      <span>Total</span>
+                      <strong>{formatPrice(includedSelectionTotal)}</strong>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
             <div className="share-tp-link-dialog-footer">
               <div className="treatment-plan-checkout-blueprint-compose-actions share-treatment-plan-link-actions">
@@ -529,34 +537,34 @@ export default function ShareTreatmentPlanLinkModal({
         ) : (
           <>
             <div className="share-tp-link-dialog-body">
-            <label
-              className="treatment-plan-checkout-blueprint-compose-label"
-              htmlFor="share-tp-link-recipient-phone"
-            >
-              Recipient phone
-            </label>
-            <input
-              id="share-tp-link-recipient-phone"
-              type="tel"
-              autoComplete="tel"
-              className="treatment-plan-checkout-blueprint-compose-phone"
-              placeholder="(555) 555-5555"
-              value={blueprintRecipientPhone}
-              onChange={(e) => setBlueprintRecipientPhone(e.target.value)}
-            />
-            <label
-              className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
-              htmlFor="share-tp-link-message"
-            >
-              Message
-            </label>
-            <textarea
-              id="share-tp-link-message"
-              className="treatment-plan-checkout-blueprint-compose-textarea"
-              value={blueprintMessageDraft}
-              onChange={(e) => setBlueprintMessageDraft(e.target.value)}
-              rows={6}
-            />
+              <label
+                className="treatment-plan-checkout-blueprint-compose-label"
+                htmlFor="share-tp-link-recipient-phone"
+              >
+                Recipient phone
+              </label>
+              <input
+                id="share-tp-link-recipient-phone"
+                type="tel"
+                autoComplete="tel"
+                className="treatment-plan-checkout-blueprint-compose-phone"
+                placeholder="(555) 555-5555"
+                value={blueprintRecipientPhone}
+                onChange={(e) => setBlueprintRecipientPhone(e.target.value)}
+              />
+              <label
+                className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
+                htmlFor="share-tp-link-message"
+              >
+                Message
+              </label>
+              <textarea
+                id="share-tp-link-message"
+                className="treatment-plan-checkout-blueprint-compose-textarea"
+                value={blueprintMessageDraft}
+                onChange={(e) => setBlueprintMessageDraft(e.target.value)}
+                rows={6}
+              />
             </div>
             <div className="share-tp-link-dialog-footer">
               <div className="treatment-plan-checkout-blueprint-compose-actions share-treatment-plan-link-actions">
