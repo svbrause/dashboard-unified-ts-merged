@@ -785,22 +785,26 @@ export default function ClientDetailPanel({
                     )}
                   <div className="detail-section-relative">
                     {!isEditMode && (
-                      <button
-                        className="edit-toggle-btn"
-                        onClick={() => setIsEditMode(true)}
-                      >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
+                      <div className="modal-contact-edit-toolbar">
+                        <button
+                          type="button"
+                          className="edit-toggle-btn"
+                          onClick={() => setIsEditMode(true)}
+                          aria-label="Edit contact information"
                         >
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                      </button>
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                          </svg>
+                        </button>
+                      </div>
                     )}
                     <div className="contact-info-with-actions">
                       <div className="detail-grid">
@@ -824,30 +828,30 @@ export default function ClientDetailPanel({
                             </div>
                           )}
                         </div>
-                        {client.phone && (
-                          <div className="detail-item">
-                            <label>Phone</label>
-                            {isEditMode ? (
-                              <input
-                                type="tel"
-                                value={editedClient?.phone ?? ""}
-                                onInput={(e) => {
-                                  const input = e.target as HTMLInputElement;
-                                  formatPhoneInput(input);
-                                  setEditedClient({
-                                    ...editedClient,
-                                    phone: input.value,
-                                  });
-                                }}
-                                className="edit-input"
-                              />
-                            ) : (
-                              <div className="detail-value">
-                                {formatPhoneDisplay(client.phone)}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <div className="detail-item">
+                          <label>Phone</label>
+                          {isEditMode ? (
+                            <input
+                              type="tel"
+                              value={editedClient?.phone ?? ""}
+                              onInput={(e) => {
+                                const input = e.target as HTMLInputElement;
+                                formatPhoneInput(input);
+                                setEditedClient({
+                                  ...editedClient,
+                                  phone: input.value,
+                                });
+                              }}
+                              className="edit-input"
+                            />
+                          ) : (
+                            <div className="detail-value">
+                              {client.phone
+                                ? formatPhoneDisplay(client.phone)
+                                : "Not provided"}
+                            </div>
+                          )}
+                        </div>
                         {client.ageRange && (
                           <div className="detail-item">
                             <label>Age Range</label>
@@ -897,7 +901,7 @@ export default function ClientDetailPanel({
                             </option>
                           </select>
                         </div>
-                        {client.source && (
+                        {(client.source || isEditMode) && (
                           <div className="detail-item">
                             <label>Source</label>
                             {isEditMode ? (
@@ -906,11 +910,12 @@ export default function ClientDetailPanel({
                                 onChange={(e) =>
                                   setEditedClient({
                                     ...editedClient,
-                                    source: e.target.value,
+                                    source: e.target.value || undefined,
                                   })
                                 }
                                 className="edit-input"
                               >
+                                <option value="">—</option>
                                 <option value="Walk-in">Walk-in</option>
                                 <option value="Phone Call">Phone Call</option>
                                 <option value="Referral">Referral</option>
@@ -925,7 +930,7 @@ export default function ClientDetailPanel({
                               </select>
                             ) : (
                               <div className="detail-value">
-                                {client.source}
+                                {client.source || "Not provided"}
                               </div>
                             )}
                           </div>
@@ -954,39 +959,37 @@ export default function ClientDetailPanel({
                               )}
                             </>
                           )}
-                        {client.zipCode && (
-                          <div className="detail-item">
-                            <label>Zip Code</label>
-                            {isEditMode ? (
-                              <input
-                                type="text"
-                                value={editedClient?.zipCode || ""}
-                                maxLength={5}
-                                onInput={(e) => {
-                                  formatZipCodeInput(
-                                    e.target as HTMLInputElement,
-                                  );
-                                  setEditedClient({
-                                    ...editedClient,
-                                    zipCode: (e.target as HTMLInputElement)
-                                      .value,
-                                  });
-                                }}
-                                onChange={(e) => {
-                                  setEditedClient({
-                                    ...editedClient,
-                                    zipCode: e.target.value,
-                                  });
-                                }}
-                                className="edit-input"
-                              />
-                            ) : (
-                              <div className="detail-value">
-                                {client.zipCode}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <div className="detail-item">
+                          <label>Zip Code</label>
+                          {isEditMode ? (
+                            <input
+                              type="text"
+                              value={editedClient?.zipCode || ""}
+                              maxLength={5}
+                              onInput={(e) => {
+                                formatZipCodeInput(
+                                  e.target as HTMLInputElement,
+                                );
+                                setEditedClient({
+                                  ...editedClient,
+                                  zipCode: (e.target as HTMLInputElement)
+                                    .value,
+                                });
+                              }}
+                              onChange={(e) => {
+                                setEditedClient({
+                                  ...editedClient,
+                                  zipCode: e.target.value,
+                                });
+                              }}
+                              className="edit-input"
+                            />
+                          ) : (
+                            <div className="detail-value">
+                              {client.zipCode || "Not provided"}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {!isEditMode && (

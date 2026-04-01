@@ -249,23 +249,6 @@
   max-width: none; /* Take full width */
 }
 
-/* Adjust edit toggle position - move it up and left */
-.client-detail-panel-body .detail-section-relative {
-  position: relative;
-}
-
-.client-detail-panel-body .edit-toggle-btn {
-  position: absolute;
-  top: -8px;
-  right: 16px;
-  margin: 0;
-}
-
-/* Row layout: align edit control's right edge with photo's right (any photo width) */
-.client-detail-panel-body .modal-header-with-photo .edit-toggle-btn {
-  right: calc(100% + var(--modal-photo-contact-gap));
-}
-
 /* Header layout - name, subtitle or last activity inline */
 .client-detail-panel-activity-inline {
   margin: 0;
@@ -1197,11 +1180,6 @@
     border-radius: 14px;
   }
 
-  /* Column layout: photo and contact share width — edit right matches photo right */
-  .client-detail-panel-body .modal-header-with-photo .edit-toggle-btn {
-    right: 0;
-  }
-
   .client-detail-panel-body .modal-photo-container {
     width: 100% !important;
     max-width: 100% !important;
@@ -1339,9 +1317,7 @@
     font-size: 14px;
   }
 
-  /* Edit toggle: easier to tap */
-  .client-detail-panel-body .edit-toggle-btn {
+  .client-detail-panel-body .modal-contact-edit-toolbar .edit-toggle-btn {
     padding: 10px;
-    top: -4px;
   }
 }

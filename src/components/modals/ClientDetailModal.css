@@ -318,9 +318,6 @@
 }
 
 .edit-toggle-btn {
-  position: absolute;
-  top: -8px;
-  right: -8px;
   background: transparent;
   border: none;
   padding: 8px;

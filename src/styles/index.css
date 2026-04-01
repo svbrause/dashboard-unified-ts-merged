@@ -2034,6 +2034,20 @@ body.theme-warm .kanban-cards.drag-over {
   min-width: 0;
 }
 
+/* Pencil: top-right of contact column only (avoids overlapping the photo) */
+.modal-contact-edit-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 8px;
+}
+
+.modal-contact-section .modal-contact-edit-toolbar .edit-toggle-btn {
+  position: static;
+  margin: 0;
+}
+
 .modal-photo-container {
   flex-shrink: 0;
   width: 270px;
