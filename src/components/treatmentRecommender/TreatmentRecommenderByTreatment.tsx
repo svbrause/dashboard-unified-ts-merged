@@ -949,7 +949,7 @@ export default function TreatmentRecommenderByTreatment({
   const [frontPhotoUrl, setFrontPhotoUrl] = useState<string | null>(null);
   const [sidePhotoUrl, setSidePhotoUrl] = useState<string | null>(null);
   const [showClientPhotoModal, setShowClientPhotoModal] = useState(false);
-  /** Skincare recommendations section (quiz result + product cards) collapsed by default */
+  /** Skin quiz results (summary + preview); products are added from the Skincare treatment card below */
   const [
     skincareRecommendationsCollapsed,
     setSkincareRecommendationsCollapsed,
@@ -1437,14 +1437,9 @@ export default function TreatmentRecommenderByTreatment({
     provider?.code,
   ]);
 
-  /** Treatment cards to show: exclude Skincare from the list when client has completed the skin quiz (Skincare lives only in the collapsible recommendations block). */
+  /** Treatment cards to show (Skincare stays in the list so the full product carousel is always available, including after the skin quiz). */
   const treatmentsToShow = useMemo(() => {
-    const hasCompletedSkinQuiz = Boolean(
-      client.skincareQuiz?.completedAt ?? client.skincareQuiz?.result,
-    );
-    const base = hasCompletedSkinQuiz
-      ? suggestedTreatments.filter((t) => t !== "Skincare")
-      : suggestedTreatments;
+    const base = suggestedTreatments;
     if (!isWellnestWellnessProviderCode(provider?.code)) return base;
     if (wellnessIntakeGoals.length === 0) return base;
     return [...base].sort((a, b) => {
@@ -1460,8 +1455,6 @@ export default function TreatmentRecommenderByTreatment({
     });
   }, [
     suggestedTreatments,
-    client.skincareQuiz?.completedAt,
-    client.skincareQuiz?.result,
     provider?.code,
     wellnessIntakeGoals,
   ]);
@@ -1644,22 +1637,20 @@ export default function TreatmentRecommenderByTreatment({
     setWellnestPriceFilter("all");
   }, [provider?.code, client.id]);
 
-  /** Skincare product details for the recommendations section (same shape as quiz modal cards) */
-  const skincareRecommendedWithDetails = useMemo(() => {
+  /** Quiz picks for read-only preview (same carousel visuals as Skincare add-to-plan; add happens in the Skincare card). */
+  const quizRecommendedCarouselPreview = useMemo(() => {
     const names = client.skincareQuiz?.recommendedProductNames ?? [];
     if (names.length === 0) return [];
     const carouselItems = getSkincareCarouselItems();
     return names.map((name) => {
       const item = carouselItems.find((p) => p.name === name);
+      const displayName = name.split("|")[0]?.trim() ?? name;
       return {
         name,
+        displayName,
         imageUrl: item?.imageUrl,
-        productUrl: item?.productUrl,
-        recommendedFor:
-          RECOMMENDED_PRODUCT_REASONS[name] ?? "Recommended for your skin type",
-        description: item?.description,
-        price: item?.price,
-        imageUrls: item?.imageUrls,
+        blurb:
+          RECOMMENDED_PRODUCT_REASONS[name] ?? "Recommended from your quiz",
       };
     });
   }, [client.skincareQuiz?.recommendedProductNames]);
@@ -2150,7 +2141,7 @@ export default function TreatmentRecommenderByTreatment({
                 aria-expanded={!skincareRecommendationsCollapsed}
               >
                 <h3 className="treatment-recommender-skin-analysis__title">
-                  Skincare recommendations
+                  Skin quiz results
                 </h3>
                 {client.skincareQuiz?.completedAt && (
                   <span className="treatment-recommender-skin-analysis__completed">
@@ -2277,78 +2268,87 @@ export default function TreatmentRecommenderByTreatment({
                         </span>
                       )}
                   </div>
-                  {skincareRecommendedWithDetails.length > 0 && (
-                    <div className="treatment-recommender-skin-analysis__products-grid">
-                      {skincareRecommendedWithDetails.map((product, idx) => (
-                        <div
-                          key={idx}
-                          className="treatment-recommender-skin-analysis__product-card"
-                        >
-                          <div className="treatment-recommender-skin-analysis__product-card-image-wrap">
-                            {product.imageUrl ? (
-                              <img
-                                src={product.imageUrl}
-                                alt=""
-                                className="treatment-recommender-skin-analysis__product-card-image"
-                              />
-                            ) : (
-                              <div className="treatment-recommender-skin-analysis__product-card-placeholder">
-                                <span aria-hidden>◆</span>
+                  {(client.skincareQuiz?.completedAt ??
+                    client.skincareQuiz?.result) && (
+                    <div className="treatment-recommender-skin-analysis__plan-hint">
+                      <p className="treatment-recommender-skin-analysis__plan-hint-text">
+                        Add skincare—including these quiz picks or any other
+                        product—from the{" "}
+                        <strong>Skincare</strong> treatment card below. Quiz
+                        recommendations show a <strong>Recommended</strong>{" "}
+                        badge in that product list.
+                      </p>
+                      {quizRecommendedCarouselPreview.length > 0 && (
+                        <>
+                          <p className="treatment-recommender-skin-analysis__plan-hint-sub">
+                            Your quiz highlights (same layout as the Skincare
+                            card):
+                          </p>
+                          <div className="treatment-recommender-by-treatment__skincare-carousel-wrap treatment-recommender-skin-analysis__carousel-preview-wrap">
+                            <div
+                              className="discussed-treatments-product-carousel treatment-recommender-skin-analysis__carousel-preview"
+                              role="list"
+                              aria-label="Quiz-recommended products (preview)"
+                            >
+                              <div className="discussed-treatments-product-carousel-track">
+                                {quizRecommendedCarouselPreview.map(
+                                  (product) => (
+                                    <div
+                                      key={product.name}
+                                      role="listitem"
+                                      className="discussed-treatments-product-carousel-item treatment-recommender-by-treatment__carousel-item--quiz-recommended treatment-recommender-skin-analysis__carousel-preview-item"
+                                    >
+                                      <div
+                                        className="discussed-treatments-product-carousel-image"
+                                        aria-hidden
+                                      >
+                                        {product.imageUrl ? (
+                                          <img
+                                            src={product.imageUrl}
+                                            alt=""
+                                            loading="lazy"
+                                            className="discussed-treatments-product-carousel-img"
+                                          />
+                                        ) : null}
+                                      </div>
+                                      <span className="discussed-treatments-product-carousel-label">
+                                        {product.displayName}
+                                      </span>
+                                      <span
+                                        className="treatment-recommender-by-treatment__carousel-quiz-badge"
+                                        aria-label="Recommended from skin quiz"
+                                      >
+                                        Recommended
+                                      </span>
+                                      <span className="treatment-recommender-skin-analysis__carousel-preview-blurb">
+                                        {product.blurb}
+                                      </span>
+                                    </div>
+                                  ),
+                                )}
                               </div>
-                            )}
-                          </div>
-                          <div className="treatment-recommender-skin-analysis__product-card-body">
-                            <div className="treatment-recommender-skin-analysis__product-card-reason">
-                              Recommended for: {product.recommendedFor}
                             </div>
-                            <div className="treatment-recommender-skin-analysis__product-card-name">
-                              {product.name.split("|")[0]?.trim() ??
-                                product.name}
-                            </div>
-                            {onAddToPlanDirect &&
-                              (() => {
-                                const displayName =
-                                  product.name.split("|")[0]?.trim() ??
-                                  product.name;
-                                const isInPlan = (
-                                  client.discussedItems ?? []
-                                ).some(
-                                  (item) =>
-                                    item.treatment?.trim() === "Skincare" &&
-                                    (item.product?.trim() === displayName ||
-                                      item.product?.trim() === product.name),
-                                );
-                                return (
-                                  <button
-                                    type="button"
-                                    className={`treatment-recommender-skin-analysis__product-card-add-btn${isInPlan ? " treatment-recommender-skin-analysis__product-card-add-btn--added" : ""}`}
-                                    onClick={async () => {
-                                      if (isInPlan) return;
-                                      const prefill: TreatmentPlanPrefill = {
-                                        interest: "",
-                                        region: "",
-                                        treatment: "Skincare",
-                                        treatmentProduct: displayName,
-                                        timeline: TIMELINE_SKINCARE,
-                                        notes:
-                                          product.recommendedFor ?? undefined,
-                                      };
-                                      try {
-                                        await onAddToPlanDirect(prefill);
-                                        showToast("Added to treatment plan");
-                                      } catch {
-                                        showToast("Could not add to plan");
-                                      }
-                                    }}
-                                    disabled={isInPlan}
-                                  >
-                                    {isInPlan ? "Added to plan" : "Add to plan"}
-                                  </button>
-                                );
-                              })()}
                           </div>
-                        </div>
-                      ))}
+                        </>
+                      )}
+                      <div className="treatment-recommender-skin-analysis__plan-hint-actions">
+                        <button
+                          type="button"
+                          className="treatment-recommender-skin-analysis__go-to-skincare-btn"
+                          onClick={() => {
+                            document
+                              .getElementById(
+                                "treatment-recommender-skincare-card",
+                              )
+                              ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                          }}
+                        >
+                          Go to Skincare
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2524,6 +2524,11 @@ export default function TreatmentRecommenderByTreatment({
                 return (
                   <div
                     key={treatment}
+                    id={
+                      treatment === "Skincare"
+                        ? "treatment-recommender-skincare-card"
+                        : undefined
+                    }
                     ref={(el) => {
                       cardRefsMap.current[treatment] = el;
                     }}
