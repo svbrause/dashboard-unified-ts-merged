@@ -1,6 +1,7 @@
 import type { BlueprintAnalysisDisplay } from "./postVisitBlueprintAnalysis";
 import {
   buildAssessmentFindingsSection,
+  formatEnglishList,
   type ChapterOverviewParts,
 } from "./pvbOverviewNarratives";
 import type { PvbResolvedPlanGlossaryTerm } from "./pvbPlanTermGlossary";
@@ -78,11 +79,23 @@ export function buildPvbMainOverviewSections(
     .filter(Boolean)
     .join(" ");
   const coordination = framing.slice(1).join(" ");
+  const goalsLead = analysisDisplay.goals
+    .map((g) => g.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+  const providerWhyWithGoals = [
+    goalsLead.length > 0
+      ? `Your goals are ${formatEnglishList(goalsLead)}.`
+      : null,
+    providerWhy,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  if (providerWhy) {
+  if (providerWhyWithGoals) {
     out.push({
       heading: "Why your provider built this plan",
-      text: providerWhy,
+      text: providerWhyWithGoals,
     });
   }
 

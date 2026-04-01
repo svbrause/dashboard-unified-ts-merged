@@ -1127,24 +1127,6 @@ export default function PostVisitBlueprintPage() {
                 </section>
               )}
 
-              {analysisDisplay.goals.length > 0 && (
-                <section className="pvb-overview-section">
-                  <h3 className="pvb-overview-section-title">
-                    What you want to achieve
-                  </h3>
-                  <div
-                    className="pvb-analysis-goal-chips"
-                    aria-label="What you want to achieve"
-                  >
-                    {analysisDisplay.goals.map((g) => (
-                      <span key={g} className="pvb-analysis-goal-chip">
-                        {g}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
-
               {(analysisDisplay.globalPlanInsights.interests.length > 0 ||
                 analysisDisplay.globalPlanInsights.findings.length > 0) && (
                 <section className="pvb-overview-section">

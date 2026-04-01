@@ -24,8 +24,6 @@ import {
 import {
   DEFAULT_RECOMMENDER_FILTER_STATE,
   filterSuggestionsByRegion,
-  filterSuggestionsByFindings,
-  getFindingsFromConcerns,
   AREA_CROPPED_PHOTO_FIELDS,
   type TreatmentRecommenderFilterState,
 } from "../../config/treatmentRecommenderConfig";
@@ -230,24 +228,10 @@ export default function TreatmentRecommenderBySuggestion({
 
   const detectedIssues = useMemo(() => getDetectedIssues(client), [client]);
 
-  /** All selected findings (explicit + from general concerns) used to filter suggestions. */
-  const effectiveFindings = useMemo(() => {
-    const fromConcerns = getFindingsFromConcerns(filterState.generalConcerns);
-    const set = new Set([...filterState.findingsToAddress, ...fromConcerns]);
-    return Array.from(set);
-  }, [filterState.findingsToAddress, filterState.generalConcerns]);
-
   const staticSuggestionList = useMemo(() => {
     let list = [...ALL_TREATMENT_INTERESTS];
     if (filterState.region.length > 0) {
       list = filterSuggestionsByRegion(list, filterState.region);
-    }
-    if (effectiveFindings.length > 0) {
-      list = filterSuggestionsByFindings(
-        list,
-        effectiveFindings,
-        SUGGESTION_TO_ISSUES,
-      );
     }
     if (filterState.sameDayAddOn) {
       list = list.filter((name) => {
@@ -258,7 +242,7 @@ export default function TreatmentRecommenderBySuggestion({
       });
     }
     return list;
-  }, [filterState.region, filterState.sameDayAddOn, effectiveFindings, provider?.code]);
+  }, [filterState.region, filterState.sameDayAddOn, provider?.code]);
 
   /** When we have API cards, filter and sort them (focus first, then by name). Otherwise use static list. */
   const displayCards = useMemo(():
@@ -273,16 +257,6 @@ export default function TreatmentRecommenderBySuggestion({
         filterSuggestionsByRegion(
           apiCards.map((c) => c.suggestionName),
           filterState.region,
-        ),
-      );
-      list = list.filter((c) => allowedNames.has(c.suggestionName));
-    }
-    if (effectiveFindings.length > 0) {
-      const allowedNames = new Set(
-        filterSuggestionsByFindings(
-          list.map((c) => c.suggestionName),
-          effectiveFindings,
-          SUGGESTION_TO_ISSUES,
         ),
       );
       list = list.filter((c) => allowedNames.has(c.suggestionName));
@@ -304,7 +278,6 @@ export default function TreatmentRecommenderBySuggestion({
     apiCards,
     filterState.region,
     filterState.sameDayAddOn,
-    effectiveFindings,
     staticSuggestionList,
     provider?.code,
   ]);

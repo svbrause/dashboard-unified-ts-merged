@@ -82,6 +82,7 @@ import {
   OTHER_PRODUCT_LABEL,
   OTHER_FINDING_LABEL,
   SKINCARE_CATEGORY_OPTIONS,
+  getTreatmentOptionsForProvider,
 } from "../modals/DiscussedTreatmentsModal/constants";
 import {
   GEMSTONE_BY_SKIN_TYPE,
@@ -1377,17 +1378,39 @@ export default function TreatmentRecommenderByTreatment({
   ]);
 
   const suggestedTreatments = useMemo(() => {
+    const allowedOrdered = getTreatmentOptionsForProvider(provider?.code);
     const withGoals = getSuggestedTreatmentsForFindings(
       combinedFindings,
       provider?.code,
     );
-    let names = Array.from(new Set(withGoals.map((s) => s.treatment)));
-    // When client has skin quiz recommendations, include Skincare so "Add to plan" from top section has a card to open
+    const suggestedNames = Array.from(
+      new Set(withGoals.map((s) => s.treatment)),
+    );
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const t of suggestedNames) {
+      if (allowedOrdered.includes(t) && !seen.has(t)) {
+        seen.add(t);
+        names.push(t);
+      }
+    }
+    for (const t of allowedOrdered) {
+      if (!seen.has(t)) {
+        seen.add(t);
+        names.push(t);
+      }
+    }
     const hasSkinQuizProducts =
       client.skincareQuiz?.recommendedProductNames &&
       client.skincareQuiz.recommendedProductNames.length > 0;
-    if (hasSkinQuizProducts && !names.includes("Skincare")) {
-      names = ["Skincare", ...names];
+    if (hasSkinQuizProducts) {
+      const idx = names.indexOf("Skincare");
+      if (idx > 0) {
+        names.splice(idx, 1);
+        names.unshift("Skincare");
+      } else if (idx === -1 && allowedOrdered.includes("Skincare")) {
+        names.unshift("Skincare");
+      }
     }
     let sameDay = filterTreatmentsBySameDay(names, filterState.sameDayAddOn);
     if (
