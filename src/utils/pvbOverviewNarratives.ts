@@ -45,6 +45,20 @@ function formatEnglishList(items: string[]): string {
   return `${clean.slice(0, -1).join(", ")}, and ${clean[clean.length - 1]}`;
 }
 
+/**
+ * Turn treatment display-area labels (e.g. "Forehead", "Lower face") into natural in-sentence phrases.
+ */
+function formatAreaLabelsForProse(areas: string[]): string {
+  return formatEnglishList(
+    areas.map((a) => {
+      const t = a.trim();
+      if (!t) return t;
+      if (/^(the|your)\s+/i.test(t)) return t;
+      return `the ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+    }),
+  );
+}
+
 /** One short sentence: what this category does technically (after the client-specific lead). */
 const TREATMENT_CATEGORY_INTRO: Partial<Record<string, string>> = {
   Skincare: "It supports your home routine and in-office results.",
@@ -164,36 +178,37 @@ export function buildPvbMainPlanFramingParagraphs(
   if (shape.chapterCount <= 0) return [];
 
   const goals = dedupeText(personalization?.goals ?? []).slice(0, 3);
-  const findings = dedupeText(personalization?.findings ?? []).slice(0, 3);
+  /** Slightly longer list when we explain plan rationale (areas + findings, etc.). */
+  const findings = dedupeText(personalization?.findings ?? []).slice(0, 5);
   const focus = dedupeText(personalization?.focusAreas ?? []).slice(0, 2);
   const interests = dedupeText(personalization?.interests ?? []).slice(0, 3);
-  const areas = dedupeText(personalization?.displayAreas ?? []).slice(0, 3);
+  const areas = dedupeText(personalization?.displayAreas ?? []).slice(0, 4);
   const namedChapters = dedupeText(personalization?.chapterNames ?? []).slice(0, 4);
-  const firstName = personalization?.patientFirstName?.trim() || "";
   const ageRange = personalization?.ageRange?.trim() || "";
   const skinType = personalization?.skinType?.trim() || "";
 
-  const forName = firstName ? `For ${firstName}` : "For you";
-
+  /** Second-person throughout so the opening matches the “Your plan …” bridge paragraph. */
   let open: string;
   if (goals.length > 0 && findings.length > 0) {
-    open = `${forName}, this plan was built around ${formatEnglishList(goals)}\u2014informed by what your analysis found, including ${formatEnglishList(findings)}.`;
+    open = `Your plan was built around ${formatEnglishList(goals)}\u2014informed by what your analysis found, including ${formatEnglishList(findings)}.`;
   } else if (goals.length > 0) {
-    open = `${forName}, this plan is designed around ${formatEnglishList(goals)}.${focus.length > 0 ? ` Your provider focused on ${formatEnglishList(focus)}.` : ""}`;
+    open = `Your plan is designed around ${formatEnglishList(goals)}.${focus.length > 0 ? ` Your provider focused on ${formatEnglishList(focus)}.` : ""}`;
   } else if (findings.length > 0 && areas.length > 0) {
-    open = `${forName}, this plan was put together for ${formatEnglishList(areas)}, to address ${formatEnglishList(findings)}\u2014the concerns your team tied to those areas during your visit and assessment.`;
+    const areasPhrase = formatAreaLabelsForProse(areas);
+    const findingsPhrase = formatEnglishList(findings);
+    open = `Your plan focuses on ${areasPhrase}, which your provider indicated when mapping out your treatments, and targets ${findingsPhrase} tied to those areas from your visit and assessment.`;
   } else if (findings.length > 0) {
-    open = `${forName}, your team identified ${formatEnglishList(findings)}\u2014the plan below addresses each of these.`;
+    open = `Your team identified ${formatEnglishList(findings)}; each is addressed in your plan below.`;
   } else if (interests.length > 0 && areas.length > 0) {
-    open = `${forName}, this plan targets ${formatEnglishList(interests)} across ${formatEnglishList(areas)}, based on what you discussed with your provider.`;
+    open = `Your plan targets ${formatEnglishList(interests)} across ${formatAreaLabelsForProse(areas)}, following how your provider connected those goals to specific areas during your visit.`;
   } else if (interests.length > 0) {
-    open = `${forName}, this plan is focused on ${formatEnglishList(interests)}, based on what came up during your visit.`;
+    open = `Your plan focuses on ${formatEnglishList(interests)}, based on what came up during your visit.`;
   } else if (areas.length > 0) {
-    open = `${forName}, this plan was put together to address ${formatEnglishList(areas)}, based on your visit.`;
+    open = `Your plan is organized around ${formatAreaLabelsForProse(areas)}—regions your provider called out when building this plan from your visit.`;
   } else if (namedChapters.length > 0) {
-    open = `${forName}, your provider put together a plan covering ${formatEnglishList(namedChapters)} based on what you discussed during your visit.`;
+    open = `Your provider put together a plan covering ${formatEnglishList(namedChapters)}, based on what you discussed during your visit.`;
   } else {
-    open = `${forName}, your provider put together this plan based on what you discussed during your visit.`;
+    open = `Your provider put together this plan based on what you discussed during your visit.`;
   }
 
   const profileParts: string[] = [];

@@ -559,7 +559,7 @@ export default function ShareTreatmentPlanLinkModal({
             />
             </div>
             <div className="share-tp-link-dialog-footer">
-              <div className="treatment-plan-checkout-blueprint-compose-actions">
+              <div className="treatment-plan-checkout-blueprint-compose-actions share-treatment-plan-link-actions">
                 <button
                   type="button"
                   className="btn-secondary"

@@ -63,20 +63,31 @@
 .share-tp-link-dialog-footer .treatment-plan-checkout-blueprint-compose-actions {
   margin-top: 0;
   justify-content: flex-end;
-  align-items: center;
+  align-items: stretch;
   gap: 10px;
 }
 
-/* Pick step: Cancel + Continue on one row (wrapping stacked them vertically). */
-.share-tp-link-dialog-footer .share-treatment-plan-link-actions {
-  flex-wrap: nowrap;
+/* Same outer height: secondary uses a 2px border; primary does not globally—match here. */
+.share-tp-link-dialog-footer
+  .treatment-plan-checkout-blueprint-compose-actions
+  > button {
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* SMS step: three buttons may wrap on narrow widths */
 .share-tp-link-dialog-footer
-  .treatment-plan-checkout-blueprint-compose-actions:not(.share-treatment-plan-link-actions) {
-  flex-wrap: wrap;
-  row-gap: 8px;
+  .treatment-plan-checkout-blueprint-compose-actions
+  > button.btn-primary {
+  border: 2px solid transparent;
+}
+
+/* Pick + SMS: keep actions on one row (Back / Preview link / Send, or Cancel / Continue). */
+.share-tp-link-dialog-footer .share-treatment-plan-link-actions {
+  flex-wrap: nowrap;
 }
 
 .share-treatment-plan-link-empty {

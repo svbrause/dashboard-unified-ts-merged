@@ -27,6 +27,19 @@ function isAdminBlueprintCode(code: string | null | undefined): boolean {
   return ADMIN_BLUEPRINT_PROVIDER_CODES.some((x) => x === c);
 }
 
+/**
+ * True when a shared blueprint was sent from an Admin / demo login (patient `/tp` branding).
+ * Matches admin provider codes or display name "Admin" (including legacy links without code).
+ */
+export function isPostVisitBlueprintAdminSender(payload: {
+  providerCode?: string;
+  providerName?: string;
+}): boolean {
+  if (isAdminBlueprintCode(payload.providerCode)) return true;
+  const prov = (payload.providerName || "").trim().toLowerCase();
+  return prov === "admin";
+}
+
 /** True when the logged-in account is The Treatment Skin Boutique (Post-Visit Blueprint is gated here). */
 export function isTheTreatmentProvider(provider: Provider | null): boolean {
   if (!provider) return false;

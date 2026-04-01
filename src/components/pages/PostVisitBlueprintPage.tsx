@@ -27,7 +27,10 @@ import {
   type BlueprintCasePhoto,
   type CaseDetailPayload,
 } from "../../utils/postVisitBlueprintCases";
-import { isPostVisitBlueprintAllowedForPatient } from "../../utils/providerHelpers";
+import {
+  isPostVisitBlueprintAdminSender,
+  isPostVisitBlueprintAllowedForPatient,
+} from "../../utils/providerHelpers";
 import { isWellnestWellnessProviderCode } from "../../data/wellnestOfferings";
 import { buildWellnestBlueprintCasePhotos } from "../../utils/wellnestBlueprintCases";
 import { AiMirrorCanvas } from "../postVisitBlueprint/AiMirrorCanvas";
@@ -75,6 +78,7 @@ import { partitionQuoteLineIndices } from "../../utils/pvbQuotePartition";
 import { patientFacingSkincareShortName } from "../../utils/pvbSkincareDisplay";
 import "../postVisitBlueprint/PvbNarrative.css";
 import "./PostVisitBlueprintPage.css";
+import ponceBrandLogoSrc from "../../assets/images/ponce logo.png";
 
 /** The Treatment Skin Boutique — patient-facing blueprint branding */
 const THE_TREATMENT_BRAND_LOGO_SRC =
@@ -85,24 +89,36 @@ const WELLNEST_MARKETING_SITE_URL = "https://wellnestmd.com/";
 
 function PvbBrandBar({
   providerCode,
+  providerName,
   onWellnestWebsiteClick,
 }: {
   providerCode?: string | null;
+  providerName?: string | null;
   onWellnestWebsiteClick?: () => void;
 }) {
+  const isAdminSender = isPostVisitBlueprintAdminSender({
+    providerCode: providerCode ?? undefined,
+    providerName: providerName ?? undefined,
+  });
   const isWellnest = isWellnestWellnessProviderCode(providerCode);
-  const brandLogoSrc = isWellnest
-    ? WELLNEST_BRAND_LOGO_SRC
-    : THE_TREATMENT_BRAND_LOGO_SRC;
-  const brandLabel = isWellnest ? "Wellnest MD" : "The Treatment Skin Boutique";
+  const brandLogoSrc = isAdminSender
+    ? ponceBrandLogoSrc
+    : isWellnest
+      ? WELLNEST_BRAND_LOGO_SRC
+      : THE_TREATMENT_BRAND_LOGO_SRC;
+  const brandLabel = isAdminSender
+    ? "Ponce AI"
+    : isWellnest
+      ? "Wellnest MD"
+      : "The Treatment Skin Boutique";
   return (
     <header className="pvb-brand-bar" aria-label={brandLabel}>
       <img
         src={brandLogoSrc}
         alt={brandLabel}
-        className="pvb-brand-logo"
-        width={220}
-        height={72}
+        className={`pvb-brand-logo${isAdminSender ? " pvb-brand-logo--ponce" : ""}`}
+        width={isAdminSender ? 200 : 220}
+        height={isAdminSender ? 48 : 72}
         decoding="async"
       />
       {isWellnest && (
@@ -897,7 +913,10 @@ export default function PostVisitBlueprintPage() {
   if (!blueprintAllowed) {
     return (
       <div className="pvb">
-        <PvbBrandBar providerCode={blueprint?.providerCode} />
+        <PvbBrandBar
+          providerCode={blueprint?.providerCode}
+          providerName={blueprint?.providerName}
+        />
         <div className="pvb-error">
           <h1>Blueprint unavailable</h1>
           <p>
@@ -986,6 +1005,7 @@ export default function PostVisitBlueprintPage() {
       <main className="pvb-shell" aria-label="Post Visit Blueprint">
         <PvbBrandBar
           providerCode={blueprint?.providerCode}
+          providerName={blueprint?.providerName}
           onWellnestWebsiteClick={
             blueprintPatientAnalytics
               ? () =>
