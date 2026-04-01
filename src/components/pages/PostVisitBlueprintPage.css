@@ -1878,9 +1878,10 @@
 .pvb-toc-link {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
   min-width: 0;
   text-decoration: none;
   color: inherit;
@@ -1904,18 +1905,35 @@
 }
 
 .pvb-toc-item-name {
-  flex: 1;
+  flex: none;
   font-size: 0.95rem;
   font-weight: 600;
   color: #3a3c3e;
+  line-height: 1.25;
 }
 
-.pvb-toc-item-area {
-  font-size: 0.78rem;
-  color: #5a9e94;
+.pvb-toc-item-area-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+}
+
+.pvb-toc-area-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  line-height: 1.25;
+  color: #3d7a72;
+  background: rgba(90, 158, 148, 0.12);
+  border: 1px solid rgba(90, 158, 148, 0.22);
+  letter-spacing: 0.01em;
 }
 
 /* ── CHAPTERS ── */
@@ -2357,6 +2375,10 @@
   font-size: 0.92rem;
   line-height: 1.55;
   color: #475569;
+}
+
+.pvb-drawer-book-confirm-lead {
+  margin: 0 0 16px;
 }
 
 .pvb-drawer-book-confirm-actions {

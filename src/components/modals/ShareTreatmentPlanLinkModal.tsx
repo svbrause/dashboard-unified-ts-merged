@@ -47,12 +47,36 @@ function sectionLabelForShareRow(item: DiscussedItem): string {
   return t;
 }
 
-/** Per-line amount in the share preview — same strings as checkout (including wishlist reference pricing). */
+function compareTimelineGroupTitles(a: string, b: string): number {
+  const rank = (label: string) => {
+    if (label === "Now") return 0;
+    if (label === "Add next visit") return 1;
+    if (label === "Wishlist") return 2;
+    return 3;
+  };
+  const ra = rank(a);
+  const rb = rank(b);
+  if (ra !== rb) return ra - rb;
+  if (ra === 3) return a.localeCompare(b);
+  return 0;
+}
+
+/** Per-line amount: show line total only (no unit math) when we have a numeric total. */
 function shareRowPriceDisplay(
-  line: { price?: number; displayPrice?: string } | undefined,
+  line:
+    | { price?: number; displayPrice?: string; isEstimate?: boolean }
+    | undefined,
 ): string {
-  if (line?.displayPrice?.trim()) return line.displayPrice.trim();
-  return formatPrice(line?.price ?? 0);
+  if (!line) return formatPrice(0);
+  if (line.displayPrice === "Price varies") return "Price varies";
+  if (line.isEstimate && line.displayPrice?.trim()) {
+    return line.displayPrice.trim();
+  }
+  if (line.price != null && line.price > 0) {
+    return formatPrice(line.price);
+  }
+  if (line.displayPrice?.trim()) return line.displayPrice.trim();
+  return formatPrice(0);
 }
 
 function shareRowPrimaryLabel(
@@ -148,6 +172,21 @@ export default function ShareTreatmentPlanLinkModal({
     };
   }, [eligibleItems, discussedIndexByItemId, checkoutLinesByDiscussedIndex]);
 
+  const treatmentTimelineGroups = useMemo(() => {
+    const byTitle = new Map<string, DiscussedItem[]>();
+    for (const item of treatmentShareItems) {
+      const title = sectionLabelForShareRow(item);
+      const list = byTitle.get(title) ?? [];
+      list.push(item);
+      byTitle.set(title, list);
+    }
+    const titles = [...byTitle.keys()].sort(compareTimelineGroupTitles);
+    return titles.map((title) => ({
+      title,
+      items: byTitle.get(title)!,
+    }));
+  }, [treatmentShareItems]);
+
   const lineForItem = useCallback(
     (item: DiscussedItem) => {
       const idx = discussedIndexByItemId.get(item.id);
@@ -194,7 +233,11 @@ export default function ShareTreatmentPlanLinkModal({
   const [step, setStep] = useState<"pick" | "send">("pick");
   const [preparingLink, setPreparingLink] = useState(false);
   const [sending, setSending] = useState(false);
-  const [blueprintMessageDraft, setBlueprintMessageDraft] = useState("");
+  /** Text before the fixed “Review it here: [link]” block (link is never in this field). */
+  const [blueprintMessageIntro, setBlueprintMessageIntro] = useState("");
+  /** Optional text sent after the link so closing notes don’t sit between “Review it here” and the URL. */
+  const [blueprintMessageAfterLink, setBlueprintMessageAfterLink] =
+    useState("");
   const [blueprintRecipientPhone, setBlueprintRecipientPhone] = useState("");
   const [pendingBlueprintLink, setPendingBlueprintLink] = useState<
     string | null
@@ -285,9 +328,10 @@ export default function ShareTreatmentPlanLinkModal({
       setPendingBlueprintLink(link);
       setPendingBlueprintToken(token);
       setBlueprintRecipientPhone(formattedPhone || "");
-      setBlueprintMessageDraft(
-        `Hi ${firstName}, your custom treatment plan from ${clinicName} is ready. Review it here: ${link}`,
+      setBlueprintMessageIntro(
+        `Hi ${firstName}, your custom treatment plan from ${clinicName} is ready.`,
       );
+      setBlueprintMessageAfterLink("");
       setStep("send");
     } catch (e) {
       showError(
@@ -315,7 +359,8 @@ export default function ShareTreatmentPlanLinkModal({
       showError("Link is missing. Go back and try again.");
       return;
     }
-    if (!blueprintMessageDraft.trim()) {
+    const intro = blueprintMessageIntro.trim();
+    if (!intro) {
       showError("Please enter a message before sending.");
       return;
     }
@@ -324,11 +369,16 @@ export default function ShareTreatmentPlanLinkModal({
       return;
     }
 
+    const after = blueprintMessageAfterLink.trim();
+    const smsText = after
+      ? `${intro} Review it here: ${pendingBlueprintLink}\n\n${after}`
+      : `${intro} Review it here: ${pendingBlueprintLink}`;
+
     setSending(true);
     try {
       await sendSMSNotification(
         cleanPhoneNumber(blueprintRecipientPhone),
-        blueprintMessageDraft.trim(),
+        smsText,
         client.name,
       );
       trackPostVisitBlueprintEvent("blueprint_delivered", {
@@ -346,7 +396,8 @@ export default function ShareTreatmentPlanLinkModal({
       setSending(false);
     }
   }, [
-    blueprintMessageDraft,
+    blueprintMessageIntro,
+    blueprintMessageAfterLink,
     blueprintRecipientPhone,
     client,
     clinicName,
@@ -460,38 +511,45 @@ export default function ShareTreatmentPlanLinkModal({
                       </div>
                     </div>
                   ) : null}
-                  {treatmentShareItems.length > 0 ? (
-                    <div className="share-tp-link-quote-section">
+                  {treatmentTimelineGroups.length > 0 ? (
+                    <div className="share-tp-link-quote-section share-tp-link-quote-section--treatments">
                       <h4 className="share-tp-link-quote-section-title">
                         Treatments
                       </h4>
-                      <ul className="share-tp-link-quote-rows">
-                        {treatmentShareItems.map((item) => {
-                          const line = lineForItem(item);
-                          return (
-                            <li key={item.id}>
-                              <label className="share-tp-link-quote-row">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(inclusionById[item.id])}
-                                  onChange={() => toggleInclude(item.id)}
-                                />
-                                <span className="share-tp-link-quote-row-text">
-                                  <span className="share-treatment-plan-link-row-title">
-                                    {shareRowPrimaryLabel(item, line)}
-                                  </span>
-                                  <span className="share-treatment-plan-link-row-meta">
-                                    {sectionLabelForShareRow(item)}
-                                  </span>
-                                </span>
-                                <strong className="share-tp-link-quote-row-price">
-                                  {shareRowPriceDisplay(line)}
-                                </strong>
-                              </label>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                      {treatmentTimelineGroups.map((group) => (
+                        <div
+                          key={group.title}
+                          className="share-tp-link-timeline-group"
+                        >
+                          <h5 className="share-tp-link-timeline-group-title">
+                            {group.title}
+                          </h5>
+                          <ul className="share-tp-link-quote-rows">
+                            {group.items.map((item) => {
+                              const line = lineForItem(item);
+                              return (
+                                <li key={item.id}>
+                                  <label className="share-tp-link-quote-row">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(inclusionById[item.id])}
+                                      onChange={() => toggleInclude(item.id)}
+                                    />
+                                    <span className="share-tp-link-quote-row-text">
+                                      <span className="share-treatment-plan-link-row-title">
+                                        {shareRowPrimaryLabel(item, line)}
+                                      </span>
+                                    </span>
+                                    <strong className="share-tp-link-quote-row-price">
+                                      {shareRowPriceDisplay(line)}
+                                    </strong>
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ))}
                       <div className="share-tp-link-quote-subtotal">
                         <span>Treatments subtotal</span>
                         <strong>
@@ -554,17 +612,76 @@ export default function ShareTreatmentPlanLinkModal({
               />
               <label
                 className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
-                htmlFor="share-tp-link-message"
+                htmlFor="share-tp-link-message-intro"
               >
-                Message
+                Opening message
+              </label>
+              <p className="share-tp-link-compose-link-hint">
+                &quot;Review it here:&quot; and your patient&apos;s secure link
+                are always sent together immediately after your opening message.
+                Use the optional field below for anything you want to say after
+                the link.
+              </p>
+              <textarea
+                id="share-tp-link-message-intro"
+                className="treatment-plan-checkout-blueprint-compose-textarea"
+                value={blueprintMessageIntro}
+                onChange={(e) => setBlueprintMessageIntro(e.target.value)}
+                rows={4}
+              />
+              <div
+                className="share-tp-link-review-here-row"
+                aria-hidden="true"
+              >
+                <span className="share-tp-link-review-here-label">
+                  Review it here:
+                </span>
+                <span className="share-tp-link-message-preview-link-pill">
+                  plan link
+                </span>
+              </div>
+              <label
+                className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
+                htmlFor="share-tp-link-message-after"
+              >
+                After the link (optional)
               </label>
               <textarea
-                id="share-tp-link-message"
+                id="share-tp-link-message-after"
                 className="treatment-plan-checkout-blueprint-compose-textarea"
-                value={blueprintMessageDraft}
-                onChange={(e) => setBlueprintMessageDraft(e.target.value)}
-                rows={6}
+                value={blueprintMessageAfterLink}
+                onChange={(e) => setBlueprintMessageAfterLink(e.target.value)}
+                rows={3}
+                placeholder="e.g. Reply if you have questions."
               />
+              <div className="share-tp-link-message-preview-wrap">
+                <span className="share-tp-link-message-preview-label">
+                  Preview
+                </span>
+                <div
+                  className="share-tp-link-message-preview-box"
+                  aria-hidden="true"
+                >
+                  <span className="share-tp-link-message-preview-text">
+                    {blueprintMessageIntro.trim() || "Your opening message"}{" "}
+                    <span className="share-tp-link-message-preview-cta">
+                      Review it here:
+                    </span>{" "}
+                    <span className="share-tp-link-message-preview-link-pill share-tp-link-message-preview-link-pill--inline">
+                      plan link
+                    </span>
+                  </span>
+                  {blueprintMessageAfterLink.trim() ? (
+                    <>
+                      <br />
+                      <br />
+                      <span className="share-tp-link-message-preview-after">
+                        {blueprintMessageAfterLink.trim()}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
             </div>
             <div className="share-tp-link-dialog-footer">
               <div className="treatment-plan-checkout-blueprint-compose-actions share-treatment-plan-link-actions">
@@ -575,6 +692,8 @@ export default function ShareTreatmentPlanLinkModal({
                     setStep("pick");
                     setPendingBlueprintLink(null);
                     setPendingBlueprintToken(null);
+                    setBlueprintMessageIntro("");
+                    setBlueprintMessageAfterLink("");
                   }}
                   disabled={sending}
                 >
@@ -594,7 +713,7 @@ export default function ShareTreatmentPlanLinkModal({
                   onClick={handleConfirmSend}
                   disabled={
                     sending ||
-                    !blueprintMessageDraft.trim() ||
+                    !blueprintMessageIntro.trim() ||
                     !isValidPhone(formatPhoneDisplay(blueprintRecipientPhone))
                   }
                 >

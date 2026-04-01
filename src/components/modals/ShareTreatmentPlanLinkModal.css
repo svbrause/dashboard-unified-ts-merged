@@ -280,3 +280,105 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+
+.share-tp-link-timeline-group {
+  border-top: 1px solid #f1f5f9;
+}
+
+.share-tp-link-timeline-group:first-of-type {
+  border-top: none;
+}
+
+.share-tp-link-timeline-group-title {
+  margin: 0;
+  padding: 10px 16px 6px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--theme-text-secondary, #475569);
+  background: #fafbfb;
+}
+
+.share-tp-link-compose-link-hint {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--theme-text-muted, #64748b);
+}
+
+.share-tp-link-message-preview-wrap {
+  margin-top: 10px;
+}
+
+.share-tp-link-message-preview-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--theme-text-muted, #64748b);
+}
+
+.share-tp-link-message-preview-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px dashed var(--theme-border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--theme-bg-subtle, #f8fafc);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--theme-text-primary, #334155);
+}
+
+.share-tp-link-message-preview-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.share-tp-link-message-preview-link-pill {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5a9e94;
+  background: rgba(90, 158, 148, 0.12);
+  border: 1px solid rgba(90, 158, 148, 0.25);
+}
+
+.share-tp-link-message-preview-link-pill--inline {
+  vertical-align: baseline;
+}
+
+.share-tp-link-review-here-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--theme-bg-subtle, #f8fafc);
+  border: 1px solid var(--theme-border, #e2e8f0);
+}
+
+.share-tp-link-review-here-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--theme-text-primary, #334155);
+}
+
+.share-tp-link-message-preview-cta {
+  font-weight: 600;
+  color: var(--theme-text-primary, #334155);
+}
+
+.share-tp-link-message-preview-after {
+  font-size: 0.875rem;
+  color: var(--theme-text-primary, #334155);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

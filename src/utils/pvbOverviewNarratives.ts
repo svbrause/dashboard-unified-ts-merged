@@ -115,11 +115,11 @@ export function buildPvbPlanBridgeParagraph(
     if (focusNames.length) {
       if (framing.kind === "broad") {
         out.push(
-          `These were chosen to ${framing.summary} in the areas you and your provider decided to prioritize (${formatEnglishList(focusNames)}).`,
+          `These were chosen to ${framing.summary} in the areas you and your provider decided to prioritize during your visit.`,
         );
       } else {
         out.push(
-          `These were chosen to ${formatEnglishList(framing.items)} in the areas you and your provider decided to prioritize (${formatEnglishList(focusNames)}).`,
+          `These were chosen to ${formatEnglishList(framing.items)} in the areas you and your provider decided to prioritize during your visit.`,
         );
       }
     } else {
@@ -135,7 +135,7 @@ export function buildPvbPlanBridgeParagraph(
     }
   } else if (focusNames.length) {
     out.push(
-      `These recommendations stay focused on the areas you wanted to prioritize (${formatEnglishList(focusNames)}).`,
+      `These recommendations stay focused on what you wanted to prioritize during your visit.`,
     );
   } else if (extraInterests.length) {
     out.push(
@@ -181,6 +181,16 @@ function dedupeText(items: string[]): string[] {
     out.push(t);
   }
   return out;
+}
+
+/** When every focus-area label is already named in goals, skip repeating the list in prose. */
+function focusAreasRedundantWithGoals(goals: string[], focus: string[]): boolean {
+  if (focus.length === 0) return true;
+  const goalSet = new Set(
+    goals.map((g) => g.trim().toLowerCase()).filter(Boolean),
+  );
+  if (goalSet.size === 0) return false;
+  return focus.every((f) => goalSet.has(f.trim().toLowerCase()));
 }
 
 // \u2500\u2500 High-level overview: constructive / aspirational issue framing \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -314,7 +324,11 @@ export function buildPvbMainPlanFramingParagraphs(
       open = `Your provider built this plan around ${formatEnglishList(goals)}, choosing treatments meant to ${formatEnglishList(framing.items)}.`;
     }
   } else if (goals.length > 0) {
-    open = `Your provider built this plan around ${formatEnglishList(goals)}.${focus.length > 0 ? ` They gave extra attention to ${formatEnglishList(focus)}.` : ""}`;
+    const focusTail =
+      focus.length > 0 && !focusAreasRedundantWithGoals(goals, focus)
+        ? ` They gave extra attention to ${formatEnglishList(focus)}.`
+        : "";
+    open = `Your provider built this plan around ${formatEnglishList(goals)}.${focusTail}`;
   } else if (findings.length > 0 && areas.length > 0) {
     const areasPhrase = formatAreaLabelsForProse(areas);
     const framing = frameIssuesForOverview(findings);
@@ -558,14 +572,27 @@ export function buildAssessmentFindingsSection(
   const focus = snapshot.areas
     .filter((a) => a.hasInterest)
     .map((a) => a.name);
-  if (focus.length > 0) {
-    parts.push(
-      `That lined up well with the areas you and your provider chose to prioritize: ${formatEnglishList(focus)}`,
-    );
-  } else if (goals.length > 0) {
-    parts.push(
-      `It also supported your goals around ${formatEnglishList(goals.slice(0, 2))}`,
-    );
+  const hasPriorities = focus.length > 0 || goals.length > 0;
+
+  if (parts.length === 0) {
+    if (!hasPriorities) return null;
+    if (focus.length > 0) {
+      parts.push(
+        "The assessment aligned with the areas you and your provider had already agreed to prioritize",
+      );
+    } else {
+      parts.push(
+        "The assessment fit with the priorities you shared during your visit",
+      );
+    }
+  } else if (hasPriorities) {
+    if (focus.length > 0) {
+      parts.push(
+        "That matched the areas you and your provider had already agreed to focus on",
+      );
+    } else {
+      parts.push("It also fit with the priorities you shared during your visit");
+    }
   }
 
   if (parts.length === 0) return null;

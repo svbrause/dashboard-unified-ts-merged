@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInViewOnce } from "../../hooks/useInViewOnce";
 import { createPortal } from "react-dom";
-import type { TreatmentChapter } from "../../utils/blueprintTreatmentChapters";
+import {
+  type TreatmentChapter,
+  splitChapterDisplayAreas,
+} from "../../utils/blueprintTreatmentChapters";
 import type {
   BlueprintCasePhoto,
   TreatmentResultsCard,
@@ -151,6 +154,11 @@ export function TreatmentChapterView({
     [chapter.planItems, isSkincareChapter],
   );
 
+  const chapterAreaPills = useMemo(
+    () => splitChapterDisplayAreas(chapter.displayArea),
+    [chapter.displayArea],
+  );
+
   /** Pre-scored subset for this chapter (Wellnest: top few; aesthetic: keyword matches). */
   const catalogVideos = chapter.videos;
   const chapterOverview = useMemo(
@@ -281,7 +289,19 @@ export function TreatmentChapterView({
       {/* Header */}
       <div className="tc-head">
         <h2 className="tc-name">{chapter.displayName}</h2>
-        {chapter.displayArea && <span className="tc-area">{chapter.displayArea}</span>}
+        {chapterAreaPills.length > 0 ? (
+          <div
+            className="tc-area-pills"
+            role="list"
+            aria-label="Treatment areas"
+          >
+            {chapterAreaPills.map((a, i) => (
+              <span key={`${a}-${i}`} className="tc-area-pill" role="listitem">
+                {a}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Regions / plan notes — high on the card so they are not buried below photos */}

@@ -38,7 +38,10 @@ import { PvbNarrativeAudioControls } from "../postVisitBlueprint/PvbNarrativeAud
 import { PvbOverviewSectionsSequentialTypewriter } from "../postVisitBlueprint/PvbTypewriterParagraphs";
 import { TreatmentChapterView } from "../postVisitBlueprint/TreatmentChapter";
 import { getPostVisitBlueprintVideoCatalog } from "../../config/postVisitBlueprintVideos";
-import { buildTreatmentChapters } from "../../utils/blueprintTreatmentChapters";
+import {
+  buildTreatmentChapters,
+  splitChapterDisplayAreas,
+} from "../../utils/blueprintTreatmentChapters";
 import {
   derivePlanInterestsFromDiscussedItems,
   getBlueprintAnalysisDisplay,
@@ -264,10 +267,10 @@ export default function PostVisitBlueprintPage() {
   const [caseGalleryTracked, setCaseGalleryTracked] = useState(false);
   const videoPlayTrackedRef = useRef<Set<string>>(new Set());
   const [isQuoteOpen, setIsQuoteOpen] = useState(false);
-  /** Quote drawer: line items vs. post–“Proceed to book” confirmation. */
-  const [quoteBookStep, setQuoteBookStep] = useState<"quote" | "book_confirm">(
-    "quote",
-  );
+  /** Quote drawer: quote → confirm booking request → success. */
+  const [quoteBookStep, setQuoteBookStep] = useState<
+    "quote" | "booking_confirm" | "booking_sent"
+  >("quote");
   /** Patient can preview Mint member 10% off (defaults from plan at send time). */
   const [previewMintMember, setPreviewMintMember] = useState(false);
   /** POST /api/post-visit-blueprint/booking-intent (Airtable row for Slack / email / SMS). */
@@ -1203,6 +1206,7 @@ export default function PostVisitBlueprintPage() {
             <ol className="pvb-toc-list">
               {chapters.map((c) => {
                 const tocId = treatmentChapterAnchorId(c.key);
+                const areaPills = splitChapterDisplayAreas(c.displayArea);
                 return (
                   <li key={c.key} className="pvb-toc-item">
                     <a
@@ -1224,11 +1228,23 @@ export default function PostVisitBlueprintPage() {
                       }}
                     >
                       <span className="pvb-toc-item-name">{c.displayName}</span>
-                      {c.displayArea && (
-                        <span className="pvb-toc-item-area">
-                          {c.displayArea}
+                      {areaPills.length > 0 ? (
+                        <span
+                          className="pvb-toc-item-area-pills"
+                          role="list"
+                          aria-label="Treatment areas"
+                        >
+                          {areaPills.map((a, i) => (
+                            <span
+                              key={`${a}-${i}`}
+                              className="pvb-toc-area-pill"
+                              role="listitem"
+                            >
+                              {a}
+                            </span>
+                          ))}
                         </span>
-                      )}
+                      ) : null}
                     </a>
                   </li>
                 );
@@ -1392,7 +1408,11 @@ export default function PostVisitBlueprintPage() {
           />
           <div className="pvb-drawer-head">
             <h2>
-              {quoteBookStep === "quote" ? "Your plan" : "Booking request"}
+              {quoteBookStep === "quote"
+                ? "Your plan"
+                : quoteBookStep === "booking_confirm"
+                  ? "Confirm booking"
+                  : "Booking request"}
             </h2>
             <button
               className="pvb-drawer-x"
@@ -1405,7 +1425,8 @@ export default function PostVisitBlueprintPage() {
             {quoteBookStep === "quote" ? (
               <>
                 <p className="pvb-drawer-intro">
-                  Confirm the products and treatments below to book your plan.
+                  Select what you want to include, then proceed to send a
+                  booking request to your provider&apos;s team.
                 </p>
                 <div className="pvb-quote">
                   {skincareQuoteIdxs.length > 0 ? (
@@ -1586,6 +1607,96 @@ export default function PostVisitBlueprintPage() {
                     className="pvb-cta pvb-cta--book"
                     disabled={bookingIntentSubmitting}
                     onClick={() => {
+                      setBookingIntentError(null);
+                      const selectedLineIndices = Object.entries(selectedRows)
+                        .filter(([, on]) => on)
+                        .map(([k]) => Number(k))
+                        .filter((n) => Number.isInteger(n) && n >= 0)
+                        .sort((a, b) => a - b);
+                      if (selectedLineIndices.length === 0) {
+                        setBookingIntentError(
+                          "Select at least one item to include in your booking request.",
+                        );
+                        return;
+                      }
+                      trackPostVisitBlueprintEvent(
+                        "blueprint_booking_confirm_viewed",
+                        {
+                          token: blueprint.token,
+                          patient_id: blueprint.patient.id,
+                        },
+                      );
+                      setQuoteBookStep("booking_confirm");
+                    }}
+                  >
+                    Proceed to book
+                  </button>
+                  {blueprint.cta.textProviderPhone ? (
+                    <div className="pvb-drawer-ctas-row">
+                      <a
+                        className="pvb-cta pvb-cta--ghost"
+                        href={`sms:${blueprint.cta.textProviderPhone}`}
+                        onClick={() =>
+                          trackPostVisitBlueprintEvent(
+                            "blueprint_text_provider_clicked",
+                            {
+                              token: blueprint.token,
+                              patient_id: blueprint.patient.id,
+                              source: "quote_drawer",
+                            },
+                          )
+                        }
+                      >
+                        Text provider
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : quoteBookStep === "booking_confirm" ? (
+              <div className="pvb-drawer-book-confirm">
+                <p className="pvb-drawer-intro pvb-drawer-book-confirm-lead">
+                  You&rsquo;re about to send a booking request for{" "}
+                  <strong>
+                    {Object.values(selectedRows).filter(Boolean).length}
+                  </strong>{" "}
+                  {Object.values(selectedRows).filter(Boolean).length === 1
+                    ? "item"
+                    : "items"}{" "}
+                  (
+                  <strong>{formatPrice(finalTotal)}</strong>
+                  {showMintBreakdown ? " with Mint pricing" : ""}
+                  ). Your provider&rsquo;s office will follow up to schedule.
+                </p>
+                {bookingIntentError ? (
+                  <p className="pvb-booking-intent-error" role="alert">
+                    {bookingIntentError}
+                  </p>
+                ) : null}
+                <div className="pvb-drawer-book-confirm-actions">
+                  <button
+                    type="button"
+                    className="pvb-cta pvb-cta--ghost"
+                    disabled={bookingIntentSubmitting}
+                    onClick={() => {
+                      trackPostVisitBlueprintEvent(
+                        "blueprint_booking_back_to_quote",
+                        {
+                          token: blueprint.token,
+                          patient_id: blueprint.patient.id,
+                        },
+                      );
+                      setBookingIntentError(null);
+                      setQuoteBookStep("quote");
+                    }}
+                  >
+                    Back to quote
+                  </button>
+                  <button
+                    type="button"
+                    className="pvb-cta pvb-cta--book"
+                    disabled={bookingIntentSubmitting}
+                    onClick={() => {
                       void (async () => {
                         setBookingIntentError(null);
                         const selectedLineIndices = Object.entries(selectedRows)
@@ -1615,43 +1726,16 @@ export default function PostVisitBlueprintPage() {
                           token: blueprint.token,
                           patient_id: blueprint.patient.id,
                         });
-                        trackPostVisitBlueprintEvent(
-                          "blueprint_booking_confirm_viewed",
-                          {
-                            token: blueprint.token,
-                            patient_id: blueprint.patient.id,
-                          },
-                        );
-                        setQuoteBookStep("book_confirm");
+                        setQuoteBookStep("booking_sent");
                       })();
                     }}
                   >
                     {bookingIntentSubmitting
-                      ? "Submitting…"
-                      : "Proceed to book"}
+                      ? "Sending…"
+                      : "Send booking request"}
                   </button>
-                  {blueprint.cta.textProviderPhone ? (
-                    <div className="pvb-drawer-ctas-row">
-                      <a
-                        className="pvb-cta pvb-cta--ghost"
-                        href={`sms:${blueprint.cta.textProviderPhone}`}
-                        onClick={() =>
-                          trackPostVisitBlueprintEvent(
-                            "blueprint_text_provider_clicked",
-                            {
-                              token: blueprint.token,
-                              patient_id: blueprint.patient.id,
-                              source: "quote_drawer",
-                            },
-                          )
-                        }
-                      >
-                        Text provider
-                      </a>
-                    </div>
-                  ) : null}
                 </div>
-              </>
+              </div>
             ) : (
               <div className="pvb-drawer-book-confirm">
                 <h3 className="pvb-drawer-book-confirm-title">

@@ -47,9 +47,6 @@ export function buildPvbMainOverviewSpeechText(
         .join(". "),
     );
   }
-  if (analysisDisplay.goals.length > 0) {
-    parts.push(`Your focus: ${analysisDisplay.goals.join(", ")}`);
-  }
   const { interests, findings } = analysisDisplay.globalPlanInsights;
   if (interests.length > 0) {
     parts.push(`Interests discussed: ${interests.join(", ")}`);
