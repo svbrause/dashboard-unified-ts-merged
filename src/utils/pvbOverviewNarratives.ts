@@ -520,8 +520,8 @@ export function buildChapterOverviewContent(
     intro = ctx ? maybeAppendIntroScanBridge(intro, chapter, ctx) : intro;
   }
 
-  const planBullets = chapter.planItems.map((item) =>
-    buildChapterPlanBulletLine(item),
+  const planBullets = dedupeText(
+    chapter.planItems.map((item) => buildChapterPlanBulletLine(item)),
   );
 
   const analysis = buildChapterAnalysisParagraph(chapter, mergedConcerns, {

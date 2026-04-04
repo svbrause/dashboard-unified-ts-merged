@@ -130,6 +130,28 @@ export function normalizeBlueprintAnalysisText(raw: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Hero pills / chips: same phrase with different casing (e.g. "Full face" vs "Full Face")
+ * should appear once; keep first occurrence’s spelling.
+ */
+export function dedupeBlueprintDisplayStrings(
+  raw: readonly string[],
+  max?: number,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of raw) {
+    const t = normalizeBlueprintAnalysisText(String(x).trim());
+    if (!t) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+    if (max != null && out.length >= max) break;
+  }
+  return out;
+}
+
 function trimField(value: unknown): string | null {
   const t = String(value ?? "").trim();
   if (!t) return null;

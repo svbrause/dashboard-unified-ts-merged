@@ -42,6 +42,7 @@ import {
   splitChapterDisplayAreas,
 } from "../../utils/blueprintTreatmentChapters";
 import {
+  dedupeBlueprintDisplayStrings,
   derivePlanInterestsFromDiscussedItems,
   getBlueprintAnalysisDisplay,
   normalizeBlueprintAnalysisText,
@@ -954,24 +955,16 @@ export default function PostVisitBlueprintPage() {
     (blueprint.providerName ?? "").split(",")[0]?.trim() ||
     blueprint.providerName;
 
-  const discussedHotspotLabels = Array.from(
-    new Set(
-      blueprint.discussedItems
-        .flatMap((item) => {
-          const out: string[] = [];
-          if (item.region?.trim())
-            out.push(normalizeBlueprintAnalysisText(item.region.trim()));
-          if (item.findings?.length)
-            out.push(
-              ...item.findings.map((f) =>
-                normalizeBlueprintAnalysisText(f.trim()),
-              ),
-            );
-          return out;
-        })
-        .filter(Boolean),
-    ),
-  ).slice(0, 8);
+  const discussedHotspotLabels = dedupeBlueprintDisplayStrings(
+    blueprint.discussedItems.flatMap((item) => {
+      const out: string[] = [];
+      if (item.region?.trim()) out.push(item.region.trim());
+      if (item.findings?.length)
+        out.push(...item.findings.map((f) => f.trim()).filter(Boolean));
+      return out;
+    }),
+    8,
+  );
 
   const mirrorTermsFromRecommender =
     blueprint.recommenderFocusRegions &&
@@ -986,7 +979,7 @@ export default function PostVisitBlueprintPage() {
   const visibleHotspots =
     blueprint.recommenderFocusRegions &&
     blueprint.recommenderFocusRegions.length > 0
-      ? blueprint.recommenderFocusRegions.slice(0, 8)
+      ? dedupeBlueprintDisplayStrings(blueprint.recommenderFocusRegions, 8)
       : discussedHotspotLabels;
 
   const heroPills = visibleHotspots.slice(0, 8);

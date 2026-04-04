@@ -17,7 +17,7 @@ import {
   getDisplayAreaForItem,
 } from "../components/modals/DiscussedTreatmentsModal/utils";
 import { getAlignedCheckoutLineItemsForDiscussedItems } from "../components/modals/DiscussedTreatmentsModal/TreatmentPlanCheckout";
-import { normalizeBlueprintAnalysisText } from "./postVisitBlueprintAnalysis";
+import { dedupeBlueprintDisplayStrings } from "./postVisitBlueprintAnalysis";
 import type { CheckoutLineItemDetail } from "../data/treatmentPricing2025";
 import {
   formatPrice,
@@ -61,10 +61,11 @@ export function splitChapterDisplayAreas(
   displayArea: string | null | undefined,
 ): string[] {
   if (!displayArea?.trim()) return [];
-  return displayArea
+  const parts = displayArea
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  return dedupeBlueprintDisplayStrings(parts);
 }
 
 type ChapterMetaSource = {
@@ -165,33 +166,30 @@ function resolveChapterPriceDisplay(
 }
 
 function buildWhyRecommended(items: DiscussedItem[]): string[] {
-  const reasons = new Set<string>();
+  const raw: string[] = [];
   for (const item of items) {
-    if (item.interest?.trim())
-      reasons.add(normalizeBlueprintAnalysisText(item.interest.trim()));
+    if (item.interest?.trim()) raw.push(item.interest.trim());
     if (item.findings?.length) {
       for (const f of item.findings) {
-        if (f.trim()) reasons.add(normalizeBlueprintAnalysisText(f.trim()));
+        if (f.trim()) raw.push(f.trim());
       }
     }
   }
-  return Array.from(reasons).slice(0, 6);
+  return dedupeBlueprintDisplayStrings(raw, 6);
 }
 
 function buildMirrorTerms(items: DiscussedItem[]): string[] {
-  const terms = new Set<string>();
+  const raw: string[] = [];
   for (const item of items) {
-    if (item.region?.trim())
-      terms.add(normalizeBlueprintAnalysisText(item.region.trim()));
+    if (item.region?.trim()) raw.push(item.region.trim());
     if (item.findings?.length) {
       for (const f of item.findings) {
-        if (f.trim()) terms.add(normalizeBlueprintAnalysisText(f.trim()));
+        if (f.trim()) raw.push(f.trim());
       }
     }
-    if (item.interest?.trim())
-      terms.add(normalizeBlueprintAnalysisText(item.interest.trim()));
+    if (item.interest?.trim()) raw.push(item.interest.trim());
   }
-  return Array.from(terms).slice(0, 8);
+  return dedupeBlueprintDisplayStrings(raw, 8);
 }
 
 function videosForItems(
@@ -242,17 +240,22 @@ export function buildTreatmentChapters(
       meta.priceRange,
     );
 
-    const areas = new Set<string>();
+    const areaParts: string[] = [];
     for (const pi of planItems) {
       const area = getDisplayAreaForItem(pi);
-      if (area) areas.add(area);
+      if (!area) continue;
+      for (const seg of area.split(",")) {
+        const s = seg.trim();
+        if (s) areaParts.push(s);
+      }
     }
+    const uniqueAreas = dedupeBlueprintDisplayStrings(areaParts);
 
     chapters.push({
       key,
       treatment: canonicalPlanTreatmentName(t),
       displayName: getTreatmentDisplayName(planItems[0]),
-      displayArea: areas.size > 0 ? Array.from(areas).join(", ") : null,
+      displayArea: uniqueAreas.length > 0 ? uniqueAreas.join(", ") : null,
       whyRecommended: buildWhyRecommended(planItems),
       meta: {
         longevity: meta.longevity,
