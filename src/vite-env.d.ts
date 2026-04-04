@@ -31,6 +31,8 @@ interface ImportMetaEnv {
    * Optional deterministic GCS/CDN URL for blueprint hero photos when the backend
    * does not set `patient.frontPhotoPersistentUrl`. Placeholders: `{patientId}`, `{token}`.
    * Example: `https://storage.googleapis.com/my-bucket/blueprints/{token}/front.jpg`
+   * For reliable AI Mirror / canvas use, allow your dashboard origin on that bucket (GET CORS).
+   * If CORS is missing, the app retries a plain image load as a fallback.
    */
   readonly VITE_BLUEPRINT_HERO_PHOTO_URL_TEMPLATE?: string;
   /**

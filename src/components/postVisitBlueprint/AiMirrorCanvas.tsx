@@ -73,6 +73,19 @@ function loadImage(url: string, useCors = true): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * Prefer CORS (`anonymous`) so MediaPipe can read the image reliably and the canvas stays
+ * origin-clean. If the host omits ACAO (common on raw GCS object URLs), that load fails;
+ * retry without `crossOrigin` so the image still loads and we attempt the same detect/draw path.
+ */
+async function loadHeroImageForMirror(url: string): Promise<HTMLImageElement> {
+  try {
+    return await loadImage(url, true);
+  } catch {
+    return loadImage(url, false);
+  }
+}
+
 function normalizeTerm(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -417,7 +430,7 @@ export function AiMirrorCanvas({
 
     (async () => {
       try {
-        const img = await loadImage(imageUrl, true);
+        const img = await loadHeroImageForMirror(imageUrl);
         if (cancelled) return;
 
         const maxW = Math.max(280, wrap.clientWidth || 560);
@@ -456,8 +469,8 @@ export function AiMirrorCanvas({
         if (!cancelled) setStatus("ready");
       } catch {
         // Common failure cases:
-        // - CORS blocked image for canvas usage (can still display plain <img>)
-        // - Expired Airtable attachment URL (410 Gone)
+        // - Expired / bad URL (410, 404)
+        // - Detect/draw failed even after a successful load (e.g. strict WASM + tainted image)
         try {
           const plainImg = await loadImage(imageUrl, false);
           if (cancelled) return;
