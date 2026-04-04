@@ -360,6 +360,13 @@
   min-height: 52px;
 }
 
+.treatment-recommender-by-suggestion__details-label
+  .treatment-recommender-by-suggestion__quantity-select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 36px;
+}
+
 .treatment-recommender-by-suggestion__added-state {
   display: flex;
   flex-direction: column;

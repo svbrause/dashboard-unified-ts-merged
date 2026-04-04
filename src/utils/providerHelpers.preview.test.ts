@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Provider } from "../types";
 import {
+  isPostVisitBlueprintProviderCode,
   isPostVisitBlueprintSender,
   providerShowsTheTreatmentPreviewUi,
 } from "./providerHelpers";
@@ -26,8 +27,8 @@ describe("The Treatment preview feature gate", () => {
     vi.unstubAllEnvs();
   });
 
-  it("hides Post-Visit Blueprint sender for The Treatment when preview env is unset", () => {
-    expect(isPostVisitBlueprintSender(treatmentProvider)).toBe(false);
+  it("allows Post-Visit Blueprint sender for The Treatment without preview env", () => {
+    expect(isPostVisitBlueprintSender(treatmentProvider)).toBe(true);
   });
 
   it("allows Post-Visit Blueprint sender for The Treatment when preview env is true", () => {
@@ -39,8 +40,8 @@ describe("The Treatment preview feature gate", () => {
     expect(isPostVisitBlueprintSender(adminProvider)).toBe(true);
   });
 
-  it("providerShowsTheTreatmentPreviewUi is false for Treatment when preview off", () => {
-    expect(providerShowsTheTreatmentPreviewUi(treatmentProvider)).toBe(false);
+  it("providerShowsTheTreatmentPreviewUi is true for Treatment when preview off", () => {
+    expect(providerShowsTheTreatmentPreviewUi(treatmentProvider)).toBe(true);
   });
 
   it("providerShowsTheTreatmentPreviewUi is true for Treatment when preview on", () => {
@@ -59,5 +60,25 @@ describe("The Treatment preview feature gate", () => {
 
   it("providerShowsTheTreatmentPreviewUi is true when provider is missing", () => {
     expect(providerShowsTheTreatmentPreviewUi(null)).toBe(true);
+  });
+
+  it("allows Post-Visit Blueprint sender for any logged-in provider", () => {
+    const other = {
+      id: "p3",
+      name: "Other Clinic",
+      code: "SomeOtherCode",
+    } as Provider;
+    expect(isPostVisitBlueprintSender(other)).toBe(true);
+  });
+
+  it("does not allow Post-Visit Blueprint sender when provider is missing", () => {
+    expect(isPostVisitBlueprintSender(null)).toBe(false);
+  });
+
+  it("accepts any non-empty provider code on blueprint payloads", () => {
+    expect(isPostVisitBlueprintProviderCode("SomeClinic99")).toBe(true);
+    expect(isPostVisitBlueprintProviderCode("TheTreatment250")).toBe(true);
+    expect(isPostVisitBlueprintProviderCode("")).toBe(false);
+    expect(isPostVisitBlueprintProviderCode(null)).toBe(false);
   });
 });

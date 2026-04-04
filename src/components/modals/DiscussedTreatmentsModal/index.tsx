@@ -1996,55 +1996,78 @@ export default function DiscussedTreatmentsModal({
                                       </option>
                                     ))}
                                   </select>
-                                  <div className="discussed-treatments-chip-row">
-                                    {qtyCtx.options.map((q) => (
-                                      <button
-                                        key={q}
-                                        type="button"
-                                        className={`discussed-treatments-prefill-chip ${
-                                          editForm.quantity === q
-                                            ? "selected"
-                                            : ""
-                                        }`}
-                                        onClick={() =>
-                                          setEditForm((f) => ({
-                                            ...f,
-                                            quantity: f.quantity === q ? "" : q,
-                                          }))
-                                        }
-                                      >
-                                        {q}
-                                      </button>
-                                    ))}
-                                    <span className="discussed-treatments-quantity-other-wrap">
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        max={999}
-                                        placeholder="Other"
-                                        value={
-                                          editForm.quantity &&
-                                          !qtyCtx.options.includes(
-                                            editForm.quantity
-                                          )
-                                            ? editForm.quantity
-                                            : ""
-                                        }
-                                        onChange={(e) => {
-                                          const v = e.target.value.replace(
-                                            /\D/g,
-                                            ""
-                                          );
-                                          setEditForm((f) => ({
-                                            ...f,
-                                            quantity: v,
-                                          }));
-                                        }}
-                                        className="discussed-treatments-quantity-other-input"
-                                        aria-label={`${displayUnit} (other)`}
-                                      />
-                                    </span>
-                                  </div>
+                                  {qtyCtx.quantityControl === "text" ? (
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      className="discussed-treatments-quantity-other-input"
+                                      style={{ width: "100%", maxWidth: 120 }}
+                                      placeholder={qtyCtx.defaultQuantity}
+                                      value={editForm.quantity ?? ""}
+                                      onChange={(e) => {
+                                        const v = e.target.value.replace(
+                                          /\D/g,
+                                          "",
+                                        );
+                                        setEditForm((f) => ({
+                                          ...f,
+                                          quantity: v,
+                                        }));
+                                      }}
+                                      aria-label={displayUnit}
+                                    />
+                                  ) : (
+                                    <div className="discussed-treatments-chip-row">
+                                      {qtyCtx.options.map((q) => (
+                                        <button
+                                          key={q}
+                                          type="button"
+                                          className={`discussed-treatments-prefill-chip ${
+                                            editForm.quantity === q
+                                              ? "selected"
+                                              : ""
+                                          }`}
+                                          onClick={() =>
+                                            setEditForm((f) => ({
+                                              ...f,
+                                              quantity:
+                                                f.quantity === q ? "" : q,
+                                            }))
+                                          }
+                                        >
+                                          {q}
+                                        </button>
+                                      ))}
+                                      <span className="discussed-treatments-quantity-other-wrap">
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          max={999}
+                                          placeholder="Other"
+                                          value={
+                                            editForm.quantity &&
+                                            !qtyCtx.options.includes(
+                                              editForm.quantity,
+                                            )
+                                              ? editForm.quantity
+                                              : ""
+                                          }
+                                          onChange={(e) => {
+                                            const v = e.target.value.replace(
+                                              /\D/g,
+                                              "",
+                                            );
+                                            setEditForm((f) => ({
+                                              ...f,
+                                              quantity: v,
+                                            }));
+                                          }}
+                                          className="discussed-treatments-quantity-other-input"
+                                          aria-label={`${displayUnit} (other)`}
+                                        />
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -5708,51 +5731,78 @@ export default function DiscussedTreatmentsModal({
                                     </option>
                                   ))}
                                 </select>
-                                <div className="discussed-treatments-chip-row">
-                                  {qtyCtx.options.map((q) => (
-                                    <button
-                                      key={q}
-                                      type="button"
-                                      className={`discussed-treatments-prefill-chip ${
-                                        form.quantity === q ? "selected" : ""
-                                      }`}
-                                      onClick={() =>
-                                        setForm((f) => ({
-                                          ...f,
-                                          quantity: f.quantity === q ? "" : q,
-                                        }))
-                                      }
-                                    >
-                                      {q}
-                                    </button>
-                                  ))}
-                                  <span className="discussed-treatments-quantity-other-wrap">
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      max={999}
-                                      placeholder="Other"
-                                      value={
-                                        form.quantity &&
-                                        !qtyCtx.options.includes(form.quantity)
-                                          ? form.quantity
-                                          : ""
-                                      }
-                                      onChange={(e) => {
-                                        const v = e.target.value.replace(
-                                          /\D/g,
-                                          ""
-                                        );
-                                        setForm((f) => ({
-                                          ...f,
-                                          quantity: v,
-                                        }));
-                                      }}
-                                      className="discussed-treatments-quantity-other-input"
-                                      aria-label={`${displayUnit} (other)`}
-                                    />
-                                  </span>
-                                </div>
+                                {qtyCtx.quantityControl === "text" ? (
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    className="discussed-treatments-quantity-other-input"
+                                    style={{ width: "100%", maxWidth: 120 }}
+                                    placeholder={qtyCtx.defaultQuantity}
+                                    value={form.quantity ?? ""}
+                                    onChange={(e) => {
+                                      const v = e.target.value.replace(
+                                        /\D/g,
+                                        "",
+                                      );
+                                      setForm((f) => ({
+                                        ...f,
+                                        quantity: v,
+                                      }));
+                                    }}
+                                    aria-label={displayUnit}
+                                  />
+                                ) : (
+                                  <div className="discussed-treatments-chip-row">
+                                    {qtyCtx.options.map((q) => (
+                                      <button
+                                        key={q}
+                                        type="button"
+                                        className={`discussed-treatments-prefill-chip ${
+                                          form.quantity === q
+                                            ? "selected"
+                                            : ""
+                                        }`}
+                                        onClick={() =>
+                                          setForm((f) => ({
+                                            ...f,
+                                            quantity:
+                                              f.quantity === q ? "" : q,
+                                          }))
+                                        }
+                                      >
+                                        {q}
+                                      </button>
+                                    ))}
+                                    <span className="discussed-treatments-quantity-other-wrap">
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={999}
+                                        placeholder="Other"
+                                        value={
+                                          form.quantity &&
+                                          !qtyCtx.options.includes(
+                                            form.quantity,
+                                          )
+                                            ? form.quantity
+                                            : ""
+                                        }
+                                        onChange={(e) => {
+                                          const v = e.target.value.replace(
+                                            /\D/g,
+                                            "",
+                                          );
+                                          setForm((f) => ({
+                                            ...f,
+                                            quantity: v,
+                                          }));
+                                        }}
+                                        className="discussed-treatments-quantity-other-input"
+                                        aria-label={`${displayUnit} (other)`}
+                                      />
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             );
                           })()}
@@ -6019,51 +6069,74 @@ export default function DiscussedTreatmentsModal({
                                   </option>
                                 ))}
                               </select>
-                              <div className="discussed-treatments-chip-row">
-                                {qtyCtx.options.map((q) => (
-                                  <button
-                                    key={q}
-                                    type="button"
-                                    className={`discussed-treatments-prefill-chip ${
-                                      form.quantity === q ? "selected" : ""
-                                    }`}
-                                    onClick={() =>
-                                      setForm((f) => ({
-                                        ...f,
-                                        quantity: f.quantity === q ? "" : q,
-                                      }))
-                                    }
-                                  >
-                                    {q}
-                                  </button>
-                                ))}
-                                <span className="discussed-treatments-quantity-other-wrap">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={999}
-                                    placeholder="Other"
-                                    value={
-                                      form.quantity &&
-                                      !qtyCtx.options.includes(form.quantity)
-                                        ? form.quantity
-                                        : ""
-                                    }
-                                    onChange={(e) => {
-                                      const v = e.target.value.replace(
-                                        /\D/g,
-                                        ""
-                                      );
-                                      setForm((f) => ({
-                                        ...f,
-                                        quantity: v,
-                                      }));
-                                    }}
-                                    className="discussed-treatments-quantity-other-input"
-                                    aria-label={`${displayUnit} (other)`}
-                                  />
-                                </span>
-                              </div>
+                              {qtyCtx.quantityControl === "text" ? (
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  className="discussed-treatments-quantity-other-input"
+                                  style={{ width: "100%", maxWidth: 120 }}
+                                  placeholder={qtyCtx.defaultQuantity}
+                                  value={form.quantity ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value.replace(
+                                      /\D/g,
+                                      "",
+                                    );
+                                    setForm((f) => ({
+                                      ...f,
+                                      quantity: v,
+                                    }));
+                                  }}
+                                  aria-label={displayUnit}
+                                />
+                              ) : (
+                                <div className="discussed-treatments-chip-row">
+                                  {qtyCtx.options.map((q) => (
+                                    <button
+                                      key={q}
+                                      type="button"
+                                      className={`discussed-treatments-prefill-chip ${
+                                        form.quantity === q ? "selected" : ""
+                                      }`}
+                                      onClick={() =>
+                                        setForm((f) => ({
+                                          ...f,
+                                          quantity:
+                                            f.quantity === q ? "" : q,
+                                        }))
+                                      }
+                                    >
+                                      {q}
+                                    </button>
+                                  ))}
+                                  <span className="discussed-treatments-quantity-other-wrap">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={999}
+                                      placeholder="Other"
+                                      value={
+                                        form.quantity &&
+                                        !qtyCtx.options.includes(form.quantity)
+                                          ? form.quantity
+                                          : ""
+                                      }
+                                      onChange={(e) => {
+                                        const v = e.target.value.replace(
+                                          /\D/g,
+                                          "",
+                                        );
+                                        setForm((f) => ({
+                                          ...f,
+                                          quantity: v,
+                                        }));
+                                      }}
+                                      className="discussed-treatments-quantity-other-input"
+                                      aria-label={`${displayUnit} (other)`}
+                                    />
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}

@@ -22,7 +22,9 @@ import {
 function buildChapterPlanBulletLine(item: DiscussedItem): string {
   const isSkincare = (item.treatment ?? "").trim().toLowerCase() === "skincare";
   const rawLabel = getCheckoutDisplayName(item);
-  const label = isSkincare ? patientFacingSkincareShortName(rawLabel) : rawLabel;
+  const label = isSkincare
+    ? patientFacingSkincareShortName(rawLabel)
+    : rawLabel;
   if (!isSkincare) {
     const meta = formatTreatmentPlanRecordMetaLine(item);
     return meta ? `${label} — ${meta}` : label;
@@ -37,7 +39,7 @@ function buildChapterPlanBulletLine(item: DiscussedItem): string {
   return meta ? `${label} — ${meta}` : label;
 }
 
-function formatEnglishList(items: string[]): string {
+export function formatEnglishList(items: string[]): string {
   const clean = items.map((s) => s.trim()).filter(Boolean);
   if (clean.length === 0) return "";
   if (clean.length === 1) return clean[0] ?? "";
@@ -45,20 +47,37 @@ function formatEnglishList(items: string[]): string {
   return `${clean.slice(0, -1).join(", ")}, and ${clean[clean.length - 1]}`;
 }
 
+/**
+ * Turn treatment display-area labels (e.g. "Forehead", "Lower face") into natural in-sentence phrases.
+ */
+function formatAreaLabelsForProse(areas: string[]): string {
+  return formatEnglishList(
+    areas.map((a) => {
+      const t = a.trim();
+      if (!t) return t;
+      if (/^(the|your)\s+/i.test(t)) return t;
+      return `the ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+    }),
+  );
+}
+
 /** One short sentence: what this category does technically (after the client-specific lead). */
 const TREATMENT_CATEGORY_INTRO: Partial<Record<string, string>> = {
-  Skincare: "It supports your home routine and in-office results.",
-  "Energy Device": "It uses light or controlled heat to improve tone, texture, and collagen signaling.",
-  Laser: "It refreshes tone and texture and supports collagen renewal over a series.",
-  "Chemical Peel": "It speeds surface renewal for clarity and fine lines.",
-  Microneedling: "It stimulates collagen; often paired with topicals for texture and scars.",
-  Filler: "It restores volume and contour where structure has changed.",
-  Neurotoxin: "It softens dynamic lines by relaxing specific muscles.",
-  Biostimulants: "It encourages gradual collagen and structural improvement.",
-  Kybella: "It reduces small, defined fat pockets (often under the chin).",
-  Threadlift: "It lifts and supports tissue for mild sagging.",
-  PRP: "It uses your own growth factors to support rejuvenation.",
-  PDGF: "It supports tissue repair and quality in targeted areas.",
+  Skincare: "It supports your home routine and helps maintain your in-office results.",
+  "Energy Device":
+    "It uses light or gentle heat to improve skin tone, texture, and collagen production.",
+  Laser:
+    "It refreshes tone and texture while encouraging collagen renewal over a series of sessions.",
+  "Chemical Peel": "It speeds up surface renewal for better clarity and smoother fine lines.",
+  Microneedling:
+    "It stimulates collagen\u2014often paired with topicals to help with texture and scarring.",
+  Filler: "It restores volume and contour in areas where structure has shifted over time.",
+  Neurotoxin: "It softens expression lines by relaxing the muscles that cause them.",
+  Biostimulants: "It encourages your skin to gradually rebuild collagen and structure on its own.",
+  Kybella: "It reduces stubborn fat pockets, most often under the chin.",
+  Threadlift: "It provides lift and support in areas with mild sagging.",
+  PRP: "It uses your body\u2019s own growth factors to support skin rejuvenation.",
+  PDGF: "It supports tissue repair and skin quality in targeted areas.",
 };
 
 /**
@@ -73,7 +92,7 @@ export function buildPvbPlanBridgeParagraph(
   const list = formatEnglishList(chapterDisplayNames);
   const out: string[] = [];
   out.push(
-    `The sections below cover ${list}—each with context, videos from your team, and—where available—real patient examples.`,
+    `Your blueprint includes ${list}, so you can see what each step is meant to do and how the plan comes together.`,
   );
 
   const findingParts: string[] = [];
@@ -92,30 +111,42 @@ export function buildPvbPlanBridgeParagraph(
   const extraInterests = globalInsights.interests.slice(0, 6);
 
   if (findingParts.length) {
-    const f = formatEnglishList(findingParts);
+    const framing = frameIssuesForOverview(findingParts);
     if (focusNames.length) {
-      out.push(
-        `Together, these options address findings from your assessment (${f}) while respecting the regions you wanted to prioritize (${formatEnglishList(focusNames)}).`,
-      );
+      if (framing.kind === "broad") {
+        out.push(
+          `These were chosen to ${framing.summary} in the areas you and your provider decided to prioritize during your visit.`,
+        );
+      } else {
+        out.push(
+          `These were chosen to ${formatEnglishList(framing.items)} in the areas you and your provider decided to prioritize during your visit.`,
+        );
+      }
     } else {
-      out.push(
-        `They were chosen to work with patterns noted in your scan (${f}) and what you discussed with your provider.`,
-      );
+      if (framing.kind === "broad") {
+        out.push(
+          `These were chosen to ${framing.summary} in the areas your provider felt made the most sense to prioritize during your visit.`,
+        );
+      } else {
+        out.push(
+          `These were chosen to ${formatEnglishList(framing.items)} in the areas your provider felt made the most sense to prioritize during your visit.`,
+        );
+      }
     }
   } else if (focusNames.length) {
     out.push(
-      `They align with the areas you emphasized during your visit (${formatEnglishList(focusNames)}).`,
+      `These recommendations stay focused on what you wanted to prioritize during your visit.`,
     );
   } else if (extraInterests.length) {
     out.push(
-      `They reflect what you shared as priorities: ${formatEnglishList(extraInterests)}.`,
+      `They reflect the priorities you discussed during your visit: ${formatEnglishList(extraInterests)}.`,
     );
   }
 
   return out.join(" ");
 }
 
-/** Shape of the patient’s chapter list—drives holistic “whole plan” framing copy. */
+/** Shape of the patient's chapter list\u2014drives holistic "whole plan" framing copy. */
 export type PvbMainOverviewPlanShape = {
   chapterCount: number;
   /** Plan includes a Skincare chapter (home regimen / products). */
@@ -152,8 +183,117 @@ function dedupeText(items: string[]): string[] {
   return out;
 }
 
+/** When every focus-area label is already named in goals, skip repeating the list in prose. */
+function focusAreasRedundantWithGoals(goals: string[], focus: string[]): boolean {
+  if (focus.length === 0) return true;
+  const goalSet = new Set(
+    goals.map((g) => g.trim().toLowerCase()).filter(Boolean),
+  );
+  if (goalSet.size === 0) return false;
+  return focus.every((f) => goalSet.has(f.trim().toLowerCase()));
+}
+
+// \u2500\u2500 High-level overview: constructive / aspirational issue framing \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+//
+// The top-of-page overview uses positive, solution-oriented language ("smooth
+// fine lines on the forehead") instead of clinical issue labels ("forehead
+// wrinkles"). When the combined issue list is long (4+), it collapses to broad
+// framing ("comprehensive rejuvenation") rather than enumerating every finding.
+// Per-chapter overviews keep the specific issue language.
+
+const OVERVIEW_BROAD_THRESHOLD = 4;
+
+const SURFACE_RE =
+  /pigment|texture|tone|pore|redness|rosacea|clarity|bright|sun|acne|scar|dull|spot|melasma|vascular|barrier|hydrat|dry/i;
+const STRUCTURAL_RE =
+  /volume|hollow|fold|nasolabial|marionette|sag|lax|jowl|contour|structure/i;
+const LINES_RE =
+  /wrinkle|fine\s*line|crow|frown|expression\s*line|forehead\s*line|glabella|bunny/i;
+
+function issueCategory(
+  s: string,
+): "surface" | "structural" | "lines" | "other" {
+  if (SURFACE_RE.test(s)) return "surface";
+  if (STRUCTURAL_RE.test(s)) return "structural";
+  if (LINES_RE.test(s)) return "lines";
+  return "other";
+}
+
+function broadFramingSummary(issues: string[]): string {
+  const cats = new Set(issues.map(issueCategory));
+  cats.delete("other");
+  if (cats.size >= 2) return "refresh your overall appearance from multiple angles";
+  if (cats.has("surface")) return "improve overall skin quality and clarity";
+  if (cats.has("structural")) return "restore support, volume, and definition";
+  if (cats.has("lines")) return "soften lines and wrinkles";
+  return "refresh your overall appearance";
+}
+
+const CONSTRUCTIVE_REFRAME: [RegExp, string][] = [
+  [/forehead\s+wrinkle/i, "smooth forehead lines"],
+  [/crow['\u2019]?s?\s*feet/i, "soften lines around the eyes"],
+  [/frown\s+line|glabella/i, "smooth frown lines"],
+  [/wrinkle/i, "smooth fine lines"],
+  [/fine\s*line/i, "soften fine lines"],
+  [/sun\s+damage|sun\s*spot/i, "address sun-related changes"],
+  [/pigment|hyperpigment|dark\s*spot|age\s*spot/i, "even out skin tone"],
+  [/melasma/i, "even out discoloration"],
+  [/volume\s+loss/i, "restore natural volume"],
+  [/hollow/i, "restore fullness"],
+  [/nasolabial/i, "soften deeper lines around the nose and mouth"],
+  [/marionette/i, "soften lines around the mouth"],
+  [/sag|lax/i, "improve firmness and lift"],
+  [/texture/i, "refine skin texture"],
+  [/acne\s*scar/i, "smooth acne-related texture"],
+  [/scar/i, "improve scarring"],
+  [/pore/i, "minimize pore appearance"],
+  [/redness|rosacea|vascular/i, "calm redness"],
+  [/tone/i, "even skin tone"],
+  [/dull|bright|clar/i, "brighten the complexion"],
+  [/firm|tight|elastic/i, "improve firmness"],
+  [/collagen/i, "support collagen renewal"],
+  [/jowl/i, "refine the jawline"],
+  [/jaw/i, "define the jawline"],
+  [/neck/i, "address the neck area"],
+  [/under.?eye|tear\s*trough/i, "refresh the under-eye area"],
+  [/lip/i, "enhance the lips"],
+  [/chin|submental/i, "refine the chin and profile"],
+  [/brow/i, "lift the brow area"],
+];
+
+function reframeIssue(issue: string): string {
+  const t = issue.trim();
+  if (!t) return t;
+  for (const [re, replacement] of CONSTRUCTIVE_REFRAME) {
+    if (re.test(t)) return replacement;
+  }
+  return `address ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+}
+
+type OverviewFraming =
+  | { kind: "broad"; summary: string }
+  | { kind: "specific"; items: string[] };
+
+function frameIssuesForOverview(issues: string[]): OverviewFraming {
+  const clean = issues.filter((s) => s.trim());
+  if (clean.length >= OVERVIEW_BROAD_THRESHOLD) {
+    return { kind: "broad", summary: broadFramingSummary(clean) };
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const issue of clean) {
+    const r = reframeIssue(issue);
+    const k = r.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(r);
+    }
+  }
+  return { kind: "specific", items: out };
+}
+
 /**
- * Opening copy for the top “Personalized Treatment Overview”: emphasizes that this is one
+ * Opening copy for the top "Personalized Treatment Overview": emphasizes that this is one
  * coordinated plan (home care, maintenance, aesthetics) rather than disconnected items.
  * Returns two short paragraphs so the typewriter paces them separately.
  */
@@ -164,56 +304,75 @@ export function buildPvbMainPlanFramingParagraphs(
   if (shape.chapterCount <= 0) return [];
 
   const goals = dedupeText(personalization?.goals ?? []).slice(0, 3);
-  const findings = dedupeText(personalization?.findings ?? []).slice(0, 3);
+  const findings = dedupeText(personalization?.findings ?? []).slice(0, 5);
   const focus = dedupeText(personalization?.focusAreas ?? []).slice(0, 2);
   const interests = dedupeText(personalization?.interests ?? []).slice(0, 3);
-  const areas = dedupeText(personalization?.displayAreas ?? []).slice(0, 3);
-  const namedChapters = dedupeText(personalization?.chapterNames ?? []).slice(0, 4);
-  const firstName = personalization?.patientFirstName?.trim() || "";
+  const areas = dedupeText(personalization?.displayAreas ?? []).slice(0, 4);
+  const namedChapters = dedupeText(personalization?.chapterNames ?? []).slice(
+    0,
+    4,
+  );
   const ageRange = personalization?.ageRange?.trim() || "";
   const skinType = personalization?.skinType?.trim() || "";
 
-  const forName = firstName ? `For ${firstName}` : "For you";
-
   let open: string;
   if (goals.length > 0 && findings.length > 0) {
-    open = `${forName}, this plan was built around ${formatEnglishList(goals)}\u2014informed by what your analysis found, including ${formatEnglishList(findings)}.`;
+    const framing = frameIssuesForOverview(findings);
+    if (framing.kind === "broad") {
+      open = `Your provider built this plan around ${formatEnglishList(goals)}, choosing treatments meant to ${framing.summary}.`;
+    } else {
+      open = `Your provider built this plan around ${formatEnglishList(goals)}, choosing treatments meant to ${formatEnglishList(framing.items)}.`;
+    }
   } else if (goals.length > 0) {
-    open = `${forName}, this plan is designed around ${formatEnglishList(goals)}.${focus.length > 0 ? ` Your provider focused on ${formatEnglishList(focus)}.` : ""}`;
+    const focusTail =
+      focus.length > 0 && !focusAreasRedundantWithGoals(goals, focus)
+        ? ` They gave extra attention to ${formatEnglishList(focus)}.`
+        : "";
+    open = `Your provider built this plan around ${formatEnglishList(goals)}.${focusTail}`;
+  } else if (findings.length > 0 && areas.length > 0) {
+    const areasPhrase = formatAreaLabelsForProse(areas);
+    const framing = frameIssuesForOverview(findings);
+    if (framing.kind === "broad") {
+      open = `Your provider focused this plan on ${areasPhrase}, with treatments chosen to ${framing.summary}.`;
+    } else {
+      open = `Your provider focused this plan on ${areasPhrase}, with treatments chosen to ${formatEnglishList(framing.items)}.`;
+    }
   } else if (findings.length > 0) {
-    open = `${forName}, your team identified ${formatEnglishList(findings)}\u2014the plan below addresses each of these.`;
+    const framing = frameIssuesForOverview(findings);
+    if (framing.kind === "broad") {
+      open = `Your provider chose these treatments to ${framing.summary}.`;
+    } else {
+      open = `Your provider chose these treatments to ${formatEnglishList(framing.items)}.`;
+    }
   } else if (interests.length > 0 && areas.length > 0) {
-    open = `${forName}, this plan targets ${formatEnglishList(interests)} across ${formatEnglishList(areas)}, based on what you discussed with your provider.`;
+    open = `Your provider selected treatments for ${formatEnglishList(interests)} across ${formatAreaLabelsForProse(areas)}.`;
   } else if (interests.length > 0) {
-    open = `${forName}, this plan is focused on ${formatEnglishList(interests)}, based on what came up during your visit.`;
+    open = `Your provider built this plan around the priorities that came up during your visit: ${formatEnglishList(interests)}.`;
   } else if (areas.length > 0) {
-    open = `${forName}, this plan was put together to address ${formatEnglishList(areas)}, based on your visit.`;
+    open = `Your provider centered this plan on ${formatAreaLabelsForProse(areas)} because those were the areas that made the most sense to prioritize during your visit.`;
   } else if (namedChapters.length > 0) {
-    open = `${forName}, your provider put together a plan covering ${formatEnglishList(namedChapters)} based on what you discussed during your visit.`;
+    open = `Your provider put together a plan covering ${formatEnglishList(namedChapters)}, based on what you discussed during your visit.`;
   } else {
-    open = `${forName}, your provider put together this plan based on what you discussed during your visit.`;
+    open = `Your provider put together this plan based on what you discussed during your visit.`;
   }
 
   const profileParts: string[] = [];
   if (ageRange) profileParts.push(ageRange);
   if (skinType) profileParts.push(`${skinType} skin`);
-  const profileNote = profileParts.length > 0
-    ? ` Given your profile (${profileParts.join(", ")}), the approach and product selection were tailored to match.`
-    : "";
+  const profileNote =
+    profileParts.length > 0
+      ? ` The products and treatment mix were chosen with your profile in mind (${profileParts.join(", ")}).`
+      : "";
 
   let bridge: string;
   if (shape.includesSkincare && shape.includesInOfficeOrProcedures) {
-    bridge = namedChapters.length > 0
-      ? `Your plan covers ${formatEnglishList(namedChapters)}\u2014starting with medical-grade skincare as a daily foundation, then layering in-office treatments to target your top concerns.${profileNote}`
-      : `Your plan starts with medical-grade skincare for daily care, then layers in-office treatments that target your top aesthetic concerns.${profileNote}`;
+    bridge = `Your plan starts with medical-grade skincare as your daily foundation, then layers in in-office treatments so each step builds on the others and keeps momentum going between visits.${profileNote}`;
   } else if (shape.includesSkincare) {
-    bridge = `Your plan focuses on a strong at-home skincare foundation to keep your results consistent over time.${profileNote}`;
+    bridge = `Your plan centers on a strong at-home skincare routine, because steady daily care is what keeps results building and helps maintain progress over time.${profileNote}`;
   } else if (shape.includesInOfficeOrProcedures) {
-    bridge = namedChapters.length > 0
-      ? `Your plan includes ${formatEnglishList(namedChapters)}, paired together so each treatment reinforces the others.${profileNote}`
-      : `Your plan pairs in-office treatments with a maintenance rhythm so timing and upkeep stay aligned with your goals.${profileNote}`;
+    bridge = `Your plan combines in-office treatments that each play a different role, so the results build in a coordinated way over time.${profileNote}`;
   } else {
-    bridge = `Each step advances the same goals and keeps next actions clear.${profileNote}`;
+    bridge = `Each part of the plan works toward the same goals, so the path forward feels clear instead of pieced together.${profileNote}`;
   }
 
   return [open, bridge];
@@ -246,22 +405,21 @@ export type ChapterComplementSandwichContext = {
   patientPriorities?: string[];
 };
 
-function planPillarPhraseForComplement(planShape: PvbMainOverviewPlanShape): string {
+function planPillarPhraseForComplement(
+  planShape: PvbMainOverviewPlanShape,
+): string {
   if (planShape.includesSkincare && planShape.includesInOfficeOrProcedures) {
-    return "your medical-grade home routine, maintenance between visits, and in-office treatments";
+    return "your home routine and in-office treatments";
   }
   if (planShape.includesSkincare && !planShape.includesInOfficeOrProcedures) {
-    return "consistent at-home care and long-term maintenance";
+    return "your at-home care";
   }
   if (!planShape.includesSkincare && planShape.includesInOfficeOrProcedures) {
-    return "your in-office treatments and the upkeep rhythm your team recommends";
+    return "your in-office treatments";
   }
-  return "every step in this guide";
+  return "the rest of your plan";
 }
 
-/**
- * Opening line: always patient-specific when possible. Avoid generic “neuromodulators are studied…” copy.
- */
 function buildChapterClientApplicationTop(
   chapter: TreatmentChapter,
   mergedConcerns: string[],
@@ -269,30 +427,32 @@ function buildChapterClientApplicationTop(
   complementCtx: ChapterComplementSandwichContext | null | undefined,
 ): string | undefined {
   const self = chapter.displayName.trim();
+  const area = chapter.displayArea?.trim() || "";
   if (mergedConcerns.length > 0) {
-    return `For you, ${self} is here to address ${formatEnglishList(
+    return `${self} is in your plan to address ${formatEnglishList(
       mergedConcerns.slice(0, 5),
-    )}—from what came up in your visit and plan.`;
-  }
-  if (chapter.displayArea?.trim()) {
-    return `For you, this step applies to ${chapter.displayArea.trim()}.`;
+    )}, based on what came up during your visit.`;
   }
   const interest = analysisInput?.planRow?.interest?.trim();
   if (interest) {
-    return `For you, this reflects what you discussed: ${interest}.`;
+    return `This was included based on what you discussed with your provider\u2014${interest}.`;
   }
   const priority =
-    (complementCtx?.patientPriorities ?? []).find((p) => p.trim().length > 0) ?? "";
+    (complementCtx?.patientPriorities ?? []).find((p) => p.trim().length > 0) ??
+    "";
   if (priority) {
-    return `For you, this supports your interest in ${priority.trim()}.`;
+    return `This ties into your goal of ${priority.trim()}.`;
   }
   if (complementCtx && complementCtx.totalChapters > 1) {
     const others = complementCtx.allChapterDisplayNames.filter(
       (_, i) => i !== complementCtx.chapterIndex,
     );
-    return `For you, ${self} is one section of your plan alongside ${formatEnglishList(others)}.`;
+    return `${self} is part of your overall plan, working alongside ${formatEnglishList(others)}.`;
   }
-  return `For you, ${self} is in this guide from what you reviewed with your team.`;
+  if (area) {
+    return `Your provider recommended ${self.toLowerCase()} for ${area.toLowerCase()} based on your visit.`;
+  }
+  return `${self} was recommended based on your conversation with your provider.`;
 }
 
 function buildChapterComplementBottom(
@@ -303,13 +463,17 @@ function buildChapterComplementBottom(
   const pillars = planPillarPhraseForComplement(ctx.planShape);
   const priority =
     (ctx.patientPriorities ?? []).find((p) => p.trim().length > 0) ?? "";
-  const priorityTail = priority ? ` Matches your priority around ${priority}.` : "";
+  const priorityTail = priority
+    ? ` This connects back to your goal of ${priority}.`
+    : "";
   if (ctx.totalChapters <= 1) {
-    return `${self} fits with ${pillars}—steady follow-through keeps results on track.${priorityTail}`;
+    return `Staying consistent with ${self} is what keeps your results building over time.${priorityTail}`;
   }
-  const others = ctx.allChapterDisplayNames.filter((_, i) => i !== ctx.chapterIndex);
+  const others = ctx.allChapterDisplayNames.filter(
+    (_, i) => i !== ctx.chapterIndex,
+  );
   const othersList = formatEnglishList(others);
-  return `${self} works alongside ${othersList} so ${pillars} stay one coordinated plan.${priorityTail}`;
+  return `${self} works hand-in-hand with ${othersList}\u2014together, ${pillars} all reinforce the same goals.${priorityTail}`;
 }
 
 /**
@@ -343,7 +507,9 @@ export function buildChapterOverviewContent(
   );
 
   const hadExplicitAddressingSentence =
-    Boolean(complementTop) || mergedConcerns.length > 0 || Boolean(chapter.displayArea?.trim());
+    Boolean(complementTop) ||
+    mergedConcerns.length > 0 ||
+    Boolean(chapter.displayArea?.trim());
 
   let intro = introBase;
   if (mergedConcerns.length === 0) {
@@ -370,4 +536,65 @@ export function buildChapterOverviewContent(
     analysis,
     complementBottom,
   };
+}
+
+/**
+ * Builds the supporting-evidence text for the top-level overview card.
+ * Uses snapshot data directly rather than the pre-generated assessmentParagraph,
+ * so the output stays tight and reinforces the provider's recommendations.
+ */
+export function buildAssessmentFindingsSection(
+  snapshot: BlueprintAnalysisOverviewSnapshot,
+  goals: string[],
+): string | null {
+  const parts: string[] = [];
+
+  const findings = snapshot.detectedIssueLabels.slice(0, 6);
+  if (findings.length > 3) {
+    parts.push(
+      "Your assessment supported these recommendations by showing several patterns to work on across your skin",
+    );
+  } else if (findings.length > 0) {
+    parts.push(
+      `Your assessment supported these recommendations by highlighting ${formatEnglishList(findings)}`,
+    );
+  }
+
+  const cats = [...snapshot.categories].sort((a, b) => b.score - a.score);
+  if (parts.length === 0 && cats.length >= 2) {
+    const strong = cats[0]!;
+    const room = cats[cats.length - 1]!;
+    parts.push(
+      `At a high level, the assessment suggested ${room.name.toLowerCase()} deserved more attention than ${strong.name.toLowerCase()}`,
+    );
+  }
+
+  const focus = snapshot.areas
+    .filter((a) => a.hasInterest)
+    .map((a) => a.name);
+  const hasPriorities = focus.length > 0 || goals.length > 0;
+
+  if (parts.length === 0) {
+    if (!hasPriorities) return null;
+    if (focus.length > 0) {
+      parts.push(
+        "The assessment aligned with the areas you and your provider had already agreed to prioritize",
+      );
+    } else {
+      parts.push(
+        "The assessment fit with the priorities you shared during your visit",
+      );
+    }
+  } else if (hasPriorities) {
+    if (focus.length > 0) {
+      parts.push(
+        "That matched the areas you and your provider had already agreed to focus on",
+      );
+    } else {
+      parts.push("It also fit with the priorities you shared during your visit");
+    }
+  }
+
+  if (parts.length === 0) return null;
+  return `${parts.join(". ")}.`;
 }

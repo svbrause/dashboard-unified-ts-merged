@@ -23,6 +23,7 @@ import {
   isWellnestWellnessProviderCode,
 } from "../../../data/wellnestOfferings";
 import { RECOMMENDED_PRODUCT_REASONS } from "../../../data/skinTypeQuiz";
+import { getQuoteLineDiscussedItemIndexOrder } from "../../../utils/pvbQuotePartition";
 import { MintMembershipInfoTrigger } from "../../shared/MintMembershipInfoTrigger";
 
 export interface TreatmentPlanCheckoutProps {
@@ -1376,19 +1377,17 @@ function matchSkincareProductForQuote(
 }
 
 /**
- * Quote line items and total for non-wishlist rows — matches the checkout "quote" payload
- * (no per-row UI overrides; uses stored plan fields only).
+ * One checkout line per discussed row (same index as `items`) — used by share modal preview
+ * and {@link computeQuoteSheetDataForDiscussedItems}.
  */
-export function computeQuoteSheetDataForDiscussedItems(
+export function getAlignedCheckoutLineItemsForDiscussedItems(
   items: DiscussedItem[],
-): {
-  lineItems: CheckoutLineItemDetail[];
-  total: number;
-  hasUnknownPrices: boolean;
-} | null {
-  if (items.length === 0) return null;
+): CheckoutLineItemDetail[] {
+  if (items.length === 0) return [];
   const carouselItems = getSkincareCarouselItems();
-  const getSkincareProductInfo = (productName: string): SkincareProductInfo | null => {
+  const getSkincareProductInfo = (
+    productName: string,
+  ): SkincareProductInfo | null => {
     const found = matchSkincareProductForQuote(productName, carouselItems);
     if (!found) return null;
     const priceStr = found.price;
@@ -1412,19 +1411,48 @@ export function computeQuoteSheetDataForDiscussedItems(
     (item) => getCheckoutDisplayName(item as DiscussedItem),
     getSkincareProductInfo,
   );
-  const skincareIndices: number[] = [];
-  const treatmentIndices: number[] = [];
-  items.forEach((eff, idx) => {
-    const isWishlist =
-      (eff.timeline ?? "").trim().toLowerCase() === "wishlist";
-    if (isWishlist) return;
-    if (lineItems[idx]?.quoteLineKind === "skincare") skincareIndices.push(idx);
-    else treatmentIndices.push(idx);
+  return lineItems;
+}
+
+/**
+ * Maps each `DiscussedItem.id` to the same price label as treatment plan checkout
+ * (SKU display strings, category ranges, per-unit neuro math, boutique skincare, etc.).
+ */
+export function getDiscussedPlanItemPriceLabels(
+  items: DiscussedItem[],
+): ReadonlyMap<string, string> {
+  const map = new Map<string, string>();
+  if (items.length === 0) return map;
+  const lineItems = getAlignedCheckoutLineItemsForDiscussedItems(items);
+  items.forEach((item, idx) => {
+    const id = String(item.id ?? "").trim();
+    if (!id) return;
+    const line = lineItems[idx];
+    if (!line) return;
+    const label =
+      (line.displayPrice && line.displayPrice.trim()) ||
+      formatPrice(line.price ?? 0);
+    map.set(id, label);
   });
-  const activeIndices = [...skincareIndices, ...treatmentIndices];
-  const quoteLineItems = activeIndices
-    .map((idx) => lineItems[idx])
-    .filter(Boolean) as CheckoutLineItemDetail[];
+  return map;
+}
+
+/**
+ * Quote line items for the post-visit blueprint / share flow: one row per on-blueprint plan row
+ * (includes wishlist and empty timeline), in the same order as {@link getQuoteLineDiscussedItemIndexOrder}.
+ * Wishlist rows use the same reference pricing as checkout so share preview and “Your plan” can show amounts.
+ */
+export function computeQuoteSheetDataForDiscussedItems(
+  items: DiscussedItem[],
+): {
+  lineItems: CheckoutLineItemDetail[];
+  total: number;
+  hasUnknownPrices: boolean;
+} | null {
+  if (items.length === 0) return null;
+  const lineItems = getAlignedCheckoutLineItemsForDiscussedItems(items);
+  const order = getQuoteLineDiscussedItemIndexOrder(items, lineItems);
+  const quoteLineItems = order.map((idx) => lineItems[idx]!);
   const quoteTotal = quoteLineItems.reduce(
     (sum, l) => sum + (l?.price ?? 0),
     0,

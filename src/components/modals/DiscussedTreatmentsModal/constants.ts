@@ -401,6 +401,18 @@ export const SKINCARE_CATEGORY_OPTIONS: {
     : []),
 ];
 
+/**
+ * Parallel to {@link SKINCARE_CATEGORY_OPTIONS} indices — same product sets, “use case” wording for browse chips.
+ */
+export const SKINCARE_USE_CASE_LABELS: string[] = [
+  "Hydration & barrier",
+  "Acne & oil control",
+  "Brightening & depigmentation",
+  "Collagen & renewal",
+  "Calming & sensitive",
+  "Other",
+];
+
 /** Treatment type / product options per treatment (for product selector when that treatment is selected) */
 export const TREATMENT_PRODUCT_OPTIONS: Record<string, string[]> = {
   Skincare: [...SKINCARE_PRODUCTS],

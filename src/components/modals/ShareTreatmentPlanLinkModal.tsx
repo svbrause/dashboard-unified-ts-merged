@@ -21,8 +21,13 @@ import {
   trackPostVisitBlueprintEvent,
   warmPostVisitBlueprintForSend,
 } from "../../utils/postVisitBlueprint";
+import { formatPrice } from "../../data/treatmentPricing2025";
+import { patientFacingSkincareShortName } from "../../utils/pvbSkincareDisplay";
 import { getTreatmentDisplayName } from "./DiscussedTreatmentsModal/utils";
-import { computeQuoteSheetDataForDiscussedItems } from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
+import {
+  computeQuoteSheetDataForDiscussedItems,
+  getAlignedCheckoutLineItemsForDiscussedItems,
+} from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import "./TreatmentPlanCheckoutModal.css";
 import "./ShareTreatmentPlanLinkModal.css";
 
@@ -40,6 +45,57 @@ function sectionLabelForShareRow(item: DiscussedItem): string {
   if (t === "Add next visit") return "Add next visit";
   if (t === "Wishlist" || !t) return "Wishlist";
   return t;
+}
+
+function compareTimelineGroupTitles(a: string, b: string): number {
+  const rank = (label: string) => {
+    if (label === "Now") return 0;
+    if (label === "Add next visit") return 1;
+    if (label === "Wishlist") return 2;
+    return 3;
+  };
+  const ra = rank(a);
+  const rb = rank(b);
+  if (ra !== rb) return ra - rb;
+  if (ra === 3) return a.localeCompare(b);
+  return 0;
+}
+
+/** Per-line amount: show line total only (no unit math) when we have a numeric total. */
+function shareRowPriceDisplay(
+  line:
+    | { price?: number; displayPrice?: string; isEstimate?: boolean }
+    | undefined,
+): string {
+  if (!line) return formatPrice(0);
+  if (line.displayPrice === "Price varies") return "Price varies";
+  if (line.isEstimate && line.displayPrice?.trim()) {
+    return line.displayPrice.trim();
+  }
+  if (line.price != null && line.price > 0) {
+    return formatPrice(line.price);
+  }
+  if (line.displayPrice?.trim()) return line.displayPrice.trim();
+  return formatPrice(0);
+}
+
+function shareRowPrimaryLabel(
+  item: DiscussedItem,
+  line:
+    | {
+        skuName?: string;
+        label: string;
+        quoteLineKind?: "skincare" | "treatment";
+      }
+    | undefined,
+): string {
+  if (!line) return getTreatmentDisplayName(item);
+  const raw = (line.skuName ?? line.label ?? "").trim();
+  if (line.quoteLineKind === "skincare" && raw) {
+    return patientFacingSkincareShortName(raw);
+  }
+  if (raw) return raw;
+  return getTreatmentDisplayName(item);
 }
 
 export default function ShareTreatmentPlanLinkModal({
@@ -89,6 +145,57 @@ export default function ShareTreatmentPlanLinkModal({
     [discussedItems],
   );
 
+  const discussedIndexByItemId = useMemo(() => {
+    const m = new Map<string, number>();
+    discussedItems.forEach((d, i) => m.set(d.id, i));
+    return m;
+  }, [discussedItems]);
+
+  const checkoutLinesByDiscussedIndex = useMemo(
+    () => getAlignedCheckoutLineItemsForDiscussedItems(discussedItems),
+    [discussedItems],
+  );
+
+  const { skincareShareItems, treatmentShareItems } = useMemo(() => {
+    const skincare: DiscussedItem[] = [];
+    const treatment: DiscussedItem[] = [];
+    for (const item of eligibleItems) {
+      const idx = discussedIndexByItemId.get(item.id);
+      const line =
+        idx !== undefined ? checkoutLinesByDiscussedIndex[idx] : undefined;
+      if (line?.quoteLineKind === "skincare") skincare.push(item);
+      else treatment.push(item);
+    }
+    return {
+      skincareShareItems: skincare,
+      treatmentShareItems: treatment,
+    };
+  }, [eligibleItems, discussedIndexByItemId, checkoutLinesByDiscussedIndex]);
+
+  const treatmentTimelineGroups = useMemo(() => {
+    const byTitle = new Map<string, DiscussedItem[]>();
+    for (const item of treatmentShareItems) {
+      const title = sectionLabelForShareRow(item);
+      const list = byTitle.get(title) ?? [];
+      list.push(item);
+      byTitle.set(title, list);
+    }
+    const titles = [...byTitle.keys()].sort(compareTimelineGroupTitles);
+    return titles.map((title) => ({
+      title,
+      items: byTitle.get(title)!,
+    }));
+  }, [treatmentShareItems]);
+
+  const lineForItem = useCallback(
+    (item: DiscussedItem) => {
+      const idx = discussedIndexByItemId.get(item.id);
+      if (idx === undefined) return undefined;
+      return checkoutLinesByDiscussedIndex[idx];
+    },
+    [discussedIndexByItemId, checkoutLinesByDiscussedIndex],
+  );
+
   const eligibleIdsKey = useMemo(
     () => [...eligibleItems.map((i) => i.id)].sort().join(","),
     [eligibleItems],
@@ -106,10 +213,31 @@ export default function ShareTreatmentPlanLinkModal({
     setInclusionById(next);
   }, [eligibleIdsKey, eligibleItems]);
 
+  const includedSkincareSubtotal = useMemo(() => {
+    return skincareShareItems.reduce((sum, item) => {
+      if (!inclusionById[item.id]) return sum;
+      return sum + (lineForItem(item)?.price ?? 0);
+    }, 0);
+  }, [skincareShareItems, inclusionById, lineForItem]);
+
+  const includedTreatmentSubtotal = useMemo(() => {
+    return treatmentShareItems.reduce((sum, item) => {
+      if (!inclusionById[item.id]) return sum;
+      return sum + (lineForItem(item)?.price ?? 0);
+    }, 0);
+  }, [treatmentShareItems, inclusionById, lineForItem]);
+
+  const includedSelectionTotal =
+    includedSkincareSubtotal + includedTreatmentSubtotal;
+
   const [step, setStep] = useState<"pick" | "send">("pick");
   const [preparingLink, setPreparingLink] = useState(false);
   const [sending, setSending] = useState(false);
-  const [blueprintMessageDraft, setBlueprintMessageDraft] = useState("");
+  /** Text before the fixed “Review it here: [link]” block (link is never in this field). */
+  const [blueprintMessageIntro, setBlueprintMessageIntro] = useState("");
+  /** Optional text sent after the link so closing notes don’t sit between “Review it here” and the URL. */
+  const [blueprintMessageAfterLink, setBlueprintMessageAfterLink] =
+    useState("");
   const [blueprintRecipientPhone, setBlueprintRecipientPhone] = useState("");
   const [pendingBlueprintLink, setPendingBlueprintLink] = useState<
     string | null
@@ -200,13 +328,16 @@ export default function ShareTreatmentPlanLinkModal({
       setPendingBlueprintLink(link);
       setPendingBlueprintToken(token);
       setBlueprintRecipientPhone(formattedPhone || "");
-      setBlueprintMessageDraft(
-        `Hi ${firstName}, your custom treatment plan from ${clinicName} is ready. Review it here: ${link}`,
+      setBlueprintMessageIntro(
+        `Hi ${firstName}, your custom treatment plan from ${clinicName} is ready.`,
       );
+      setBlueprintMessageAfterLink("");
       setStep("send");
     } catch (e) {
       showError(
-        e instanceof Error ? e.message : "Failed to prepare treatment plan link.",
+        e instanceof Error
+          ? e.message
+          : "Failed to prepare treatment plan link.",
       );
     } finally {
       setPreparingLink(false);
@@ -228,7 +359,8 @@ export default function ShareTreatmentPlanLinkModal({
       showError("Link is missing. Go back and try again.");
       return;
     }
-    if (!blueprintMessageDraft.trim()) {
+    const intro = blueprintMessageIntro.trim();
+    if (!intro) {
       showError("Please enter a message before sending.");
       return;
     }
@@ -237,11 +369,16 @@ export default function ShareTreatmentPlanLinkModal({
       return;
     }
 
+    const after = blueprintMessageAfterLink.trim();
+    const smsText = after
+      ? `${intro} Review it here: ${pendingBlueprintLink}\n\n${after}`
+      : `${intro} Review it here: ${pendingBlueprintLink}`;
+
     setSending(true);
     try {
       await sendSMSNotification(
         cleanPhoneNumber(blueprintRecipientPhone),
-        blueprintMessageDraft.trim(),
+        smsText,
         client.name,
       );
       trackPostVisitBlueprintEvent("blueprint_delivered", {
@@ -259,7 +396,8 @@ export default function ShareTreatmentPlanLinkModal({
       setSending(false);
     }
   }, [
-    blueprintMessageDraft,
+    blueprintMessageIntro,
+    blueprintMessageAfterLink,
     blueprintRecipientPhone,
     client,
     clinicName,
@@ -314,132 +452,274 @@ export default function ShareTreatmentPlanLinkModal({
         className="treatment-plan-checkout-blueprint-compose-modal share-treatment-plan-link-dialog"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 id="share-treatment-plan-link-title">Share treatment plan</h3>
+        <h3
+          id="share-treatment-plan-link-title"
+          className="share-tp-link-dialog-title"
+        >
+          Share treatment plan
+        </h3>
         {step === "pick" ? (
           <>
-            <p className="share-treatment-plan-link-lead">
-              Choose which items appear on the patient&apos;s post-visit
-              experience. Now, Add next visit, and Skincare are on by default;
-              Wishlist is off unless you turn it on.
+            <p className="share-tp-link-dialog-subtitle">
+              Choose items for the patient link—pricing matches their plan. Now,
+              next visit &amp; Skincare default on; Wishlist off.
             </p>
-            {eligibleItems.length === 0 ? (
-              <p className="share-treatment-plan-link-empty">
-                Only Now, Add next visit, Wishlist, and Skincare can be shared.
-                Move items out of Completed, or add plan rows in those
-                sections.
-              </p>
-            ) : (
-              <ul className="share-treatment-plan-link-items">
-                {eligibleItems.map((item) => (
-                  <li key={item.id}>
-                    <label className="share-treatment-plan-link-row">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(inclusionById[item.id])}
-                        onChange={() => toggleInclude(item.id)}
-                      />
-                      <span className="share-treatment-plan-link-row-body">
-                        <span className="share-treatment-plan-link-row-title">
-                          {getTreatmentDisplayName(item)}
-                          {item.product && item.treatment === "Skincare"
-                            ? ` · ${item.product}`
-                            : ""}
-                        </span>
-                        <span className="share-treatment-plan-link-row-meta">
-                          {sectionLabelForShareRow(item)}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="treatment-plan-checkout-blueprint-compose-actions share-treatment-plan-link-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={onClose}
-                disabled={preparingLink}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handlePrepareLink}
-                disabled={
-                  preparingLink ||
-                  eligibleItems.length === 0 ||
-                  includedIdSet.size === 0
-                }
-              >
-                {preparingLink ? "Preparing…" : "Continue to SMS"}
-              </button>
+            <div className="share-tp-link-dialog-body">
+              {eligibleItems.length === 0 ? (
+                <p className="share-treatment-plan-link-empty">
+                  Only Now, Add next visit, Wishlist, and Skincare can be
+                  shared. Move items out of Completed, or add plan rows in those
+                  sections.
+                </p>
+              ) : (
+                <div className="share-tp-link-quote">
+                  {skincareShareItems.length > 0 ? (
+                    <div className="share-tp-link-quote-section">
+                      <h4 className="share-tp-link-quote-section-title">
+                        Skincare products
+                      </h4>
+                      <ul className="share-tp-link-quote-rows">
+                        {skincareShareItems.map((item) => {
+                          const line = lineForItem(item);
+                          return (
+                            <li key={item.id}>
+                              <label className="share-tp-link-quote-row">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(inclusionById[item.id])}
+                                  onChange={() => toggleInclude(item.id)}
+                                />
+                                <span className="share-tp-link-quote-row-text">
+                                  <span className="share-treatment-plan-link-row-title">
+                                    {shareRowPrimaryLabel(item, line)}
+                                  </span>
+                                  <span className="share-treatment-plan-link-row-meta">
+                                    {sectionLabelForShareRow(item)}
+                                  </span>
+                                </span>
+                                <strong className="share-tp-link-quote-row-price">
+                                  {shareRowPriceDisplay(line)}
+                                </strong>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="share-tp-link-quote-subtotal">
+                        <span>Skincare subtotal</span>
+                        <strong>{formatPrice(includedSkincareSubtotal)}</strong>
+                      </div>
+                    </div>
+                  ) : null}
+                  {treatmentTimelineGroups.length > 0 ? (
+                    <div className="share-tp-link-quote-section share-tp-link-quote-section--treatments">
+                      <h4 className="share-tp-link-quote-section-title">
+                        Treatments
+                      </h4>
+                      {treatmentTimelineGroups.map((group) => (
+                        <div
+                          key={group.title}
+                          className="share-tp-link-timeline-group"
+                        >
+                          <h5 className="share-tp-link-timeline-group-title">
+                            {group.title}
+                          </h5>
+                          <ul className="share-tp-link-quote-rows">
+                            {group.items.map((item) => {
+                              const line = lineForItem(item);
+                              return (
+                                <li key={item.id}>
+                                  <label className="share-tp-link-quote-row">
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(inclusionById[item.id])}
+                                      onChange={() => toggleInclude(item.id)}
+                                    />
+                                    <span className="share-tp-link-quote-row-text">
+                                      <span className="share-treatment-plan-link-row-title">
+                                        {shareRowPrimaryLabel(item, line)}
+                                      </span>
+                                    </span>
+                                    <strong className="share-tp-link-quote-row-price">
+                                      {shareRowPriceDisplay(line)}
+                                    </strong>
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ))}
+                      <div className="share-tp-link-quote-subtotal">
+                        <span>Treatments subtotal</span>
+                        <strong>
+                          {formatPrice(includedTreatmentSubtotal)}
+                        </strong>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="share-tp-link-quote-footer">
+                    <div className="share-tp-link-quote-total">
+                      <span>Total</span>
+                      <strong>{formatPrice(includedSelectionTotal)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="share-tp-link-dialog-footer">
+              <div className="treatment-plan-checkout-blueprint-compose-actions share-treatment-plan-link-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={onClose}
+                  disabled={preparingLink}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handlePrepareLink}
+                  disabled={
+                    preparingLink ||
+                    eligibleItems.length === 0 ||
+                    includedIdSet.size === 0
+                  }
+                >
+                  {preparingLink ? "Preparing…" : "Continue to SMS"}
+                </button>
+              </div>
             </div>
           </>
         ) : (
           <>
-            <label
-              className="treatment-plan-checkout-blueprint-compose-label"
-              htmlFor="share-tp-link-recipient-phone"
-            >
-              Recipient phone
-            </label>
-            <input
-              id="share-tp-link-recipient-phone"
-              type="tel"
-              autoComplete="tel"
-              className="treatment-plan-checkout-blueprint-compose-phone"
-              placeholder="(555) 555-5555"
-              value={blueprintRecipientPhone}
-              onChange={(e) => setBlueprintRecipientPhone(e.target.value)}
-            />
-            <label
-              className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
-              htmlFor="share-tp-link-message"
-            >
-              Message
-            </label>
-            <textarea
-              id="share-tp-link-message"
-              className="treatment-plan-checkout-blueprint-compose-textarea"
-              value={blueprintMessageDraft}
-              onChange={(e) => setBlueprintMessageDraft(e.target.value)}
-              rows={6}
-            />
-            <div className="treatment-plan-checkout-blueprint-compose-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setStep("pick");
-                  setPendingBlueprintLink(null);
-                  setPendingBlueprintToken(null);
-                }}
-                disabled={sending}
+            <div className="share-tp-link-dialog-body">
+              <label
+                className="treatment-plan-checkout-blueprint-compose-label"
+                htmlFor="share-tp-link-recipient-phone"
               >
-                Back
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handlePreviewLink}
-                disabled={sending || !pendingBlueprintLink}
+                Recipient phone
+              </label>
+              <input
+                id="share-tp-link-recipient-phone"
+                type="tel"
+                autoComplete="tel"
+                className="treatment-plan-checkout-blueprint-compose-phone"
+                placeholder="(555) 555-5555"
+                value={blueprintRecipientPhone}
+                onChange={(e) => setBlueprintRecipientPhone(e.target.value)}
+              />
+              <label
+                className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
+                htmlFor="share-tp-link-message-intro"
               >
-                Preview link
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleConfirmSend}
-                disabled={
-                  sending ||
-                  !blueprintMessageDraft.trim() ||
-                  !isValidPhone(formatPhoneDisplay(blueprintRecipientPhone))
-                }
+                Opening message
+              </label>
+              <p className="share-tp-link-compose-link-hint">
+                &quot;Review it here:&quot; and your patient&apos;s secure link
+                are always sent together immediately after your opening message.
+                Use the optional field below for anything you want to say after
+                the link.
+              </p>
+              <textarea
+                id="share-tp-link-message-intro"
+                className="treatment-plan-checkout-blueprint-compose-textarea"
+                value={blueprintMessageIntro}
+                onChange={(e) => setBlueprintMessageIntro(e.target.value)}
+                rows={4}
+              />
+              <div
+                className="share-tp-link-review-here-row"
+                aria-hidden="true"
               >
-                {sending ? "Sending…" : "Send message"}
-              </button>
+                <span className="share-tp-link-review-here-label">
+                  Review it here:
+                </span>
+                <span className="share-tp-link-message-preview-link-pill">
+                  plan link
+                </span>
+              </div>
+              <label
+                className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
+                htmlFor="share-tp-link-message-after"
+              >
+                After the link (optional)
+              </label>
+              <textarea
+                id="share-tp-link-message-after"
+                className="treatment-plan-checkout-blueprint-compose-textarea"
+                value={blueprintMessageAfterLink}
+                onChange={(e) => setBlueprintMessageAfterLink(e.target.value)}
+                rows={3}
+                placeholder="e.g. Reply if you have questions."
+              />
+              <div className="share-tp-link-message-preview-wrap">
+                <span className="share-tp-link-message-preview-label">
+                  Preview
+                </span>
+                <div
+                  className="share-tp-link-message-preview-box"
+                  aria-hidden="true"
+                >
+                  <span className="share-tp-link-message-preview-text">
+                    {blueprintMessageIntro.trim() || "Your opening message"}{" "}
+                    <span className="share-tp-link-message-preview-cta">
+                      Review it here:
+                    </span>{" "}
+                    <span className="share-tp-link-message-preview-link-pill share-tp-link-message-preview-link-pill--inline">
+                      plan link
+                    </span>
+                  </span>
+                  {blueprintMessageAfterLink.trim() ? (
+                    <>
+                      <br />
+                      <br />
+                      <span className="share-tp-link-message-preview-after">
+                        {blueprintMessageAfterLink.trim()}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            <div className="share-tp-link-dialog-footer">
+              <div className="treatment-plan-checkout-blueprint-compose-actions share-treatment-plan-link-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setStep("pick");
+                    setPendingBlueprintLink(null);
+                    setPendingBlueprintToken(null);
+                    setBlueprintMessageIntro("");
+                    setBlueprintMessageAfterLink("");
+                  }}
+                  disabled={sending}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handlePreviewLink}
+                  disabled={sending || !pendingBlueprintLink}
+                >
+                  Preview link
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleConfirmSend}
+                  disabled={
+                    sending ||
+                    !blueprintMessageIntro.trim() ||
+                    !isValidPhone(formatPhoneDisplay(blueprintRecipientPhone))
+                  }
+                >
+                  {sending ? "Sending…" : "Send message"}
+                </button>
+              </div>
             </div>
           </>
         )}

@@ -71,11 +71,20 @@ interface TreatmentPhotosProps {
   /** When provided, "Add to plan" opens the treatment planning form prefilled instead of adding directly */
   onAddToPlanWithPrefill?: (prefilled: TreatmentPlanPrefill) => void;
   /** When provided, "Add to plan" shows Where/When form and on confirm adds directly (no full modal) */
-  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => void | Promise<void>;
+  onAddToPlanDirect?: (
+    prefill: TreatmentPlanPrefill,
+    options?: TreatmentPlanAddDirectOptions,
+  ) => void | DiscussedItem | Promise<void | DiscussedItem>;
   /** Current plan items – used to show "Added to plan" when this photo's treatment is already in the plan */
   planItems?: DiscussedItem[];
   /** When provided, use these photos instead of fetching (e.g. for /debug/treatment-examples) */
   demoPhotos?: TreatmentPhoto[] | null;
+}
+
+/** Optional flags when adding directly to the plan (e.g. batch skincare rows). */
+export interface TreatmentPlanAddDirectOptions {
+  /** Parent persists but skips toast so the caller can show one summary message. */
+  skipToast?: boolean;
 }
 
 /** Data to prefill the treatment planning form when adding from a photo or recommender */

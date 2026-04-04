@@ -27,16 +27,23 @@ import {
   type BlueprintCasePhoto,
   type CaseDetailPayload,
 } from "../../utils/postVisitBlueprintCases";
-import { isPostVisitBlueprintAllowedForPatient } from "../../utils/providerHelpers";
+import {
+  isPostVisitBlueprintAdminSender,
+  isPostVisitBlueprintAllowedForPatient,
+} from "../../utils/providerHelpers";
 import { isWellnestWellnessProviderCode } from "../../data/wellnestOfferings";
 import { buildWellnestBlueprintCasePhotos } from "../../utils/wellnestBlueprintCases";
 import { AiMirrorCanvas } from "../postVisitBlueprint/AiMirrorCanvas";
 import { PvbNarrativeAudioControls } from "../postVisitBlueprint/PvbNarrativeAudioControls";
-import { PvbTypewriterParagraphs } from "../postVisitBlueprint/PvbTypewriterParagraphs";
+import { PvbOverviewSectionsSequentialTypewriter } from "../postVisitBlueprint/PvbTypewriterParagraphs";
 import { TreatmentChapterView } from "../postVisitBlueprint/TreatmentChapter";
 import { getPostVisitBlueprintVideoCatalog } from "../../config/postVisitBlueprintVideos";
-import { buildTreatmentChapters } from "../../utils/blueprintTreatmentChapters";
 import {
+  buildTreatmentChapters,
+  splitChapterDisplayAreas,
+} from "../../utils/blueprintTreatmentChapters";
+import {
+  derivePlanInterestsFromDiscussedItems,
   getBlueprintAnalysisDisplay,
   normalizeBlueprintAnalysisText,
   PVB_ANALYSIS_SECTION_ID,
@@ -74,6 +81,7 @@ import { partitionQuoteLineIndices } from "../../utils/pvbQuotePartition";
 import { patientFacingSkincareShortName } from "../../utils/pvbSkincareDisplay";
 import "../postVisitBlueprint/PvbNarrative.css";
 import "./PostVisitBlueprintPage.css";
+import ponceBrandLogoSrc from "../../assets/images/ponce logo.png";
 
 /** The Treatment Skin Boutique — patient-facing blueprint branding */
 const THE_TREATMENT_BRAND_LOGO_SRC =
@@ -84,24 +92,36 @@ const WELLNEST_MARKETING_SITE_URL = "https://wellnestmd.com/";
 
 function PvbBrandBar({
   providerCode,
+  providerName,
   onWellnestWebsiteClick,
 }: {
   providerCode?: string | null;
+  providerName?: string | null;
   onWellnestWebsiteClick?: () => void;
 }) {
+  const isAdminSender = isPostVisitBlueprintAdminSender({
+    providerCode: providerCode ?? undefined,
+    providerName: providerName ?? undefined,
+  });
   const isWellnest = isWellnestWellnessProviderCode(providerCode);
-  const brandLogoSrc = isWellnest
-    ? WELLNEST_BRAND_LOGO_SRC
-    : THE_TREATMENT_BRAND_LOGO_SRC;
-  const brandLabel = isWellnest ? "Wellnest MD" : "The Treatment Skin Boutique";
+  const brandLogoSrc = isAdminSender
+    ? ponceBrandLogoSrc
+    : isWellnest
+      ? WELLNEST_BRAND_LOGO_SRC
+      : THE_TREATMENT_BRAND_LOGO_SRC;
+  const brandLabel = isAdminSender
+    ? "Ponce AI"
+    : isWellnest
+      ? "Wellnest MD"
+      : "The Treatment Skin Boutique";
   return (
     <header className="pvb-brand-bar" aria-label={brandLabel}>
       <img
         src={brandLogoSrc}
         alt={brandLabel}
-        className="pvb-brand-logo"
-        width={220}
-        height={72}
+        className={`pvb-brand-logo${isAdminSender ? " pvb-brand-logo--ponce" : ""}`}
+        width={isAdminSender ? 200 : 220}
+        height={isAdminSender ? 48 : 72}
         decoding="async"
       />
       {isWellnest && (
@@ -193,8 +213,7 @@ export default function PostVisitBlueprintPage() {
     () => (token ? getStoredPostVisitBlueprint(token) : null),
     [token],
   );
-  const shouldFetchRemoteBlueprint =
-    !inlinePayload && !!token && !storedPayload;
+  const shouldFetchRemoteBlueprint = !inlinePayload && !!token;
 
   const [remoteBlueprint, setRemoteBlueprint] =
     useState<PostVisitBlueprintPayload | null>(null);
@@ -205,6 +224,8 @@ export default function PostVisitBlueprintPage() {
   useEffect(() => {
     if (!shouldFetchRemoteBlueprint || !token) return;
     let cancelled = false;
+    setRemoteBlueprint(null);
+    setRemoteBlueprintResolved(false);
     void (async () => {
       const raw = await fetchPostVisitBlueprintFromServer(token);
       if (cancelled) return;
@@ -220,9 +241,9 @@ export default function PostVisitBlueprintPage() {
     };
   }, [shouldFetchRemoteBlueprint, token]);
 
-  const blueprint = inlinePayload ?? storedPayload ?? remoteBlueprint;
+  const blueprint = inlinePayload ?? remoteBlueprint ?? storedPayload;
   const waitingForRemoteBlueprint =
-    shouldFetchRemoteBlueprint && !remoteBlueprintResolved;
+    shouldFetchRemoteBlueprint && !remoteBlueprintResolved && !storedPayload;
 
   /** Keep a local copy so repeat visits work with `?t=` only (same browser) after the full link was opened once. */
   useEffect(() => {
@@ -246,10 +267,10 @@ export default function PostVisitBlueprintPage() {
   const [caseGalleryTracked, setCaseGalleryTracked] = useState(false);
   const videoPlayTrackedRef = useRef<Set<string>>(new Set());
   const [isQuoteOpen, setIsQuoteOpen] = useState(false);
-  /** Quote drawer: line items vs. post–“Proceed to book” confirmation. */
-  const [quoteBookStep, setQuoteBookStep] = useState<"quote" | "book_confirm">(
-    "quote",
-  );
+  /** Quote drawer: quote → confirm booking request → success. */
+  const [quoteBookStep, setQuoteBookStep] = useState<
+    "quote" | "booking_confirm" | "booking_sent"
+  >("quote");
   /** Patient can preview Mint member 10% off (defaults from plan at send time). */
   const [previewMintMember, setPreviewMintMember] = useState(false);
   /** POST /api/post-visit-blueprint/booking-intent (Airtable row for Slack / email / SMS). */
@@ -278,11 +299,18 @@ export default function PostVisitBlueprintPage() {
       setHeroPhotoUrl(null);
       return;
     }
-    const resolved = resolveHeroPhotoDisplayUrl(blueprint.patient, {
-      blueprintToken: blueprint.token,
-    });
-    setHeroPhotoUrl(resolved);
-    if (hasStableHeroPhotoSource(blueprint.patient, blueprint.token)) {
+    const hasStableSource = hasStableHeroPhotoSource(
+      blueprint.patient,
+      blueprint.token,
+    );
+    setHeroPhotoUrl(
+      hasStableSource
+        ? resolveHeroPhotoDisplayUrl(blueprint.patient, {
+            blueprintToken: blueprint.token,
+          })
+        : null,
+    );
+    if (hasStableSource) {
       return;
     }
     let cancelled = false;
@@ -461,14 +489,36 @@ export default function PostVisitBlueprintPage() {
     ).slice(0, 4);
     const displayAreas = Array.from(
       new Set(
-        chapters
-          .map((c) => (c.displayArea ?? "").trim())
-          .filter(Boolean),
+        chapters.map((c) => (c.displayArea ?? "").trim()).filter(Boolean),
       ),
     ).slice(0, 4);
+    /** Merge global chips, per-plan-item findings, and scan labels so the top overview matches lower sections even when global insights are empty (per-treatment mode). */
+    const mergedFindings = (() => {
+      const seen = new Set<string>();
+      const out: string[] = [];
+      const push = (raw: string) => {
+        const t = normalizeBlueprintAnalysisText(raw);
+        if (!t) return;
+        const k = t.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(t);
+      };
+      for (const f of analysisDisplay.globalPlanInsights.findings) push(f);
+      for (const f of derivePlanInterestsFromDiscussedItems(
+        blueprint?.discussedItems ?? [],
+      ).findings) {
+        push(f);
+      }
+      for (const f of analysisDisplay.overviewSnapshot?.detectedIssueLabels ??
+        []) {
+        push(f);
+      }
+      return out.slice(0, 6);
+    })();
     return {
       goals: analysisDisplay.goals.slice(0, 4),
-      findings: analysisDisplay.globalPlanInsights.findings.slice(0, 4),
+      findings: mergedFindings,
       focusAreas,
       chapterNames: chapters.map((c) => c.displayName).slice(0, 5),
       interests,
@@ -864,7 +914,10 @@ export default function PostVisitBlueprintPage() {
   if (!blueprintAllowed) {
     return (
       <div className="pvb">
-        <PvbBrandBar providerCode={blueprint?.providerCode} />
+        <PvbBrandBar
+          providerCode={blueprint?.providerCode}
+          providerName={blueprint?.providerName}
+        />
         <div className="pvb-error">
           <h1>Blueprint unavailable</h1>
           <p>
@@ -953,6 +1006,7 @@ export default function PostVisitBlueprintPage() {
       <main className="pvb-shell" aria-label="Post Visit Blueprint">
         <PvbBrandBar
           providerCode={blueprint?.providerCode}
+          providerName={blueprint?.providerName}
           onWellnestWebsiteClick={
             blueprintPatientAnalytics
               ? () =>
@@ -1042,16 +1096,12 @@ export default function PostVisitBlueprintPage() {
               role="region"
               aria-labelledby="pvb-analysis-heading"
             >
-              {mainOverviewSections.map((sec, i) => (
-                <section className="pvb-overview-section" key={i}>
-                  <h3 className="pvb-overview-section-title">{sec.heading}</h3>
-                  <PvbTypewriterParagraphs
-                    paragraphs={[sec.text]}
-                    paragraphClassName="pvb-overview-section-body"
-                    msPerChar={15}
-                  />
-                </section>
-              ))}
+              <PvbOverviewSectionsSequentialTypewriter
+                sections={mainOverviewSections}
+                titleClassName="pvb-overview-section-title"
+                paragraphClassName="pvb-overview-section-body"
+                msPerChar={15}
+              />
 
               {analysisDisplay.profileLabels.length > 0 && (
                 <section className="pvb-overview-section">
@@ -1071,24 +1121,6 @@ export default function PostVisitBlueprintPage() {
                         <span className="pvb-analysis-profile-chip-val">
                           {row.value}
                         </span>
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {analysisDisplay.goals.length > 0 && (
-                <section className="pvb-overview-section">
-                  <h3 className="pvb-overview-section-title">
-                    What you want to achieve
-                  </h3>
-                  <div
-                    className="pvb-analysis-goal-chips"
-                    aria-label="What you want to achieve"
-                  >
-                    {analysisDisplay.goals.map((g) => (
-                      <span key={g} className="pvb-analysis-goal-chip">
-                        {g}
                       </span>
                     ))}
                   </div>
@@ -1156,6 +1188,7 @@ export default function PostVisitBlueprintPage() {
             <ol className="pvb-toc-list">
               {chapters.map((c) => {
                 const tocId = treatmentChapterAnchorId(c.key);
+                const areaPills = splitChapterDisplayAreas(c.displayArea);
                 return (
                   <li key={c.key} className="pvb-toc-item">
                     <a
@@ -1177,11 +1210,23 @@ export default function PostVisitBlueprintPage() {
                       }}
                     >
                       <span className="pvb-toc-item-name">{c.displayName}</span>
-                      {c.displayArea && (
-                        <span className="pvb-toc-item-area">
-                          {c.displayArea}
+                      {areaPills.length > 0 ? (
+                        <span
+                          className="pvb-toc-item-area-pills"
+                          role="list"
+                          aria-label="Treatment areas"
+                        >
+                          {areaPills.map((a, i) => (
+                            <span
+                              key={`${a}-${i}`}
+                              className="pvb-toc-area-pill"
+                              role="listitem"
+                            >
+                              {a}
+                            </span>
+                          ))}
                         </span>
-                      )}
+                      ) : null}
                     </a>
                   </li>
                 );
@@ -1345,7 +1390,11 @@ export default function PostVisitBlueprintPage() {
           />
           <div className="pvb-drawer-head">
             <h2>
-              {quoteBookStep === "quote" ? "Your plan" : "Booking request"}
+              {quoteBookStep === "quote"
+                ? "Your plan"
+                : quoteBookStep === "booking_confirm"
+                  ? "Confirm booking"
+                  : "Booking request"}
             </h2>
             <button
               className="pvb-drawer-x"
@@ -1358,7 +1407,8 @@ export default function PostVisitBlueprintPage() {
             {quoteBookStep === "quote" ? (
               <>
                 <p className="pvb-drawer-intro">
-                  Confirm the products and treatments below to book your plan.
+                  Select what you want to include, then proceed to send a
+                  booking request to your provider&apos;s team.
                 </p>
                 <div className="pvb-quote">
                   {skincareQuoteIdxs.length > 0 ? (
@@ -1539,6 +1589,96 @@ export default function PostVisitBlueprintPage() {
                     className="pvb-cta pvb-cta--book"
                     disabled={bookingIntentSubmitting}
                     onClick={() => {
+                      setBookingIntentError(null);
+                      const selectedLineIndices = Object.entries(selectedRows)
+                        .filter(([, on]) => on)
+                        .map(([k]) => Number(k))
+                        .filter((n) => Number.isInteger(n) && n >= 0)
+                        .sort((a, b) => a - b);
+                      if (selectedLineIndices.length === 0) {
+                        setBookingIntentError(
+                          "Select at least one item to include in your booking request.",
+                        );
+                        return;
+                      }
+                      trackPostVisitBlueprintEvent(
+                        "blueprint_booking_confirm_viewed",
+                        {
+                          token: blueprint.token,
+                          patient_id: blueprint.patient.id,
+                        },
+                      );
+                      setQuoteBookStep("booking_confirm");
+                    }}
+                  >
+                    Proceed to book
+                  </button>
+                  {blueprint.cta.textProviderPhone ? (
+                    <div className="pvb-drawer-ctas-row">
+                      <a
+                        className="pvb-cta pvb-cta--ghost"
+                        href={`sms:${blueprint.cta.textProviderPhone}`}
+                        onClick={() =>
+                          trackPostVisitBlueprintEvent(
+                            "blueprint_text_provider_clicked",
+                            {
+                              token: blueprint.token,
+                              patient_id: blueprint.patient.id,
+                              source: "quote_drawer",
+                            },
+                          )
+                        }
+                      >
+                        Text provider
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : quoteBookStep === "booking_confirm" ? (
+              <div className="pvb-drawer-book-confirm">
+                <p className="pvb-drawer-intro pvb-drawer-book-confirm-lead">
+                  You&rsquo;re about to send a booking request for{" "}
+                  <strong>
+                    {Object.values(selectedRows).filter(Boolean).length}
+                  </strong>{" "}
+                  {Object.values(selectedRows).filter(Boolean).length === 1
+                    ? "item"
+                    : "items"}{" "}
+                  (
+                  <strong>{formatPrice(finalTotal)}</strong>
+                  {showMintBreakdown ? " with Mint pricing" : ""}
+                  ). Your provider&rsquo;s office will follow up to schedule.
+                </p>
+                {bookingIntentError ? (
+                  <p className="pvb-booking-intent-error" role="alert">
+                    {bookingIntentError}
+                  </p>
+                ) : null}
+                <div className="pvb-drawer-book-confirm-actions">
+                  <button
+                    type="button"
+                    className="pvb-cta pvb-cta--ghost"
+                    disabled={bookingIntentSubmitting}
+                    onClick={() => {
+                      trackPostVisitBlueprintEvent(
+                        "blueprint_booking_back_to_quote",
+                        {
+                          token: blueprint.token,
+                          patient_id: blueprint.patient.id,
+                        },
+                      );
+                      setBookingIntentError(null);
+                      setQuoteBookStep("quote");
+                    }}
+                  >
+                    Back to quote
+                  </button>
+                  <button
+                    type="button"
+                    className="pvb-cta pvb-cta--book"
+                    disabled={bookingIntentSubmitting}
+                    onClick={() => {
                       void (async () => {
                         setBookingIntentError(null);
                         const selectedLineIndices = Object.entries(selectedRows)
@@ -1568,43 +1708,16 @@ export default function PostVisitBlueprintPage() {
                           token: blueprint.token,
                           patient_id: blueprint.patient.id,
                         });
-                        trackPostVisitBlueprintEvent(
-                          "blueprint_booking_confirm_viewed",
-                          {
-                            token: blueprint.token,
-                            patient_id: blueprint.patient.id,
-                          },
-                        );
-                        setQuoteBookStep("book_confirm");
+                        setQuoteBookStep("booking_sent");
                       })();
                     }}
                   >
                     {bookingIntentSubmitting
-                      ? "Submitting…"
-                      : "Proceed to book"}
+                      ? "Sending…"
+                      : "Send booking request"}
                   </button>
-                  {blueprint.cta.textProviderPhone ? (
-                    <div className="pvb-drawer-ctas-row">
-                      <a
-                        className="pvb-cta pvb-cta--ghost"
-                        href={`sms:${blueprint.cta.textProviderPhone}`}
-                        onClick={() =>
-                          trackPostVisitBlueprintEvent(
-                            "blueprint_text_provider_clicked",
-                            {
-                              token: blueprint.token,
-                              patient_id: blueprint.patient.id,
-                              source: "quote_drawer",
-                            },
-                          )
-                        }
-                      >
-                        Text provider
-                      </a>
-                    </div>
-                  ) : null}
                 </div>
-              </>
+              </div>
             ) : (
               <div className="pvb-drawer-book-confirm">
                 <h3 className="pvb-drawer-book-confirm-title">

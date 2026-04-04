@@ -329,7 +329,7 @@ export function getAllPrices2025(): (TreatmentPriceItem & { category: string })[
 export function getPriceRangeNumeric2025(
   category: string
 ): { min: number; max: number } | undefined {
-  const c = category?.trim();
+  const c = normalizePlanTreatmentCategoryForPricing((category ?? "").trim());
   if (!c) return undefined;
   // Categories not in TREATMENT_PRICE_LIST_2025 (from TREATMENT_META)
   const fallbacks: Record<string, { min: number; max: number }> = {
@@ -401,6 +401,23 @@ export const TREATMENT_CATEGORIES_IN_PRICE_LIST: DashboardTreatmentCategory[] = 
 )
   .filter(([, sections]) => sections.length > 0)
   .map(([cat]) => cat);
+
+/**
+ * Map plan row `treatment` to keys in {@link DASHBOARD_TO_PRICE_SECTIONS}.
+ * Some data sources use "Laser" (photos / legacy) or different letter case; without this,
+ * SKU lookup returns nothing and quotes show $0 / "Price varies" (e.g. share treatment plan).
+ */
+export function normalizePlanTreatmentCategoryForPricing(treatment: string): string {
+  const t = (treatment ?? "").trim();
+  if (!t) return t;
+  if (DASHBOARD_TO_PRICE_SECTIONS[t]) return t;
+  const lower = t.toLowerCase().replace(/\s+/g, " ");
+  const keys = Object.keys(DASHBOARD_TO_PRICE_SECTIONS) as string[];
+  const caseMatch = keys.find((k) => k.toLowerCase() === lower);
+  if (caseMatch) return caseMatch;
+  if (lower === "laser") return "Energy Device";
+  return t;
+}
 
 /** True when the provider should only see options that exist in the 2025 pricing sheet. */
 export function isProviderRestrictedToPricingSheet(providerCode: string | undefined): boolean {
@@ -566,27 +583,32 @@ export const CHECKOUT_CATEGORY_META: Record<string, CategoryMeta> = {
 };
 
 export function getCategoryMeta(category: string): CategoryMeta | undefined {
-  return CHECKOUT_CATEGORY_META[category?.trim() ?? ""];
+  return CHECKOUT_CATEGORY_META[
+    normalizePlanTreatmentCategoryForPricing(category?.trim() ?? "")
+  ];
 }
 
 type SkuWithCategory = TreatmentPriceItem & { category: string };
 
 /** Get SKUs that belong to the given dashboard treatment category. */
 function getSkusForDashboardCategory(dashboardCategory: string): SkuWithCategory[] {
-  const sections = DASHBOARD_TO_PRICE_SECTIONS[dashboardCategory?.trim() ?? ""];
+  const dash = normalizePlanTreatmentCategoryForPricing(
+    dashboardCategory?.trim() ?? "",
+  );
+  const sections = DASHBOARD_TO_PRICE_SECTIONS[dash];
   if (!sections?.length) return [];
   const out: SkuWithCategory[] = [];
   for (const section of TREATMENT_PRICE_LIST_2025) {
     if (!sections.includes(section.category)) continue;
     const items = section.items;
-    if (dashboardCategory === "Neurotoxin") {
+    if (dash === "Neurotoxin") {
       items
         .filter(
           (i) =>
             i.name.includes("Botox") || i.name.includes("Dysport") || i.name.includes("Sweating")
         )
         .forEach((i) => out.push({ ...i, category: section.category }));
-    } else if (dashboardCategory === "Filler") {
+    } else if (dash === "Filler") {
       items
         .filter(
           (i) =>
@@ -596,7 +618,7 @@ function getSkusForDashboardCategory(dashboardCategory: string): SkuWithCategory
             i.name.includes("Dissolver")
         )
         .forEach((i) => out.push({ ...i, category: section.category }));
-    } else if (dashboardCategory === "Biostimulants") {
+    } else if (dash === "Biostimulants") {
       items
         .filter(
           (i) =>
@@ -605,7 +627,7 @@ function getSkusForDashboardCategory(dashboardCategory: string): SkuWithCategory
             i.name.includes("Skinvive")
         )
         .forEach((i) => out.push({ ...i, category: section.category }));
-    } else if (dashboardCategory === "Microneedling") {
+    } else if (dash === "Microneedling") {
       items
         .filter((i) => i.name.includes("Microneedling") || i.name.includes("PRFM"))
         .forEach((i) => out.push({ ...i, category: section.category }));
@@ -668,7 +690,9 @@ export function matchPlanItemToSku(
   unitPrice?: number;
   quantity?: number;
 } | null {
-  const treatment = (item.treatment ?? "").trim();
+  const treatment = normalizePlanTreatmentCategoryForPricing(
+    (item.treatment ?? "").trim(),
+  );
   if (!treatment) return null;
   // Skincare with a specific product (e.g. Retinol, Vitamin C) uses boutique pricing, not the 2025 facial price list.
   if (treatment === "Skincare" && (item.product ?? "").trim()) return null;
@@ -941,7 +965,8 @@ export function getCheckoutSummaryWithSkus(
   const lineItems: CheckoutLineItemDetail[] = [];
   let total = 0;
   let hasUnknownPrices = false;
-  const category = (item: PlanItemForPricing) => (item.treatment ?? "").trim();
+  const category = (item: PlanItemForPricing) =>
+    normalizePlanTreatmentCategoryForPricing((item.treatment ?? "").trim());
   const meta = (cat: string) => getCategoryMeta(cat);
 
   for (const item of items) {

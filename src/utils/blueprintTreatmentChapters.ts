@@ -11,6 +11,7 @@ import {
   getTreatmentDisplayName,
   getDisplayAreaForItem,
 } from "../components/modals/DiscussedTreatmentsModal/utils";
+import { getAlignedCheckoutLineItemsForDiscussedItems } from "../components/modals/DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import { normalizeBlueprintAnalysisText } from "./postVisitBlueprintAnalysis";
 import type { CheckoutLineItemDetail } from "../data/treatmentPricing2025";
 import {
@@ -24,7 +25,7 @@ export type TreatmentChapter = {
   key: string;
   treatment: string;
   displayName: string;
-  /** Aggregated display areas from all plan items for this treatment */
+  /** Aggregated display areas from all plan items for this treatment (comma-separated) */
   displayArea: string | null;
   /** Derived from interest + findings on the treatment's plan items */
   whyRecommended: string[];
@@ -47,6 +48,19 @@ export type TreatmentChapter = {
   /** Terms for AiMirrorCanvas highlight when viewing this chapter */
   mirrorHighlightTerms: string[];
 };
+
+/**
+ * Splits aggregated chapter {@link TreatmentChapter.displayArea} into labels for pill UI.
+ */
+export function splitChapterDisplayAreas(
+  displayArea: string | null | undefined,
+): string[] {
+  if (!displayArea?.trim()) return [];
+  return displayArea
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 type ChapterMetaSource = {
   longevity?: string;
@@ -97,7 +111,8 @@ function resolveChapterPriceDisplay(
   categoryPriceRange: string | undefined,
 ): { priceRange: string | undefined; priceFactLabel: "price" | "range" } {
   if (quoteLineItems?.length) {
-    const order = getQuoteLineDiscussedItemIndexOrder(discussedItems);
+    const aligned = getAlignedCheckoutLineItemsForDiscussedItems(discussedItems);
+    const order = getQuoteLineDiscussedItemIndexOrder(discussedItems, aligned);
     if (order.length === quoteLineItems.length) {
       const fromQuote: string[] = [];
       for (let i = 0; i < quoteLineItems.length; i++) {
