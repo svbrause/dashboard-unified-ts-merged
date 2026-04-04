@@ -1,6 +1,15 @@
 // Share patient-facing treatment plan link (SMS) — item checkboxes + compose step
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import type { Client, DiscussedItem } from "../../types";
 import { useDashboard } from "../../context/DashboardContext";
 import { sendSMSNotification } from "../../services/api";
@@ -27,6 +36,7 @@ import { getTreatmentDisplayName } from "./DiscussedTreatmentsModal/utils";
 import {
   computeQuoteSheetDataForDiscussedItems,
   getAlignedCheckoutLineItemsForDiscussedItems,
+  getDiscussedItemQuoteOrderRankById,
 } from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import "./TreatmentPlanCheckoutModal.css";
 import "./ShareTreatmentPlanLinkModal.css";
@@ -47,18 +57,19 @@ function sectionLabelForShareRow(item: DiscussedItem): string {
   return t;
 }
 
-function compareTimelineGroupTitles(a: string, b: string): number {
-  const rank = (label: string) => {
-    if (label === "Now") return 0;
-    if (label === "Add next visit") return 1;
-    if (label === "Wishlist") return 2;
-    return 3;
-  };
-  const ra = rank(a);
-  const rb = rank(b);
-  if (ra !== rb) return ra - rb;
-  if (ra === 3) return a.localeCompare(b);
-  return 0;
+/** Same order as the plan modal / checkout (Now before Wishlist, etc.). */
+const SHARE_LINK_TIMELINE_SECTION_ORDER = [
+  "Now",
+  "Add next visit",
+  "Wishlist",
+  "Completed",
+] as const;
+
+function shareTimelineGroupSortIndex(title: string): number {
+  const idx = (
+    SHARE_LINK_TIMELINE_SECTION_ORDER as readonly string[]
+  ).indexOf(title);
+  return idx >= 0 ? idx : 999;
 }
 
 /** Per-line amount: show line total only (no unit math) when we have a numeric total. */
@@ -140,10 +151,13 @@ export default function ShareTreatmentPlanLinkModal({
     return val || "https://www.carecredit.com";
   }, [provider]);
 
-  const eligibleItems = useMemo(
-    () => filterDiscussedItemsForPostVisitBlueprint(discussedItems),
-    [discussedItems],
-  );
+  const eligibleItems = useMemo(() => {
+    const filtered = filterDiscussedItemsForPostVisitBlueprint(discussedItems);
+    const rank = getDiscussedItemQuoteOrderRankById(discussedItems);
+    return [...filtered].sort(
+      (a, b) => (rank.get(a.id) ?? 9999) - (rank.get(b.id) ?? 9999),
+    );
+  }, [discussedItems]);
 
   const discussedIndexByItemId = useMemo(() => {
     const m = new Map<string, number>();
@@ -176,11 +190,12 @@ export default function ShareTreatmentPlanLinkModal({
     const byTitle = new Map<string, DiscussedItem[]>();
     for (const item of treatmentShareItems) {
       const title = sectionLabelForShareRow(item);
-      const list = byTitle.get(title) ?? [];
-      list.push(item);
-      byTitle.set(title, list);
+      if (!byTitle.has(title)) byTitle.set(title, []);
+      byTitle.get(title)!.push(item);
     }
-    const titles = [...byTitle.keys()].sort(compareTimelineGroupTitles);
+    const titles = Array.from(byTitle.keys()).sort(
+      (a, b) => shareTimelineGroupSortIndex(a) - shareTimelineGroupSortIndex(b),
+    );
     return titles.map((title) => ({
       title,
       items: byTitle.get(title)!,
@@ -233,9 +248,9 @@ export default function ShareTreatmentPlanLinkModal({
   const [step, setStep] = useState<"pick" | "send">("pick");
   const [preparingLink, setPreparingLink] = useState(false);
   const [sending, setSending] = useState(false);
-  /** Text before the fixed “Review it here: [link]” block (link is never in this field). */
+  /** Greeting set when the link is prepared; not user-editable (shown with link in read-only block). */
   const [blueprintMessageIntro, setBlueprintMessageIntro] = useState("");
-  /** Optional text sent after the link so closing notes don’t sit between “Review it here” and the URL. */
+  /** Optional text appended after the greeting + link in the SMS. */
   const [blueprintMessageAfterLink, setBlueprintMessageAfterLink] =
     useState("");
   const [blueprintRecipientPhone, setBlueprintRecipientPhone] = useState("");
@@ -361,7 +376,7 @@ export default function ShareTreatmentPlanLinkModal({
     }
     const intro = blueprintMessageIntro.trim();
     if (!intro) {
-      showError("Please enter a message before sending.");
+      showError("Message is not ready. Go back and prepare the link again.");
       return;
     }
     if (!isValidPhone(formatPhoneDisplay(blueprintRecipientPhone))) {
@@ -369,10 +384,9 @@ export default function ShareTreatmentPlanLinkModal({
       return;
     }
 
+    const core = `${intro} Review it here: ${pendingBlueprintLink}`;
     const after = blueprintMessageAfterLink.trim();
-    const smsText = after
-      ? `${intro} Review it here: ${pendingBlueprintLink}\n\n${after}`
-      : `${intro} Review it here: ${pendingBlueprintLink}`;
+    const smsText = after ? `${core}\n\n${after}` : core;
 
     setSending(true);
     try {
@@ -416,6 +430,157 @@ export default function ShareTreatmentPlanLinkModal({
     }
     window.open(pendingBlueprintLink, "_blank", "noopener,noreferrer");
   }, [pendingBlueprintLink]);
+
+  const lockedSmsPrefix = useMemo(() => {
+    const intro = blueprintMessageIntro.trim();
+    if (!intro || !pendingBlueprintLink) return "";
+    return `${intro} Review it here: ${pendingBlueprintLink}`;
+  }, [blueprintMessageIntro, pendingBlueprintLink]);
+
+  const smsTextareaValue = useMemo(() => {
+    if (!lockedSmsPrefix) return "";
+    return `${lockedSmsPrefix}${blueprintMessageAfterLink}`;
+  }, [lockedSmsPrefix, blueprintMessageAfterLink]);
+
+  const smsTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSmsTextareaChange = useCallback(
+    (e: ChangeEvent<HTMLTextAreaElement>) => {
+      const v = e.target.value;
+      if (!lockedSmsPrefix || !v.startsWith(lockedSmsPrefix)) return;
+      setBlueprintMessageAfterLink(v.slice(lockedSmsPrefix.length));
+    },
+    [lockedSmsPrefix],
+  );
+
+  const clampSmsCaretToEditable = useCallback(() => {
+    const el = smsTextareaRef.current;
+    if (!el || !lockedSmsPrefix) return;
+    const lockLen = lockedSmsPrefix.length;
+    let { selectionStart: s, selectionEnd: end } = el;
+    if (s === end && s < lockLen) {
+      el.setSelectionRange(lockLen, lockLen);
+      return;
+    }
+    if (s < end && end <= lockLen) {
+      el.setSelectionRange(lockLen, lockLen);
+    }
+  }, [lockedSmsPrefix]);
+
+  const handleSmsTextareaKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+      if (!lockedSmsPrefix) return;
+      const lockLen = lockedSmsPrefix.length;
+      const el = e.currentTarget;
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+
+      const isNav =
+        e.key.startsWith("Arrow") ||
+        e.key === "Home" ||
+        e.key === "End" ||
+        e.key === "Tab" ||
+        e.key === "Escape" ||
+        e.key === "Shift" ||
+        e.key === "Meta" ||
+        e.key === "Control" ||
+        e.key === "Alt" ||
+        e.key === "ContextMenu";
+
+      if (isNav) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
+        if (start < lockLen || end < lockLen) {
+          e.preventDefault();
+          el.setSelectionRange(lockLen, lockLen);
+        }
+        return;
+      }
+
+      if (e.key === "Backspace") {
+        if (end <= lockLen) {
+          e.preventDefault();
+          el.setSelectionRange(lockLen, lockLen);
+          return;
+        }
+        if (start !== end && start < lockLen) {
+          e.preventDefault();
+          el.setSelectionRange(lockLen, end);
+          return;
+        }
+        if (start === end && start === lockLen) {
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (e.key === "Delete" && start < lockLen) {
+        e.preventDefault();
+        el.setSelectionRange(Math.max(start, lockLen), Math.max(end, lockLen));
+      }
+
+      const wouldTypeInLocked =
+        start < lockLen || (start === end && start < lockLen);
+      if (
+        wouldTypeInLocked &&
+        (e.key.length === 1 || e.key === "Enter") &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
+        e.preventDefault();
+        el.setSelectionRange(lockLen, lockLen);
+      }
+    },
+    [lockedSmsPrefix],
+  );
+
+  const handleSmsTextareaPaste = useCallback(
+    (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!lockedSmsPrefix) return;
+      const lockLen = lockedSmsPrefix.length;
+      const el = e.currentTarget;
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      if (start >= lockLen && end >= lockLen) return;
+
+      e.preventDefault();
+      const paste = e.clipboardData.getData("text");
+      const insertAt = Math.max(start, lockLen);
+      const before = el.value.slice(0, insertAt);
+      const afterSlice = el.value.slice(end);
+      const merged = before + paste + afterSlice;
+      if (!merged.startsWith(lockedSmsPrefix)) return;
+      setBlueprintMessageAfterLink(merged.slice(lockLen));
+      const caret = insertAt + paste.length;
+      requestAnimationFrame(() => {
+        el.setSelectionRange(caret, caret);
+      });
+    },
+    [lockedSmsPrefix],
+  );
+
+  const handleSmsTextareaClickMouseUp = useCallback(() => {
+    requestAnimationFrame(() => clampSmsCaretToEditable());
+  }, [clampSmsCaretToEditable]);
+
+  const handleSmsTextareaKeyUp = useCallback(
+    (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+      if (
+        e.key.startsWith("Arrow") ||
+        e.key === "Home" ||
+        e.key === "End"
+      ) {
+        requestAnimationFrame(() => clampSmsCaretToEditable());
+      }
+    },
+    [clampSmsCaretToEditable],
+  );
+
+  const handleSmsTextareaFocus = useCallback(() => {
+    requestAnimationFrame(() => clampSmsCaretToEditable());
+  }, [clampSmsCaretToEditable]);
 
   if (!isPostVisitBlueprintSender(provider)) {
     return (
@@ -476,7 +641,7 @@ export default function ShareTreatmentPlanLinkModal({
                   {skincareShareItems.length > 0 ? (
                     <div className="share-tp-link-quote-section">
                       <h4 className="share-tp-link-quote-section-title">
-                        Skincare products
+                        Skincare
                       </h4>
                       <ul className="share-tp-link-quote-rows">
                         {skincareShareItems.map((item) => {
@@ -610,77 +775,39 @@ export default function ShareTreatmentPlanLinkModal({
                 value={blueprintRecipientPhone}
                 onChange={(e) => setBlueprintRecipientPhone(e.target.value)}
               />
-              <label
-                className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
-                htmlFor="share-tp-link-message-intro"
-              >
-                Opening message
-              </label>
-              <p className="share-tp-link-compose-link-hint">
-                &quot;Review it here:&quot; and your patient&apos;s secure link
-                are always sent together immediately after your opening message.
-                Use the optional field below for anything you want to say after
-                the link.
-              </p>
-              <textarea
-                id="share-tp-link-message-intro"
-                className="treatment-plan-checkout-blueprint-compose-textarea"
-                value={blueprintMessageIntro}
-                onChange={(e) => setBlueprintMessageIntro(e.target.value)}
-                rows={4}
-              />
-              <div
-                className="share-tp-link-review-here-row"
-                aria-hidden="true"
-              >
-                <span className="share-tp-link-review-here-label">
-                  Review it here:
-                </span>
-                <span className="share-tp-link-message-preview-link-pill">
-                  plan link
-                </span>
-              </div>
-              <label
-                className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
-                htmlFor="share-tp-link-message-after"
-              >
-                After the link (optional)
-              </label>
-              <textarea
-                id="share-tp-link-message-after"
-                className="treatment-plan-checkout-blueprint-compose-textarea"
-                value={blueprintMessageAfterLink}
-                onChange={(e) => setBlueprintMessageAfterLink(e.target.value)}
-                rows={3}
-                placeholder="e.g. Reply if you have questions."
-              />
-              <div className="share-tp-link-message-preview-wrap">
-                <span className="share-tp-link-message-preview-label">
-                  Preview
-                </span>
-                <div
-                  className="share-tp-link-message-preview-box"
-                  aria-hidden="true"
+
+              <div className="share-tp-link-compose-message-section">
+                <label
+                  className="treatment-plan-checkout-blueprint-compose-label treatment-plan-checkout-blueprint-compose-label--textarea"
+                  htmlFor="share-tp-link-message-after"
                 >
-                  <span className="share-tp-link-message-preview-text">
-                    {blueprintMessageIntro.trim() || "Your opening message"}{" "}
-                    <span className="share-tp-link-message-preview-cta">
-                      Review it here:
-                    </span>{" "}
-                    <span className="share-tp-link-message-preview-link-pill share-tp-link-message-preview-link-pill--inline">
-                      plan link
-                    </span>
-                  </span>
-                  {blueprintMessageAfterLink.trim() ? (
-                    <>
-                      <br />
-                      <br />
-                      <span className="share-tp-link-message-preview-after">
-                        {blueprintMessageAfterLink.trim()}
-                      </span>
-                    </>
-                  ) : null}
-                </div>
+                  Message
+                </label>
+                <p
+                  className="share-tp-link-compose-section-lede"
+                  id="share-tp-link-sms-lede"
+                >
+                  One text to the patient. The greeting and link at the start
+                  can&apos;t be changed—click after the link and type only if
+                  you want to add more.
+                </p>
+                <textarea
+                  ref={smsTextareaRef}
+                  id="share-tp-link-message-after"
+                  className="treatment-plan-checkout-blueprint-compose-textarea share-tp-link-sms-full-textarea"
+                  value={smsTextareaValue}
+                  onChange={handleSmsTextareaChange}
+                  onKeyDown={handleSmsTextareaKeyDown}
+                  onKeyUp={handleSmsTextareaKeyUp}
+                  onPaste={handleSmsTextareaPaste}
+                  onClick={handleSmsTextareaClickMouseUp}
+                  onMouseUp={handleSmsTextareaClickMouseUp}
+                  onFocus={handleSmsTextareaFocus}
+                  rows={8}
+                  spellCheck
+                  aria-describedby="share-tp-link-sms-lede"
+                  aria-label="SMS including fixed greeting and plan link; type after the link to add text"
+                />
               </div>
             </div>
             <div className="share-tp-link-dialog-footer">
@@ -713,6 +840,7 @@ export default function ShareTreatmentPlanLinkModal({
                   onClick={handleConfirmSend}
                   disabled={
                     sending ||
+                    !pendingBlueprintLink ||
                     !blueprintMessageIntro.trim() ||
                     !isValidPhone(formatPhoneDisplay(blueprintRecipientPhone))
                   }

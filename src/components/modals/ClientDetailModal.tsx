@@ -1,6 +1,6 @@
 // Client Detail Modal Component - Complete Version
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Client, DiscussedItem } from "../../types";
 import {
   formatDate,
@@ -13,6 +13,7 @@ import {
   hasFacialInterestedTreatments,
 } from "../../utils/statusFormatting";
 import { WEB_POPUP_LEAD_NO_ANALYSIS_STATUS } from "../../utils/clientMapper";
+import { showOnlineTreatmentFinderSection } from "../../utils/leadSource";
 import { updateLeadRecord, fetchRecordQuizFields } from "../../services/api";
 import {
   archiveClient,
@@ -34,12 +35,18 @@ import DiscussedTreatmentsModal from "./DiscussedTreatmentsModal";
 import TreatmentPlanCheckoutModal, {
   prefetchCheckoutImages,
 } from "./TreatmentPlanCheckoutModal";
-import { getDiscussedPlanItemPriceLabels } from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
+import {
+  getDiscussedPlanItemPriceLabels,
+  getDiscussedItemQuoteOrderRankById,
+} from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import TreatmentPhotosModal from "./TreatmentPhotosModal";
 import AnalysisOverviewModal, {
   type DetailView,
 } from "./AnalysisOverviewModal";
-import type { TreatmentPlanPrefill } from "./DiscussedTreatmentsModal/TreatmentPhotos";
+import type {
+  TreatmentPlanAddDirectOptions,
+  TreatmentPlanPrefill,
+} from "./DiscussedTreatmentsModal/TreatmentPhotos";
 import TreatmentRecommenderByTreatment from "../treatmentRecommender/TreatmentRecommenderByTreatment";
 import TreatmentRecommenderBySuggestion from "../treatmentRecommender/TreatmentRecommenderBySuggestion";
 import SkinTypeQuizModal from "./SkinTypeQuizModal";
@@ -62,9 +69,9 @@ import {
   RECOMMENDED_PRODUCT_REASONS,
 } from "../../data/skinTypeQuiz";
 import {
-  formatTreatmentPlanRecordMetaLine,
-  getTreatmentDisplayName,
   generateId,
+  getTreatmentPlanRowPrimaryLabel,
+  getTreatmentPlanRowSecondaryLabel,
 } from "./DiscussedTreatmentsModal/utils";
 import {
   PLAN_SECTIONS,
@@ -89,6 +96,7 @@ import {
 import {
   splitName,
   cleanPhoneNumber,
+  coerceToAirtableNumberAge,
   formatPhoneDisplay,
   formatPhoneInput,
 } from "../../utils/validation";
@@ -148,6 +156,11 @@ export default function ClientDetailModal({
 
   const discussedPlanPriceLabels = useMemo(
     () => getDiscussedPlanItemPriceLabels(client?.discussedItems ?? []),
+    [client?.discussedItems],
+  );
+
+  const planQuoteOrderRank = useMemo(
+    () => getDiscussedItemQuoteOrderRankById(client?.discussedItems ?? []),
     [client?.discussedItems],
   );
 
@@ -296,6 +309,44 @@ export default function ClientDetailModal({
     };
   }, [showScanDropdown]);
 
+  const planItemsAppendRef = useRef<DiscussedItem[]>([]);
+  planItemsAppendRef.current = client?.discussedItems ?? [];
+
+  const appendDiscussedItemFromPrefill = useCallback(
+    async (
+      prefill: TreatmentPlanPrefill,
+      options?: TreatmentPlanAddDirectOptions,
+    ): Promise<DiscussedItem | void> => {
+      if (!client) return;
+      const newItem: DiscussedItem = {
+        id: generateId(),
+        addedAt: new Date().toISOString(),
+        interest: prefill.interest?.trim() || undefined,
+        findings: prefill.findings?.length ? prefill.findings : undefined,
+        treatment: prefill.treatment?.trim() || "",
+        product: prefill.treatmentProduct?.trim() || undefined,
+        region: prefill.region?.trim() || undefined,
+        timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+        quantity: prefill.quantity?.trim() || undefined,
+        notes: prefill.notes?.trim() || undefined,
+      };
+      const nextItems = [...planItemsAppendRef.current, newItem];
+      planItemsAppendRef.current = nextItems;
+      try {
+        await persistClientDiscussedItems(client, nextItems);
+        if (!options?.skipToast) showToast("Added to treatment plan");
+        onUpdate();
+        return newItem;
+      } catch (e) {
+        showError(
+          e instanceof Error ? e.message : "Failed to add to plan",
+        );
+        throw e;
+      }
+    },
+    [client, onUpdate],
+  );
+
   if (!client) return null;
 
   const skincareQuiz: Client["skincareQuiz"] =
@@ -311,6 +362,7 @@ export default function ClientDetailModal({
     if (!editedClient || !client) return;
 
     try {
+      const airtableAge = coerceToAirtableNumberAge(editedClient.age);
       await updateLeadRecord(client.id, client.tableSource, {
         Name: editedClient.name,
         Email:
@@ -332,7 +384,7 @@ export default function ClientDetailModal({
               : undefined
             : undefined,
         "Zip Code": editedClient.zipCode || null,
-        Age: editedClient.age || null,
+        ...(airtableAge !== null ? { Age: airtableAge } : {}),
         Source: editedClient.source || undefined,
       });
 
@@ -525,34 +577,7 @@ export default function ClientDetailModal({
               client={client}
               onBack={() => setRecommenderMode(null)}
               onUpdate={onUpdate}
-              onAddToPlanDirect={async (prefill) => {
-                const newItem: DiscussedItem = {
-                  id: generateId(),
-                  addedAt: new Date().toISOString(),
-                  interest: prefill.interest?.trim() || undefined,
-                  findings: prefill.findings?.length
-                    ? prefill.findings
-                    : undefined,
-                  treatment: prefill.treatment?.trim() || "",
-                  product: prefill.treatmentProduct?.trim() || undefined,
-                  region: prefill.region?.trim() || undefined,
-                  timeline: (prefill.timeline?.trim() || "Wishlist") as string,
-                  quantity: prefill.quantity?.trim() || undefined,
-                  notes: prefill.notes?.trim() || undefined,
-                };
-                const nextItems = [...(client.discussedItems || []), newItem];
-                try {
-                  await persistClientDiscussedItems(client, nextItems);
-                  showToast("Added to treatment plan");
-                  onUpdate();
-                  return newItem;
-                } catch (e) {
-                  showError(
-                    e instanceof Error ? e.message : "Failed to add to plan",
-                  );
-                  throw e;
-                }
-              }}
+              onAddToPlanDirect={appendDiscussedItemFromPrefill}
               onOpenCheckout={() => setShowCheckoutModal(true)}
               onRemovePlanItem={async (itemId) => {
                 const nextItems = (client.discussedItems || []).filter(
@@ -600,34 +625,7 @@ export default function ClientDetailModal({
               client={client}
               onBack={() => setRecommenderMode(null)}
               onUpdate={onUpdate}
-              onAddToPlanDirect={async (prefill) => {
-                const newItem: DiscussedItem = {
-                  id: generateId(),
-                  addedAt: new Date().toISOString(),
-                  interest: prefill.interest?.trim() || undefined,
-                  findings: prefill.findings?.length
-                    ? prefill.findings
-                    : undefined,
-                  treatment: prefill.treatment?.trim() || "",
-                  product: prefill.treatmentProduct?.trim() || undefined,
-                  region: prefill.region?.trim() || undefined,
-                  timeline: (prefill.timeline?.trim() || "Wishlist") as string,
-                  quantity: prefill.quantity?.trim() || undefined,
-                  notes: prefill.notes?.trim() || undefined,
-                };
-                const nextItems = [...(client.discussedItems || []), newItem];
-                try {
-                  await persistClientDiscussedItems(client, nextItems);
-                  showToast("Added to treatment plan");
-                  onUpdate();
-                  return newItem;
-                } catch (e) {
-                  showError(
-                    e instanceof Error ? e.message : "Failed to add to plan",
-                  );
-                  throw e;
-                }
-              }}
+              onAddToPlanDirect={appendDiscussedItemFromPrefill}
             />
           )}
           {!recommenderMode ? (
@@ -946,8 +944,8 @@ export default function ClientDetailModal({
                 </div>
               </div>
 
-              {/* Online Treatment Finder – Web Popup Leads */}
-              {hasWebPopupForm && (
+              {/* Online Treatment Finder – marketing web / popup funnel only (not Add Client or Walk-in) */}
+              {showOnlineTreatmentFinderSection(client) && (
                 <div className="detail-section detail-section-with-border">
                   <div className="detail-section-title detail-section-title-flex">
                     <span>Online Treatment Finder</span>
@@ -1203,8 +1201,10 @@ export default function ClientDetailModal({
                           const items = client.discussedItems || [];
                           const skincareItems = items
                             .filter((i) => i.treatment?.trim() === "Skincare")
-                            .sort((a, b) =>
-                              (a.product || "").localeCompare(b.product || ""),
+                            .sort(
+                              (a, b) =>
+                                (planQuoteOrderRank.get(a.id) ?? 9999) -
+                                (planQuoteOrderRank.get(b.id) ?? 9999),
                             );
                           const hasSkincare = skincareItems.length > 0;
                           const sectionLabels = hasSkincare
@@ -1227,10 +1227,12 @@ export default function ClientDetailModal({
                                         return t === "Completed";
                                       return t === "Wishlist" || !t;
                                     })
-                                    .sort((a, b) =>
-                                      (a.treatment || "").localeCompare(
-                                        b.treatment || "",
-                                      ),
+                                    .sort(
+                                      (a, b) =>
+                                        (planQuoteOrderRank.get(a.id) ??
+                                          9999) -
+                                        (planQuoteOrderRank.get(b.id) ??
+                                          9999),
                                     );
                             if (sectionItems.length === 0) return null;
                             return (
@@ -1246,6 +1248,8 @@ export default function ClientDetailModal({
                                     const priceLabel =
                                       discussedPlanPriceLabels.get(item.id) ??
                                       null;
+                                    const planSecondary =
+                                      getTreatmentPlanRowSecondaryLabel(item);
                                     return (
                                       <div
                                         key={item.id}
@@ -1253,15 +1257,13 @@ export default function ClientDetailModal({
                                       >
                                         <div className="discussed-treatments-record-row-main">
                                           <div className="discussed-treatments-record-treatment-heading-outer">
-                                            {getTreatmentDisplayName(item)}
+                                            {getTreatmentPlanRowPrimaryLabel(
+                                              item,
+                                            )}
                                           </div>
-                                          {formatTreatmentPlanRecordMetaLine(
-                                            item,
-                                          ) ? (
+                                          {planSecondary ? (
                                             <div className="discussed-treatments-record-meta-line-outer">
-                                              {formatTreatmentPlanRecordMetaLine(
-                                                item,
-                                              )}
+                                              {planSecondary}
                                             </div>
                                           ) : null}
                                         </div>
@@ -1326,7 +1328,7 @@ export default function ClientDetailModal({
                           {wellnessPlanItems.map((item) => (
                             <li key={item.id}>
                               <span className="detail-wellness-plan-treatment">
-                                {getTreatmentDisplayName(item)}
+                                {getTreatmentPlanRowPrimaryLabel(item)}
                               </span>
                               {item.timeline?.trim() ? (
                                 <span className="detail-wellness-plan-meta">
@@ -1931,31 +1933,7 @@ export default function ClientDetailModal({
             setReturnToOverviewView(null);
           }}
           initialDetailView={returnToOverviewView ?? undefined}
-          onAddToPlanDirect={async (prefill) => {
-            const newItem: DiscussedItem = {
-              id: generateId(),
-              addedAt: new Date().toISOString(),
-              interest: prefill.interest?.trim() || undefined,
-              findings: prefill.findings?.length ? prefill.findings : undefined,
-              treatment: prefill.treatment?.trim() || "",
-              product: prefill.treatmentProduct?.trim() || undefined,
-              region: prefill.region?.trim() || undefined,
-              timeline: (prefill.timeline?.trim() || "Wishlist") as string,
-              quantity: prefill.quantity?.trim() || undefined,
-              notes: prefill.notes?.trim() || undefined,
-            };
-            const nextItems = [...(client.discussedItems || []), newItem];
-            try {
-              await persistClientDiscussedItems(client, nextItems);
-              showToast("Added to treatment plan");
-              onUpdate();
-            } catch (e) {
-              showError(
-                e instanceof Error ? e.message : "Failed to add to plan",
-              );
-              throw e;
-            }
-          }}
+          onAddToPlanDirect={appendDiscussedItemFromPrefill}
         />
       )}
       {showShareTreatmentPlan && client && (
@@ -2169,24 +2147,9 @@ export default function ClientDetailModal({
           interest={issuePhotosContext.interest}
           onClose={() => setIssuePhotosContext(null)}
           onUpdate={onUpdate}
-          onAddToPlanDirect={async (prefill) => {
-            const newItem: DiscussedItem = {
-              id: generateId(),
-              addedAt: new Date().toISOString(),
-              interest: prefill.interest?.trim() || undefined,
-              findings: prefill.findings?.length ? prefill.findings : undefined,
-              treatment: prefill.treatment?.trim() || "",
-              product: prefill.treatmentProduct?.trim() || undefined,
-              region: prefill.region?.trim() || undefined,
-              timeline: (prefill.timeline?.trim() || "Wishlist") as string,
-              quantity: prefill.quantity?.trim() || undefined,
-              notes: prefill.notes?.trim() || undefined,
-            };
-            const nextItems = [...(client.discussedItems || []), newItem];
-            await persistClientDiscussedItems(client, nextItems);
-            showToast("Added to treatment plan");
+          onAddToPlanDirect={async (prefill, options) => {
+            await appendDiscussedItemFromPrefill(prefill, options);
             setIssuePhotosContext(null);
-            onUpdate();
           }}
           planItems={client.discussedItems ?? []}
         />

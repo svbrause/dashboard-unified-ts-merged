@@ -16,6 +16,7 @@ import {
   CHEMICAL_PEEL_AREA_OPTIONS,
   TREATMENTS_WITH_BROAD_REGION,
   TREATMENTS_WITH_NO_REGION,
+  isEnergyTreatmentCategory,
 } from "./constants";
 import { REGION_OPTIONS, TIMELINE_OPTIONS } from "./constants";
 import {
@@ -94,9 +95,8 @@ function getRegionOptionsForTreatment(treatment: string): readonly string[] {
     return [];
   }
   if (t === "Chemical Peel") return CHEMICAL_PEEL_AREA_OPTIONS;
-  return TREATMENTS_WITH_BROAD_REGION.includes(
-    t as (typeof TREATMENTS_WITH_BROAD_REGION)[number],
-  )
+  return isEnergyTreatmentCategory(t) ||
+    (TREATMENTS_WITH_BROAD_REGION as readonly string[]).includes(t)
     ? CHECKOUT_REGION_OPTIONS_BROAD
     : REGION_OPTIONS;
 }
@@ -263,10 +263,20 @@ export default function TreatmentPlanCheckout({
     };
   }, [carouselItems]);
 
-  const { lineItems } = getCheckoutSummaryWithSkus(
-    effectiveItems,
-    (item) => getCheckoutDisplayName(item as DiscussedItem),
-    getSkincareProductInfo,
+  const lineItems = useMemo(
+    () =>
+      getCheckoutSummaryWithSkus(
+        effectiveItems,
+        (item) => getCheckoutDisplayName(item as DiscussedItem),
+        getSkincareProductInfo,
+      ).lineItems,
+    [effectiveItems, getSkincareProductInfo],
+  );
+
+  /** Same ordering as blueprint / share quote lines (skincare first, then treatments by plan order). */
+  const quoteDiscussedIndexOrder = useMemo(
+    () => getQuoteLineDiscussedItemIndexOrder(effectiveItems, lineItems),
+    [effectiveItems, lineItems],
   );
 
   /** Indices into items/effectiveItems/lineItems for left-panel sections */
@@ -274,7 +284,9 @@ export default function TreatmentPlanCheckout({
     const skincare: number[] = [];
     const treatment: number[] = [];
     const wishlist: number[] = [];
-    effectiveItems.forEach((eff, idx) => {
+    for (const idx of quoteDiscussedIndexOrder) {
+      const eff = effectiveItems[idx];
+      if (!eff) continue;
       const isWishlist =
         (eff.timeline ?? "").trim().toLowerCase() === "wishlist";
       if (isWishlist) {
@@ -284,13 +296,13 @@ export default function TreatmentPlanCheckout({
       } else {
         treatment.push(idx);
       }
-    });
+    }
     return {
       skincareIndices: skincare,
       treatmentIndices: treatment,
       wishlistIndices: wishlist,
     };
-  }, [effectiveItems, lineItems]);
+  }, [quoteDiscussedIndexOrder, effectiveItems, lineItems]);
 
   /** Subtotals and total exclude wishlist (same as quote sheet) */
   const { skincareSubtotal, treatmentsSubtotal } = useMemo(() => {
@@ -305,9 +317,13 @@ export default function TreatmentPlanCheckout({
     return { skincareSubtotal: skincare, treatmentsSubtotal: treatments };
   }, [skincareIndices, treatmentIndices, lineItems]);
 
-  /** Quote sheet: only non-wishlist items and their total */
+  /** Quote sheet: only non-wishlist items and their total (order matches share / blueprint quote) */
   const quoteData = useMemo(() => {
-    const activeIndices = [...skincareIndices, ...treatmentIndices];
+    const activeIndices = quoteDiscussedIndexOrder.filter(
+      (idx) =>
+        (effectiveItems[idx]?.timeline ?? "").trim().toLowerCase() !==
+        "wishlist",
+    );
     const quoteLineItems = activeIndices
       .map((idx) => lineItems[idx])
       .filter(Boolean);
@@ -324,7 +340,7 @@ export default function TreatmentPlanCheckout({
       total: quoteTotal,
       hasUnknownPrices: quoteHasUnknown,
     };
-  }, [skincareIndices, treatmentIndices, lineItems]);
+  }, [quoteDiscussedIndexOrder, effectiveItems, lineItems]);
 
   const prevQuoteKeyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -748,8 +764,8 @@ function CheckoutDetailPanel({
         className="treatment-recommender-by-treatment__add-form"
         aria-label="Edit item"
       >
-        {/* Energy Device: Type chips only (no Where). */}
-        {treatmentKey === "Energy Device" && showTypeSelect && (
+        {/* Energy Treatment: Type chips only (no Where). */}
+        {isEnergyTreatmentCategory(treatmentKey) && showTypeSelect && (
           <div className="treatment-recommender-by-treatment__add-row">
             <span className="treatment-recommender-by-treatment__add-row-label">
               Type:
@@ -937,7 +953,7 @@ function CheckoutDetailPanel({
         )}
         {/* Other treatments: "Where" (region) chips when options exist; optional "What" (type) if type options exist */}
         {!isSkincare &&
-          treatmentKey !== "Energy Device" &&
+          !isEnergyTreatmentCategory(treatmentKey) &&
           treatmentKey !== "Biostimulants" &&
           treatmentKey !== "Microneedling" && (
             <>
@@ -1412,6 +1428,24 @@ export function getAlignedCheckoutLineItemsForDiscussedItems(
     getSkincareProductInfo,
   );
   return lineItems;
+}
+
+/**
+ * Stable sort key for aligning any UI list with checkout / quote / share line order
+ * ({@link getQuoteLineDiscussedItemIndexOrder}).
+ */
+export function getDiscussedItemQuoteOrderRankById(
+  items: DiscussedItem[],
+): Map<string, number> {
+  const map = new Map<string, number>();
+  if (items.length === 0) return map;
+  const lineItems = getAlignedCheckoutLineItemsForDiscussedItems(items);
+  const order = getQuoteLineDiscussedItemIndexOrder(items, lineItems);
+  order.forEach((discussedIdx, pos) => {
+    const id = String(items[discussedIdx]?.id ?? "").trim();
+    if (id) map.set(id, pos);
+  });
+  return map;
 }
 
 /**

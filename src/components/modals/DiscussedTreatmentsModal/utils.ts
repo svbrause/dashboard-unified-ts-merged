@@ -30,6 +30,33 @@ import {
 import { patientFacingSkincareShortName } from "../../../utils/pvbSkincareDisplay";
 import { DEFAULT_NEUROTOXIN_UNITS_FOR_QUOTE } from "../../../data/treatmentPricing2025";
 
+/** Strip trailing " · $123" from recommender / Airtable option values. */
+export function stripOptionalRecommenderPriceFromLabel(value: string): string {
+  const v = value.trim();
+  const idx = v.search(/\s·\s*\$/);
+  return idx === -1 ? v : v.slice(0, idx).trim();
+}
+
+/** Collapse biostimulant SKUs to Radiesse / Sculptra / Skinvive (or Other / custom). */
+export function canonicalBiostimulantProductLabel(value: string): string {
+  const v = stripOptionalRecommenderPriceFromLabel(value);
+  if (!v) return value;
+  if (v === OTHER_PRODUCT_LABEL) return OTHER_PRODUCT_LABEL;
+  if (/\bradiesse\b/i.test(v)) return "Radiesse";
+  if (/\bsculptra\b/i.test(v)) return "Sculptra";
+  if (/\bskinvive\b/i.test(v)) return "Skinvive";
+  return v;
+}
+
+/** Collapse neurotoxin per-unit SKU names to Botox / Dysport when applicable. */
+export function canonicalNeurotoxinProductLabel(value: string): string {
+  const v = stripOptionalRecommenderPriceFromLabel(value).trim();
+  if (!v) return value;
+  if (v.includes("Botox 1-Unit") || /^botox$/i.test(v)) return "Botox";
+  if (v.includes("Dysport 1-Unit") || /^dysport$/i.test(v)) return "Dysport";
+  return v;
+}
+
 export function getRecommendedProducts(
   treatment: string,
   contextString: string,
@@ -207,6 +234,33 @@ export interface QuantityContext {
   defaultQuantity: string;
 }
 
+/**
+ * True when quantity / units / sessions typically drive line-item pricing
+ * (neurotoxin units, syringes, vials, sessions, protocol supply counts).
+ * Generic "Quantity" chips are treated as optional context only.
+ */
+export function quantityAffectsPlanPricing(ctx: QuantityContext): boolean {
+  if (ctx.quantityControl === "text") return true;
+  const u = ctx.unitLabel.toLowerCase();
+  return (
+    u.includes("syringe") ||
+    u.includes("vial") ||
+    u.includes("session") ||
+    u.includes("supply") ||
+    u.includes("protocol")
+  );
+}
+
+/** Skincare omits quantity above the fold; everything else uses {@link quantityAffectsPlanPricing}. */
+export function shouldShowProminentPlanQuantity(
+  treatment: string | undefined,
+  product?: string,
+): boolean {
+  const t = treatment?.trim() ?? "";
+  if (!t || t === "Skincare") return false;
+  return quantityAffectsPlanPricing(getQuantityContext(t, product));
+}
+
 export function getQuantityContext(
   treatment: string | undefined,
   product?: string,
@@ -265,11 +319,15 @@ export function getQuantityContext(
     t.includes("laser") ||
     t === "energy device" ||
     t.includes("energy device") ||
+    t === "energy treatment" ||
+    t.includes("energy treatment") ||
     t === "rf" ||
     t === "radiofrequency" ||
     t.includes("radiofrequency") ||
     t === "microneedling" ||
-    t.includes("microneedling")
+    t.includes("microneedling") ||
+    t === "prp" ||
+    t === "pdgf"
   ) {
     return select("Sessions", QUANTITY_QUICK_OPTIONS_DEFAULT);
   }
@@ -277,6 +335,21 @@ export function getQuantityContext(
     return select("Supply (protocol)", QUANTITY_QUICK_OPTIONS_DEFAULT);
   }
   return select("Quantity", QUANTITY_QUICK_OPTIONS_DEFAULT);
+}
+
+/**
+ * Compact label for quantity values on plan lists and meta lines (e.g. "Units: 40", "Sessions: 3").
+ * Matches {@link getQuantityContext} so copy aligns with checkout / quote semantics.
+ */
+export function getPlanQuantityLabelPrefix(
+  treatment: string | undefined,
+  product?: string,
+): string {
+  const { unitLabel } = getQuantityContext(treatment, product);
+  if (unitLabel === "Units (Botox/Dysport)") return "Units";
+  if (unitLabel === "Supply (protocol)") return "Supply";
+  if (unitLabel === "Quantity") return "Qty";
+  return unitLabel;
 }
 
 export function parseInterestedIssues(client: Client): string[] {
@@ -360,13 +433,23 @@ export function getTreatmentDisplayName(item: DiscussedItem): string {
   return t || "—";
 }
 
-/** Display name for checkout: for Skincare with a product, show the product name (e.g. "SkinCeuticals C E Ferulic"); otherwise same as getTreatmentDisplayName. */
+/**
+ * Display name for checkout / quote lines: same idea as {@link getTreatmentPlanRowPrimaryLabel} —
+ * lead with the chosen product or device (Ultherapy, Moxi, Juvederm) when set, not the broad
+ * category (Energy Treatment, Laser, Filler). Skincare keeps the full boutique product string.
+ */
 export function getCheckoutDisplayName(item: DiscussedItem): string {
   if (
     (item.treatment || "").trim() === "Skincare" &&
     (item.product || "").trim()
   ) {
     return item.product!.trim();
+  }
+  const product = stripOptionalRecommenderPriceFromLabel(
+    (item.product || "").trim(),
+  );
+  if (product && product !== OTHER_PRODUCT_LABEL) {
+    return product;
   }
   return getTreatmentDisplayName(item);
 }
@@ -376,12 +459,90 @@ export function formatTreatmentPlanRecordMetaLine(item: DiscussedItem): string {
   const parts: string[] = [];
   const area = getDisplayAreaForItem(item);
   if (area) parts.push(area);
-  const product = (item.product || "").trim();
+  const product = stripOptionalRecommenderPriceFromLabel(
+    (item.product || "").trim(),
+  );
   const isSkincare = (item.treatment || "").trim() === "Skincare";
   if (product && !isSkincare) parts.push(product);
-  if (item.quantity && String(item.quantity).trim())
-    parts.push(`Qty: ${item.quantity}`);
+  if (item.quantity && String(item.quantity).trim()) {
+    const qLabel = getPlanQuantityLabelPrefix(
+      item.treatment,
+      isSkincare ? undefined : product || undefined,
+    );
+    parts.push(`${qLabel}: ${item.quantity}`);
+  }
   return parts.join(TREATMENT_PLAN_BULLET);
+}
+
+/**
+ * Plan list / sidebar: lead with the specific product or device when set (e.g. Radiesse, Ultherapy);
+ * otherwise the treatment line matches {@link getTreatmentDisplayName}.
+ */
+export function getTreatmentPlanRowPrimaryLabel(item: DiscussedItem): string {
+  if (item.treatment === TREATMENT_GOAL_ONLY && item.interest?.trim()) {
+    return item.interest.trim();
+  }
+  const treatment = (item.treatment || "").trim();
+  const product = stripOptionalRecommenderPriceFromLabel(
+    (item.product || "").trim(),
+  );
+  if (treatment === "Skincare" && product) {
+    return patientFacingSkincareShortName(product);
+  }
+  if (product) return product;
+  return treatment || "—";
+}
+
+/**
+ * Second line under {@link getTreatmentPlanRowPrimaryLabel}: category + area + qty,
+ * omitting the product when it is already the primary label.
+ */
+export function getTreatmentPlanRowSecondaryLabel(
+  item: DiscussedItem,
+): string | null {
+  if (item.treatment === TREATMENT_GOAL_ONLY && item.interest?.trim()) {
+    const meta = formatTreatmentPlanRecordMetaLine(item);
+    return meta || null;
+  }
+  const treatment = (item.treatment || "").trim();
+  const product = stripOptionalRecommenderPriceFromLabel(
+    (item.product || "").trim(),
+  );
+  const isSkincare = treatment === "Skincare";
+  const parts: string[] = [];
+
+  if (isSkincare && product) {
+    const area = getDisplayAreaForItem(item);
+    if (area) parts.push(area);
+    if (item.quantity && String(item.quantity).trim()) {
+      const qLabel = getPlanQuantityLabelPrefix(item.treatment, undefined);
+      parts.push(`${qLabel}: ${item.quantity}`);
+    }
+    return parts.length ? parts.join(TREATMENT_PLAN_BULLET) : null;
+  }
+
+  if (product) {
+    parts.push(treatment);
+    const area = getDisplayAreaForItem(item);
+    if (area) parts.push(area);
+    if (item.quantity && String(item.quantity).trim()) {
+      const qLabel = getPlanQuantityLabelPrefix(item.treatment, product);
+      parts.push(`${qLabel}: ${item.quantity}`);
+    }
+    return parts.join(TREATMENT_PLAN_BULLET);
+  }
+
+  const meta = formatTreatmentPlanRecordMetaLine(item);
+  return meta || null;
+}
+
+/** Accessible / confirm copy: primary • secondary when both exist. */
+export function formatTreatmentPlanRowFullLine(item: DiscussedItem): string {
+  const primary = getTreatmentPlanRowPrimaryLabel(item);
+  const secondary = getTreatmentPlanRowSecondaryLabel(item);
+  return secondary
+    ? `${primary}${TREATMENT_PLAN_BULLET}${secondary}`
+    : primary;
 }
 
 /** Build a single line of non-empty parts: treatment, area, product, quantity (timeline omitted; sections group by timeline). */

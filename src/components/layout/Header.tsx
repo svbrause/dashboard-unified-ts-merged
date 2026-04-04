@@ -71,7 +71,7 @@ export default function Header({ onLogout }: HeaderProps) {
     ? isTheTreatmentProvider(provider)
       ? "The Treatment Provider Dashboard"
       : `${formatProviderDisplayName(provider.name)} Provider Dashboard`
-    : "All Clients";
+    : "Clients";
 
   // Close dropdown when clicking outside
   useEffect(() => {

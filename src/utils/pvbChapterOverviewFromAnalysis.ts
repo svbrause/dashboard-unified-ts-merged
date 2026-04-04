@@ -24,7 +24,7 @@ function treatmentIssueLexicon(treatment: string): RegExp | null {
   if (t === "neurotoxin") {
     return /forehead|frown|crow|glabella|bunny|line|wrinkle|masseter|sweat|brow|perioral|neck/i;
   }
-  if (t === "energy device") {
+  if (t === "energy device" || t === "energy treatment") {
     return /pigment|tone|texture|sun|spot|redness|vascular|pore|scar|collagen|laser|bbl|moxi|firm/i;
   }
   if (t === "laser" || t.includes("laser") || t.includes("moxi")) {
@@ -131,8 +131,8 @@ function treatmentInsightClosing(chapter: TreatmentChapter): string {
   if (t === "neurotoxin") {
     return "Neuromodulators work by relaxing the muscles that create expression lines—they’re a good fit when those lines are what bother you most.";
   }
-  if (t === "energy device") {
-    return "Energy devices focus on tone, pigment, and collagen renewal—they’re strong options when color, texture, or sun damage are your main concerns.";
+  if (t === "energy device" || t === "energy treatment") {
+    return "Energy-based treatments focus on tone, pigment, and collagen renewal—they’re strong options when color, texture, or sun damage are your main concerns.";
   }
   if (isLaserFamily) {
     if (display.includes("moxi")) {

@@ -23,6 +23,15 @@
   overflow: hidden;
 }
 
+.list-view-leads-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 0 12px;
+  gap: 12px;
+}
+
 .leads-table-container {
   background: var(--theme-bg-card);
   border-radius: 12px;

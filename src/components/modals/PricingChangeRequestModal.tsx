@@ -1,40 +1,62 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useDashboard } from "../../context/DashboardContext";
 import { submitHelpRequest } from "../../services/api";
+import { formatPrice } from "../../data/treatmentPricing2025";
 import { showError, showToast } from "../../utils/toast";
 import { isValidEmail } from "../../utils/validation";
-import type { SmsProductConfig, SmsTemplateEventConfig } from "../../config/smsSettingsCatalog";
 import "./SmsConfigChangeRequestModal.css";
 
-interface SmsConfigChangeRequestModalProps {
-  product: SmsProductConfig;
-  eventConfig: SmsTemplateEventConfig;
-  onClose: () => void;
-}
+export type PricingHelpSkuContext = {
+  /** Price list section in code (e.g. Injectables, Laser). */
+  category: string;
+  name: string;
+  price: number;
+  note?: string;
+  /** Unified dashboard category when mapped (e.g. Biostimulants, Filler). */
+  planCategory?: string;
+};
 
-export default function SmsConfigChangeRequestModal({
-  product,
-  eventConfig,
+type PricingChangeRequestModalProps = {
+  /** When set, the form is prefilled for this SKU; otherwise a general pricing request. */
+  sku: PricingHelpSkuContext | null;
+  onClose: () => void;
+};
+
+export default function PricingChangeRequestModal({
+  sku,
   onClose,
-}: SmsConfigChangeRequestModalProps) {
+}: PricingChangeRequestModalProps) {
   const { provider } = useDashboard();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [request, setRequest] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const defaultRequest = useMemo(
-    () =>
-      [
-        `Area: ${product.productName}`,
-        `Message: ${eventConfig.eventName}`,
-        `Sending is ${eventConfig.enabled ? "on" : "off"} right now`,
-        `When it sends: ${eventConfig.trigger}`,
+  const defaultRequest = useMemo(() => {
+    if (sku) {
+      const noteLine = sku.note?.trim() ? `Note on file: ${sku.note.trim()}` : "";
+      const planLine = sku.planCategory?.trim()
+        ? `Treatment type in plans: ${sku.planCategory.trim()}`
+        : "";
+      return [
+        `Section: ${sku.category}`,
+        planLine,
+        `Service: ${sku.name}`,
+        `Current price: ${formatPrice(sku.price)}`,
+        noteLine,
         "",
         "What I would like changed:",
-      ].join("\n"),
-    [eventConfig.enabled, eventConfig.eventName, eventConfig.trigger, product.productName],
-  );
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+    return [
+      "Describe what you need changed—new services, new prices, or different names shown to patients.",
+      "If you can, list each service with the price today and the price or wording you want.",
+      "",
+      "What I would like changed:",
+    ].join("\n");
+  }, [sku]);
 
   useEffect(() => {
     setRequest(defaultRequest);
@@ -69,28 +91,31 @@ export default function SmsConfigChangeRequestModal({
 
     setLoading(true);
     try {
-      const taggedMessage = `[SMS CONFIG CHANGE REQUEST]\n${request.trim()}`;
+      const taggedMessage = `[PRICING CHANGE REQUEST]\n${request.trim()}`;
       await submitHelpRequest(name.trim(), email.trim(), taggedMessage, provider.id);
       showToast("Request sent to the team.");
       onClose();
-    } catch (err: any) {
-      showError(err?.message || "Failed to send request.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to send request.");
     } finally {
       setLoading(false);
     }
   };
+
+  const title = sku ? "Request pricing change" : "Request pricing update";
+  const subtitle = sku
+    ? "You can browse prices here; only our team can edit the list. Send this form and we will update it for you."
+    : "Use this when several services need changes, or your update does not match a single row in the list.";
 
   return (
     <div className="modal-overlay active" onClick={onClose}>
       <div className="modal-content sms-config-request-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header-info">
-            <h2 className="modal-title">Request a text message change</h2>
-            <p className="sms-config-request-subtitle">
-              Tell us what you would like different. Our team will make the update for you.
-            </p>
+            <h2 className="modal-title">{title}</h2>
+            <p className="sms-config-request-subtitle">{subtitle}</p>
           </div>
-          <button className="modal-close" onClick={onClose} aria-label="Close">
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </div>
@@ -98,9 +123,9 @@ export default function SmsConfigChangeRequestModal({
         <form onSubmit={handleSubmit}>
           <div className="modal-body sms-config-request-body">
             <div className="form-group">
-              <label htmlFor="sms-req-name">Your Name</label>
+              <label htmlFor="pricing-req-name">Your Name</label>
               <input
-                id="sms-req-name"
+                id="pricing-req-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -109,9 +134,9 @@ export default function SmsConfigChangeRequestModal({
               />
             </div>
             <div className="form-group">
-              <label htmlFor="sms-req-email">Email</label>
+              <label htmlFor="pricing-req-email">Email</label>
               <input
-                id="sms-req-email"
+                id="pricing-req-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -120,9 +145,9 @@ export default function SmsConfigChangeRequestModal({
               />
             </div>
             <div className="form-group">
-              <label htmlFor="sms-req-message">What would you like changed?</label>
+              <label htmlFor="pricing-req-message">What would you like changed?</label>
               <textarea
-                id="sms-req-message"
+                id="pricing-req-message"
                 rows={8}
                 value={request}
                 onChange={(e) => setRequest(e.target.value)}
@@ -146,4 +171,3 @@ export default function SmsConfigChangeRequestModal({
     </div>
   );
 }
-

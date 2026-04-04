@@ -1,3 +1,5 @@
+@import "./planQuoteSurfaces.css";
+
 .share-treatment-plan-link-overlay {
   position: fixed;
   inset: 0;
@@ -160,31 +162,34 @@
   margin-top: 4px;
 }
 
-/* Mirror /tp “Your plan” drawer: grouped sections + subtotals + total */
+/* Stacked cards: no outer side rails—each block is its own rounded surface */
 .share-tp-link-quote {
-  border: 1px solid var(--theme-border, #e2e8f0);
-  border-radius: 14px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 0;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
 }
 
 .share-tp-link-quote-section {
-  border-bottom: 1px solid var(--theme-border, #e2e8f0);
-}
-
-.share-tp-link-quote-section:last-of-type {
-  border-bottom: none;
+  border: 1px solid var(--plan-quote-border);
+  border-radius: var(--plan-quote-radius);
+  overflow: hidden;
+  background: var(--plan-quote-surface-bg);
 }
 
 .share-tp-link-quote-section-title {
   margin: 0;
   padding: 12px 16px 8px;
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: var(--plan-quote-section-title-size);
+  font-weight: var(--plan-quote-section-title-weight);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #96989a;
-  background: #fafbfb;
+  letter-spacing: var(--plan-quote-section-title-spacing);
+  color: var(--plan-quote-section-title-color);
+  background: var(--plan-quote-section-header-bg);
 }
 
 .share-tp-link-quote-rows {
@@ -194,7 +199,7 @@
 }
 
 .share-tp-link-quote-rows li {
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--plan-quote-row-divider);
 }
 
 .share-tp-link-quote-rows li:last-child {
@@ -244,21 +249,24 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 16px;
-  border-top: 1px solid #f1f5f9;
-  background: #f8fafc;
+  border-top: 1px solid var(--plan-quote-row-divider);
+  background: var(--plan-quote-subtotal-bg);
   font-size: 0.88rem;
   font-weight: 600;
-  color: #3a3c3e;
+  color: var(--theme-text-primary, #3a3c3e);
 }
 
 .share-tp-link-quote-subtotal strong {
   font-weight: 800;
-  color: #5a9e94;
+  color: var(--plan-quote-accent);
   font-variant-numeric: tabular-nums;
 }
 
 .share-tp-link-quote-footer {
-  border-top: 1px solid var(--theme-border, #e2e8f0);
+  border: 1px solid var(--plan-quote-border);
+  border-radius: var(--plan-quote-radius);
+  overflow: hidden;
+  background: var(--plan-quote-surface-bg);
 }
 
 .share-tp-link-quote-total {
@@ -266,23 +274,23 @@
   justify-content: space-between;
   align-items: center;
   padding: 14px 16px;
-  background: #f8fafc;
+  background: var(--plan-quote-subtotal-bg);
 }
 
 .share-tp-link-quote-total span {
   font-weight: 700;
-  color: #3a3c3e;
+  color: var(--theme-text-primary, #3a3c3e);
 }
 
 .share-tp-link-quote-total strong {
-  color: #5a9e94;
+  color: var(--plan-quote-accent);
   font-size: 1.05rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
 .share-tp-link-timeline-group {
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--plan-quote-row-divider);
 }
 
 .share-tp-link-timeline-group:first-of-type {
@@ -295,90 +303,22 @@
   font-size: 0.8125rem;
   font-weight: 700;
   color: var(--theme-text-secondary, #475569);
-  background: #fafbfb;
+  background: var(--plan-quote-section-header-bg);
 }
 
-.share-tp-link-compose-link-hint {
-  margin: 0 0 8px;
+.share-tp-link-compose-message-section {
+  margin-top: 4px;
+}
+
+.share-tp-link-compose-section-lede {
+  margin: 0 0 10px;
   font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--theme-text-muted, #64748b);
-}
-
-.share-tp-link-message-preview-wrap {
-  margin-top: 10px;
-}
-
-.share-tp-link-message-preview-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--theme-text-muted, #64748b);
-}
-
-.share-tp-link-message-preview-box {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px dashed var(--theme-border, #e2e8f0);
-  border-radius: 10px;
-  background: var(--theme-bg-subtle, #f8fafc);
-  font-size: 0.875rem;
   line-height: 1.45;
-  color: var(--theme-text-primary, #334155);
+  color: var(--theme-text-muted, #64748b);
 }
 
-.share-tp-link-message-preview-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.share-tp-link-message-preview-link-pill {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #5a9e94;
-  background: rgba(90, 158, 148, 0.12);
-  border: 1px solid rgba(90, 158, 148, 0.25);
-}
-
-.share-tp-link-message-preview-link-pill--inline {
-  vertical-align: baseline;
-}
-
-.share-tp-link-review-here-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 10px 0 14px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--theme-bg-subtle, #f8fafc);
-  border: 1px solid var(--theme-border, #e2e8f0);
-}
-
-.share-tp-link-review-here-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--theme-text-primary, #334155);
-}
-
-.share-tp-link-message-preview-cta {
-  font-weight: 600;
-  color: var(--theme-text-primary, #334155);
-}
-
-.share-tp-link-message-preview-after {
-  font-size: 0.875rem;
-  color: var(--theme-text-primary, #334155);
-  white-space: pre-wrap;
+.share-tp-link-sms-full-textarea {
+  min-height: 11rem;
+  line-height: 1.5;
   word-break: break-word;
 }

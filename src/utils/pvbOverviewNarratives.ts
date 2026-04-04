@@ -8,6 +8,7 @@ import {
   formatTreatmentPlanRecordMetaLine,
   getCheckoutDisplayName,
   getDisplayAreaForItem,
+  getPlanQuantityLabelPrefix,
   TREATMENT_PLAN_BULLET,
 } from "../components/modals/DiscussedTreatmentsModal/utils";
 import { patientFacingSkincareShortName } from "./pvbSkincareDisplay";
@@ -17,6 +18,7 @@ import {
   maybeAppendIntroScanBridge,
   type ChapterOverviewAnalysisInput,
 } from "./pvbChapterOverviewFromAnalysis";
+import { canonicalPlanTreatmentName } from "../components/modals/DiscussedTreatmentsModal/constants";
 
 /** One plan line for chapter overview: skincare uses short names and avoids repeating product in meta. */
 function buildChapterPlanBulletLine(item: DiscussedItem): string {
@@ -33,7 +35,8 @@ function buildChapterPlanBulletLine(item: DiscussedItem): string {
   const metaParts: string[] = [];
   if (area) metaParts.push(area);
   if (item.quantity && String(item.quantity).trim()) {
-    metaParts.push(`Qty: ${item.quantity}`);
+    const qLabel = getPlanQuantityLabelPrefix(item.treatment, undefined);
+    metaParts.push(`${qLabel}: ${item.quantity}`);
   }
   const meta = metaParts.join(TREATMENT_PLAN_BULLET);
   return meta ? `${label} — ${meta}` : label;
@@ -64,7 +67,7 @@ function formatAreaLabelsForProse(areas: string[]): string {
 /** One short sentence: what this category does technically (after the client-specific lead). */
 const TREATMENT_CATEGORY_INTRO: Partial<Record<string, string>> = {
   Skincare: "It supports your home routine and helps maintain your in-office results.",
-  "Energy Device":
+  "Energy Treatment":
     "It uses light or gentle heat to improve skin tone, texture, and collagen production.",
   Laser:
     "It refreshes tone and texture while encouraging collagen renewal over a series of sessions.",
@@ -487,6 +490,7 @@ export function buildChapterOverviewContent(
 ): ChapterOverviewParts {
   const introBase =
     TREATMENT_CATEGORY_INTRO[chapter.treatment] ??
+    TREATMENT_CATEGORY_INTRO[canonicalPlanTreatmentName(chapter.treatment)] ??
     `It's the part of your plan focused on ${chapter.displayName}.`;
 
   const ctx: ChapterOverviewAnalysisInput | undefined =

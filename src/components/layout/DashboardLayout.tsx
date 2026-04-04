@@ -50,6 +50,7 @@ function DashboardViews() {
 
 const VIEWS_WITH_CONTROLS = [
   "list",
+  "leads",
   "cards",
   "kanban",
   "facial-analysis",
@@ -68,13 +69,6 @@ export default function DashboardLayout({ onLogout }: DashboardLayoutProps) {
       }
     }
   }, [provider, currentView, setCurrentView]);
-
-  /** Leads tab removed — stay on unified list. */
-  useEffect(() => {
-    if (currentView === "leads") {
-      setCurrentView("list");
-    }
-  }, [currentView, setCurrentView]);
 
   return (
     <div
