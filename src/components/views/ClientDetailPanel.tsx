@@ -43,7 +43,10 @@ import TreatmentPhotosModal from "../modals/TreatmentPhotosModal";
 import AnalysisOverviewModal, {
   type DetailView,
 } from "../modals/AnalysisOverviewModal";
-import type { TreatmentPlanPrefill } from "../modals/DiscussedTreatmentsModal/TreatmentPhotos";
+import type {
+  TreatmentPlanAddDirectOptions,
+  TreatmentPlanPrefill,
+} from "../modals/DiscussedTreatmentsModal/TreatmentPhotos";
 import TreatmentRecommenderByTreatment from "../treatmentRecommender/TreatmentRecommenderByTreatment";
 import TreatmentRecommenderBySuggestion from "../treatmentRecommender/TreatmentRecommenderBySuggestion";
 import SkinTypeQuizModal from "../modals/SkinTypeQuizModal";
@@ -350,6 +353,44 @@ export default function ClientDetailPanel({
     issuePhotosContext,
   ]);
 
+  const planItemsAppendRef = useRef<DiscussedItem[]>([]);
+  planItemsAppendRef.current = client?.discussedItems ?? [];
+
+  const appendDiscussedItemFromPrefill = useCallback(
+    async (
+      prefill: TreatmentPlanPrefill,
+      options?: TreatmentPlanAddDirectOptions,
+    ): Promise<DiscussedItem | void> => {
+      if (!client) return;
+      const newItem: DiscussedItem = {
+        id: generateId(),
+        addedAt: new Date().toISOString(),
+        interest: prefill.interest?.trim() || undefined,
+        findings: prefill.findings?.length ? prefill.findings : undefined,
+        treatment: prefill.treatment?.trim() || "",
+        product: prefill.treatmentProduct?.trim() || undefined,
+        region: prefill.region?.trim() || undefined,
+        timeline: (prefill.timeline?.trim() || "Wishlist") as string,
+        quantity: prefill.quantity?.trim() || undefined,
+        notes: prefill.notes?.trim() || undefined,
+      };
+      const nextItems = [...planItemsAppendRef.current, newItem];
+      planItemsAppendRef.current = nextItems;
+      try {
+        await persistClientDiscussedItems(client, nextItems);
+        if (!options?.skipToast) showToast("Added to treatment plan");
+        onUpdate();
+        return newItem;
+      } catch (e) {
+        showError(
+          e instanceof Error ? e.message : "Failed to add to plan",
+        );
+        throw e;
+      }
+    },
+    [client, onUpdate],
+  );
+
   if (!client) return null;
 
   const skincareQuiz = client.skincareQuiz ?? enrichedSkincareQuiz;
@@ -589,40 +630,7 @@ export default function ClientDetailPanel({
                   onBack={() => setRecommenderMode(null)}
                   onUpdate={onUpdate}
                   onRecommenderRegionsChange={handleRecommenderRegionsChange}
-                  onAddToPlanDirect={async (prefill) => {
-                    const newItem: DiscussedItem = {
-                      id: generateId(),
-                      addedAt: new Date().toISOString(),
-                      interest: prefill.interest?.trim() || undefined,
-                      findings: prefill.findings?.length
-                        ? prefill.findings
-                        : undefined,
-                      treatment: prefill.treatment?.trim() || "",
-                      product: prefill.treatmentProduct?.trim() || undefined,
-                      region: prefill.region?.trim() || undefined,
-                      timeline: (prefill.timeline?.trim() ||
-                        "Wishlist") as string,
-                      quantity: prefill.quantity?.trim() || undefined,
-                      notes: prefill.notes?.trim() || undefined,
-                    };
-                    const nextItems = [
-                      ...(client.discussedItems || []),
-                      newItem,
-                    ];
-                    try {
-                      await persistClientDiscussedItems(client, nextItems);
-                      showToast("Added to treatment plan");
-                      onUpdate();
-                      return newItem;
-                    } catch (e) {
-                      showError(
-                        e instanceof Error
-                          ? e.message
-                          : "Failed to add to plan",
-                      );
-                      throw e;
-                    }
-                  }}
+                  onAddToPlanDirect={appendDiscussedItemFromPrefill}
                   onOpenCheckout={() => setShowCheckoutModal(true)}
                   onRemovePlanItem={async (itemId) => {
                     const nextItems = (client.discussedItems || []).filter(
@@ -673,40 +681,7 @@ export default function ClientDetailPanel({
                   onBack={() => setRecommenderMode(null)}
                   onUpdate={onUpdate}
                   onRecommenderRegionsChange={handleRecommenderRegionsChange}
-                  onAddToPlanDirect={async (prefill) => {
-                    const newItem: DiscussedItem = {
-                      id: generateId(),
-                      addedAt: new Date().toISOString(),
-                      interest: prefill.interest?.trim() || undefined,
-                      findings: prefill.findings?.length
-                        ? prefill.findings
-                        : undefined,
-                      treatment: prefill.treatment?.trim() || "",
-                      product: prefill.treatmentProduct?.trim() || undefined,
-                      region: prefill.region?.trim() || undefined,
-                      timeline: (prefill.timeline?.trim() ||
-                        "Wishlist") as string,
-                      quantity: prefill.quantity?.trim() || undefined,
-                      notes: prefill.notes?.trim() || undefined,
-                    };
-                    const nextItems = [
-                      ...(client.discussedItems || []),
-                      newItem,
-                    ];
-                    try {
-                      await persistClientDiscussedItems(client, nextItems);
-                      showToast("Added to treatment plan");
-                      onUpdate();
-                      return newItem;
-                    } catch (e) {
-                      showError(
-                        e instanceof Error
-                          ? e.message
-                          : "Failed to add to plan",
-                      );
-                      throw e;
-                    }
-                  }}
+                  onAddToPlanDirect={appendDiscussedItemFromPrefill}
                 />
               )}
               {!recommenderMode ? (
@@ -2070,31 +2045,7 @@ export default function ClientDetailPanel({
               }}
               initialDetailView={returnToOverviewView ?? undefined}
               onAddToPlanDirect={async (prefill) => {
-                const newItem: DiscussedItem = {
-                  id: generateId(),
-                  addedAt: new Date().toISOString(),
-                  interest: prefill.interest?.trim() || undefined,
-                  findings: prefill.findings?.length
-                    ? prefill.findings
-                    : undefined,
-                  treatment: prefill.treatment?.trim() || "",
-                  product: prefill.treatmentProduct?.trim() || undefined,
-                  region: prefill.region?.trim() || undefined,
-                  timeline: (prefill.timeline?.trim() || "Wishlist") as string,
-                  quantity: prefill.quantity?.trim() || undefined,
-                  notes: prefill.notes?.trim() || undefined,
-                };
-                const nextItems = [...(client.discussedItems || []), newItem];
-                try {
-                  await persistClientDiscussedItems(client, nextItems);
-                  showToast("Added to treatment plan");
-                  onUpdate();
-                } catch (e) {
-                  showError(
-                    e instanceof Error ? e.message : "Failed to add to plan",
-                  );
-                  throw e;
-                }
+                await appendDiscussedItemFromPrefill(prefill);
               }}
             />
           )}
@@ -2324,26 +2275,9 @@ export default function ClientDetailPanel({
               interest={issuePhotosContext.interest}
               onClose={() => setIssuePhotosContext(null)}
               onUpdate={onUpdate}
-              onAddToPlanDirect={async (prefill) => {
-                const newItem: DiscussedItem = {
-                  id: generateId(),
-                  addedAt: new Date().toISOString(),
-                  interest: prefill.interest?.trim() || undefined,
-                  findings: prefill.findings?.length
-                    ? prefill.findings
-                    : undefined,
-                  treatment: prefill.treatment?.trim() || "",
-                  product: prefill.treatmentProduct?.trim() || undefined,
-                  region: prefill.region?.trim() || undefined,
-                  timeline: (prefill.timeline?.trim() || "Wishlist") as string,
-                  quantity: prefill.quantity?.trim() || undefined,
-                  notes: prefill.notes?.trim() || undefined,
-                };
-                const nextItems = [...(client.discussedItems || []), newItem];
-                await persistClientDiscussedItems(client, nextItems);
-                showToast("Added to treatment plan");
+              onAddToPlanDirect={async (prefill, options) => {
+                await appendDiscussedItemFromPrefill(prefill, options);
                 setIssuePhotosContext(null);
-                onUpdate();
               }}
               planItems={client.discussedItems ?? []}
             />

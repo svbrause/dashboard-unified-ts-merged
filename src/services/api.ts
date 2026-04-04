@@ -400,13 +400,44 @@ export async function fetchContactHistory(
 }
 
 /**
+ * Fetch contact history for a single client by their record ID(s).
+ * Used when opening a client detail panel instead of bulk-loading all history at login.
+ */
+export async function fetchClientContactHistory(
+  clientId: string,
+  tableSource: "Web Popup Leads" | "Patients",
+  linkedLeadId?: string | null,
+): Promise<any[]> {
+  const ids = [clientId];
+  if (linkedLeadId) ids.push(linkedLeadId);
+
+  const results = await fetchContactHistory(tableSource, { leadIds: ids });
+
+  if (linkedLeadId && tableSource === "Patients") {
+    const leadResults = await fetchContactHistory("Web Popup Leads", {
+      leadIds: [linkedLeadId],
+    });
+    const seenIds = new Set(results.map((r) => r.id));
+    for (const r of leadResults) {
+      if (!seenIds.has(r.id)) {
+        results.push(r);
+      }
+    }
+  }
+
+  return results.sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
+}
+
+/**
  * Update lead/patient record in Airtable
  */
 export async function updateLeadRecord(
   recordId: string,
   tableName: string,
   fields: Record<string, any>
-): Promise<boolean> {
+): Promise<void> {
   const params = new URLSearchParams();
   params.append("recordId", recordId);
   params.append("tableName", tableName);
@@ -425,7 +456,26 @@ export async function updateLeadRecord(
     }),
   });
 
-  return response.ok;
+  if (!response.ok) {
+    let message = `Update failed (${response.status})`;
+    try {
+      const data = (await response.json()) as {
+        details?: { error?: { message?: string } };
+        error?: string;
+        message?: string;
+      };
+      if (typeof data?.details?.error?.message === "string") {
+        message = data.details.error.message;
+      } else if (typeof data?.message === "string" && data.message.trim()) {
+        message = data.message;
+      } else if (typeof data?.error === "string" && data.error.trim()) {
+        message = data.error;
+      }
+    } catch {
+      /* ignore JSON parse errors */
+    }
+    throw new Error(message);
+  }
 }
 
 /**
@@ -753,7 +803,67 @@ export type TreatmentRecommenderOptionType =
   | "where"
   | "skincare_what"
   | "laser_what"
-  | "biostimulant_what";
+  | "biostimulant_what"
+  | "microneedling_where"
+  | "microneedling_type"
+  | "chemical_peel_where"
+  | "filler_what"
+  | "neurotoxin_what"
+  | "chemical_peel_what"
+  | "timeline";
+
+const TREATMENT_RECOMMENDER_OPTION_TYPES: readonly TreatmentRecommenderOptionType[] =
+  [
+    "where",
+    "skincare_what",
+    "laser_what",
+    "biostimulant_what",
+    "microneedling_where",
+    "microneedling_type",
+    "chemical_peel_where",
+    "filler_what",
+    "neurotoxin_what",
+    "chemical_peel_what",
+    "timeline",
+  ];
+
+/**
+ * Values for Airtable single-select "Option Type" on create/seed.
+ * Airtable rejects unknown choices and may try to add a new option (422 / permission errors).
+ * These labels must exist as choices in the base (add any missing ones in Airtable field config).
+ */
+const TREATMENT_RECOMMENDER_OPTION_TYPE_AIRTABLE_LABEL: Record<
+  TreatmentRecommenderOptionType,
+  string
+> = {
+  where: "Where",
+  skincare_what: "Skincare What",
+  laser_what: "Laser What",
+  biostimulant_what: "Biostimulant What",
+  microneedling_where: "Microneedling Where",
+  microneedling_type: "Microneedling Type",
+  chemical_peel_where: "Chemical Peel Where",
+  filler_what: "Filler What",
+  neurotoxin_what: "Neurotoxin What",
+  chemical_peel_what: "Chemical Peel What",
+  timeline: "Timeline",
+};
+
+/** Use when writing to Airtable via POST / seed (single-select field). */
+export function treatmentRecommenderOptionTypeForAirtable(
+  optionType: TreatmentRecommenderOptionType,
+): string {
+  return TREATMENT_RECOMMENDER_OPTION_TYPE_AIRTABLE_LABEL[optionType];
+}
+
+function normalizeTreatmentRecommenderOptionType(
+  raw: string,
+): TreatmentRecommenderOptionType {
+  const t = String(raw).trim().toLowerCase().replace(/\s+/g, "_");
+  return (TREATMENT_RECOMMENDER_OPTION_TYPES as readonly string[]).includes(t)
+    ? (t as TreatmentRecommenderOptionType)
+    : "where";
+}
 
 export interface TreatmentRecommenderCustomOption {
   id: string;
@@ -782,11 +892,8 @@ export async function fetchTreatmentRecommenderCustomOptions(
   }
   const data = await safeJsonParse(response);
   const records = data.records ?? data.options ?? [];
-  const normalizedType = (raw: string): TreatmentRecommenderOptionType => {
-    const t = String(raw).trim().toLowerCase().replace(/\s+/g, "_");
-    if (t === "skincare_what" || t === "laser_what" || t === "biostimulant_what") return t;
-    return "where";
-  };
+  const normalizedType = (raw: string): TreatmentRecommenderOptionType =>
+    normalizeTreatmentRecommenderOptionType(raw);
   return (Array.isArray(records) ? records : []).map((r: AirtableRecord | TreatmentRecommenderCustomOption) => {
     if ("optionType" in r && "value" in r) {
       return { id: (r as TreatmentRecommenderCustomOption).id, optionType: normalizedType((r as TreatmentRecommenderCustomOption).optionType), value: (r as TreatmentRecommenderCustomOption).value };
@@ -818,7 +925,7 @@ export async function createTreatmentRecommenderCustomOption(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       providerId: providerId.trim(),
-      optionType,
+      optionType: treatmentRecommenderOptionTypeForAirtable(optionType),
       value: trimmed,
     }),
   });
@@ -832,9 +939,12 @@ export async function createTreatmentRecommenderCustomOption(
   const rec = data.record ?? data;
   const f = rec?.fields ?? rec;
   if (rec?.id && (f?.Value ?? f?.value ?? rec?.value)) {
+    const rawType = String(
+      f["Option Type"] ?? f.optionType ?? rec.optionType ?? optionType,
+    );
     return {
       id: rec.id,
-      optionType: (f["Option Type"] ?? f.optionType ?? rec.optionType ?? optionType) as TreatmentRecommenderOptionType,
+      optionType: normalizeTreatmentRecommenderOptionType(rawType),
       value: String(f["Value"] ?? f.value ?? rec.value ?? trimmed).trim(),
     };
   }
@@ -876,9 +986,14 @@ export async function updateTreatmentRecommenderOption(
   const data = await safeJsonParse(response);
   const rec = data.record ?? data;
   const f = rec?.fields ?? rec;
-  const rawType = String(f?.["Option Type"] ?? f?.optionType ?? rec?.optionType ?? "where").trim().toLowerCase().replace(/\s+/g, "_");
-  const optionType: TreatmentRecommenderOptionType =
-    rawType === "skincare_what" || rawType === "laser_what" || rawType === "biostimulant_what" ? rawType : "where";
+  const rawType = String(
+    f?.["Option Type"] ?? f?.optionType ?? rec?.optionType ?? "where",
+  )
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  const optionType =
+    normalizeTreatmentRecommenderOptionType(rawType);
   return {
     id: rec?.id ?? recordId,
     optionType,
@@ -900,7 +1015,13 @@ export async function seedTreatmentRecommenderOptions(
   const response = await fetch(apiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ providerId: providerId.trim(), options }),
+    body: JSON.stringify({
+      providerId: providerId.trim(),
+      options: options.map((o) => ({
+        ...o,
+        optionType: treatmentRecommenderOptionTypeForAirtable(o.optionType),
+      })),
+    }),
   });
   if (!response.ok) {
     const err = await safeJsonParse(response).catch(() => ({}));

@@ -384,6 +384,69 @@ export function formatTreatmentPlanRecordMetaLine(item: DiscussedItem): string {
   return parts.join(TREATMENT_PLAN_BULLET);
 }
 
+/**
+ * Plan list / sidebar: lead with the specific product or device when set (e.g. Radiesse, Ultherapy);
+ * otherwise the treatment line matches {@link getTreatmentDisplayName}.
+ */
+export function getTreatmentPlanRowPrimaryLabel(item: DiscussedItem): string {
+  if (item.treatment === TREATMENT_GOAL_ONLY && item.interest?.trim()) {
+    return item.interest.trim();
+  }
+  const treatment = (item.treatment || "").trim();
+  const product = (item.product || "").trim();
+  if (treatment === "Skincare" && product) {
+    return patientFacingSkincareShortName(product);
+  }
+  if (product) return product;
+  return treatment || "—";
+}
+
+/**
+ * Second line under {@link getTreatmentPlanRowPrimaryLabel}: category + area + qty,
+ * omitting the product when it is already the primary label.
+ */
+export function getTreatmentPlanRowSecondaryLabel(
+  item: DiscussedItem,
+): string | null {
+  if (item.treatment === TREATMENT_GOAL_ONLY && item.interest?.trim()) {
+    const meta = formatTreatmentPlanRecordMetaLine(item);
+    return meta || null;
+  }
+  const treatment = (item.treatment || "").trim();
+  const product = (item.product || "").trim();
+  const isSkincare = treatment === "Skincare";
+  const parts: string[] = [];
+
+  if (isSkincare && product) {
+    const area = getDisplayAreaForItem(item);
+    if (area) parts.push(area);
+    if (item.quantity && String(item.quantity).trim())
+      parts.push(`Qty: ${item.quantity}`);
+    return parts.length ? parts.join(TREATMENT_PLAN_BULLET) : null;
+  }
+
+  if (product) {
+    parts.push(treatment);
+    const area = getDisplayAreaForItem(item);
+    if (area) parts.push(area);
+    if (item.quantity && String(item.quantity).trim())
+      parts.push(`Qty: ${item.quantity}`);
+    return parts.join(TREATMENT_PLAN_BULLET);
+  }
+
+  const meta = formatTreatmentPlanRecordMetaLine(item);
+  return meta || null;
+}
+
+/** Accessible / confirm copy: primary • secondary when both exist. */
+export function formatTreatmentPlanRowFullLine(item: DiscussedItem): string {
+  const primary = getTreatmentPlanRowPrimaryLabel(item);
+  const secondary = getTreatmentPlanRowSecondaryLabel(item);
+  return secondary
+    ? `${primary}${TREATMENT_PLAN_BULLET}${secondary}`
+    : primary;
+}
+
 /** Build a single line of non-empty parts: treatment, area, product, quantity (timeline omitted; sections group by timeline). */
 export function formatTreatmentPlanRecordLine(item: DiscussedItem): string {
   const heading = getTreatmentDisplayName(item);
