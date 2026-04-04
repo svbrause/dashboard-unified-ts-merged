@@ -14,7 +14,6 @@ import { formatPrice } from "../../data/treatmentPricing2025";
 import {
   getPostVisitBlueprintFromUrlData,
   getStoredPostVisitBlueprint,
-  hasStableHeroPhotoSource,
   persistPostVisitBlueprint,
   parsePostVisitBlueprintPayload,
   parsePostVisitBlueprintTokenFromUrl,
@@ -82,6 +81,26 @@ import { patientFacingSkincareShortName } from "../../utils/pvbSkincareDisplay";
 import "../postVisitBlueprint/PvbNarrative.css";
 import "./PostVisitBlueprintPage.css";
 import ponceBrandLogoSrc from "../../assets/images/ponce logo.png";
+
+/**
+ * True when the hero URL is cross-origin and hosted on a domain that typically
+ * does NOT send CORS headers (e.g. raw GCS bucket objects). Same-origin URLs,
+ * Airtable attachment URLs, and data URLs don't need help.
+ */
+function heroUrlNeedsCorsHelp(url: string): boolean {
+  try {
+    const parsed = new URL(url, window.location.href);
+    if (parsed.origin === window.location.origin) return false;
+    const h = parsed.hostname;
+    return (
+      h === "storage.googleapis.com" ||
+      h.endsWith(".storage.googleapis.com") ||
+      h === "storage.cloud.google.com"
+    );
+  } catch {
+    return false;
+  }
+}
 
 /** The Treatment Skin Boutique — patient-facing blueprint branding */
 const THE_TREATMENT_BRAND_LOGO_SRC =
@@ -299,20 +318,18 @@ export default function PostVisitBlueprintPage() {
       setHeroPhotoUrl(null);
       return;
     }
-    const hasStableSource = hasStableHeroPhotoSource(
-      blueprint.patient,
-      blueprint.token,
-    );
-    setHeroPhotoUrl(
-      hasStableSource
-        ? resolveHeroPhotoDisplayUrl(blueprint.patient, {
-            blueprintToken: blueprint.token,
-          })
-        : null,
-    );
-    if (hasStableSource) {
-      return;
-    }
+
+    const resolvedUrl = resolveHeroPhotoDisplayUrl(blueprint.patient, {
+      blueprintToken: blueprint.token,
+    });
+    setHeroPhotoUrl(resolvedUrl ?? null);
+
+    // Data URLs and same-origin URLs are already CORS-clean — AI Mirror works directly.
+    if (resolvedUrl?.startsWith("data:")) return;
+    if (resolvedUrl && !heroUrlNeedsCorsHelp(resolvedUrl)) return;
+
+    // Cross-origin URL without CORS (e.g. raw GCS): fetch a fresh Airtable attachment URL
+    // which carries CORS headers so AiMirrorCanvas can read pixel data for MediaPipe.
     let cancelled = false;
     void (async () => {
       const fresh = await fetchBlueprintFrontPhotoFreshUrl({

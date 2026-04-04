@@ -139,6 +139,19 @@ export async function updateProviderFields(
   return data.record ?? data;
 }
 
+/** Skip repeat GETs after 404 (patient missing in backend Airtable base, etc.). */
+const blueprintFrontPhotoNotFoundKeys = new Set<string>();
+/** Dedupe parallel calls (e.g. React Strict Mode double effect) to one network request. */
+const blueprintFrontPhotoInflight = new Map<string, Promise<string | null>>();
+
+function blueprintFrontPhotoCacheKey(params: {
+  token: string;
+  patientId: string;
+  tableSource: string;
+}): string {
+  return `${String(params.token).trim()}|${String(params.patientId).trim()}|${String(params.tableSource).trim()}`;
+}
+
 /**
  * Ask the backend for a **fresh** Airtable attachment URL for the blueprint hero photo.
  * Airtable download URLs expire (~2h); this lets the patient page recover when the link
@@ -148,6 +161,9 @@ export async function updateProviderFields(
  * `GET /api/dashboard/blueprint/front-photo?token=&patientId=&tableSource=&providerCode=`
  * → `{ "url": "https://..." }` with a newly fetched attachment URL from Airtable.
  * Return 404 if not implemented or patient not found.
+ *
+ * If the JSON body is `{"error":"Patient not found"}`, the Vercel `AIRTABLE_BASE_ID` (or API key
+ * scope) likely does not match the base where `patientId` lives — fix env on the backend, not the SPA.
  */
 export async function fetchBlueprintFrontPhotoFreshUrl(params: {
   token: string;
@@ -155,22 +171,38 @@ export async function fetchBlueprintFrontPhotoFreshUrl(params: {
   tableSource: string;
   providerCode?: string;
 }): Promise<string | null> {
-  try {
-    const q = new URLSearchParams({
-      token: params.token,
-      patientId: params.patientId,
-      tableSource: params.tableSource,
-    });
-    if (params.providerCode) q.set("providerCode", params.providerCode);
-    const url = `${API_BASE_URL}/api/dashboard/blueprint/front-photo?${q.toString()}`;
-    const res = await fetch(url, { method: "GET" });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { url?: unknown };
-    const u = typeof data?.url === "string" ? data.url.trim() : "";
-    return u || null;
-  } catch {
-    return null;
-  }
+  const cacheKey = blueprintFrontPhotoCacheKey(params);
+  if (blueprintFrontPhotoNotFoundKeys.has(cacheKey)) return null;
+
+  const existing = blueprintFrontPhotoInflight.get(cacheKey);
+  if (existing) return existing;
+
+  const promise = (async (): Promise<string | null> => {
+    try {
+      const q = new URLSearchParams({
+        token: params.token,
+        patientId: params.patientId,
+        tableSource: params.tableSource,
+      });
+      if (params.providerCode) q.set("providerCode", params.providerCode);
+      const url = `${API_BASE_URL}/api/dashboard/blueprint/front-photo?${q.toString()}`;
+      const res = await fetch(url, { method: "GET" });
+      if (!res.ok) {
+        if (res.status === 404) blueprintFrontPhotoNotFoundKeys.add(cacheKey);
+        return null;
+      }
+      const data = (await res.json()) as { url?: unknown };
+      const u = typeof data?.url === "string" ? data.url.trim() : "";
+      return u || null;
+    } catch {
+      return null;
+    } finally {
+      blueprintFrontPhotoInflight.delete(cacheKey);
+    }
+  })();
+
+  blueprintFrontPhotoInflight.set(cacheKey, promise);
+  return promise;
 }
 
 /**

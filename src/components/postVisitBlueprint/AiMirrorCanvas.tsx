@@ -73,53 +73,6 @@ function loadImage(url: string, useCors = true): Promise<HTMLImageElement> {
   });
 }
 
-/** Avoid reusing a response cached from a failed CORS-mode image request (Chrome 304 + ERR_FAILED). */
-function withImageCacheBust(url: string): string {
-  try {
-    const u = new URL(url, typeof window !== "undefined" ? window.location.href : "http://localhost");
-    u.searchParams.set("_mirror", String(Date.now()));
-    return u.toString();
-  } catch {
-    const sep = url.includes("?") ? "&" : "?";
-    return `${url}${sep}_mirror=${Date.now()}`;
-  }
-}
-
-/**
- * Public GCS object URLs almost never send ACAO. Using `crossOrigin="anonymous"` fails and can
- * poison the HTTP cache so a later no-CORS load still errors on 304. Skip anonymous for these.
- */
-function isPublicGcsObjectUrl(url: string): boolean {
-  try {
-    const h = new URL(
-      url,
-      typeof window !== "undefined" ? window.location.href : "http://localhost",
-    ).hostname;
-    return (
-      h === "storage.googleapis.com" ||
-      h.endsWith(".storage.googleapis.com") ||
-      h === "storage.cloud.google.com"
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Prefer CORS when the host likely supports it (same-origin, CDNs with ACAO). For raw GCS
- * buckets, load without CORS only. Otherwise try anonymous first, then cache-busted no-CORS.
- */
-async function loadHeroImageForMirror(url: string): Promise<HTMLImageElement> {
-  if (isPublicGcsObjectUrl(url)) {
-    return loadImage(url, false);
-  }
-  try {
-    return await loadImage(url, true);
-  } catch {
-    return loadImage(withImageCacheBust(url), false);
-  }
-}
-
 function normalizeTerm(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -464,7 +417,7 @@ export function AiMirrorCanvas({
 
     (async () => {
       try {
-        const img = await loadHeroImageForMirror(imageUrl);
+        const img = await loadImage(imageUrl, true);
         if (cancelled) return;
 
         const maxW = Math.max(280, wrap.clientWidth || 560);
@@ -506,7 +459,7 @@ export function AiMirrorCanvas({
         // - Expired / bad URL (410, 404)
         // - Detect/draw failed even after a successful load (e.g. strict WASM + tainted image)
         try {
-          const plainImg = await loadImage(withImageCacheBust(imageUrl), false);
+          const plainImg = await loadImage(imageUrl, false);
           if (cancelled) return;
           setFallbackImageUrl(plainImg.src);
           setStatus("error");
