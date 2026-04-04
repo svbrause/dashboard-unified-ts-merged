@@ -122,12 +122,13 @@ export default function ViewControls() {
 
   const isClientView =
     currentView === "list" ||
+    currentView === "leads" ||
     currentView === "cards" ||
     currentView === "kanban" ||
     currentView === "facial-analysis" ||
     currentView === "archived";
 
-  /** Show List/Cards toggle only on All Clients tab (not on Leads tab). */
+  /** Show List/Cards toggle only on Clients tab (not on Leads tab). */
   const isAllClientsView =
     currentView === "list" ||
     currentView === "cards" ||

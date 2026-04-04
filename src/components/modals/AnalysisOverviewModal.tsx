@@ -44,13 +44,17 @@ import {
 import {
   REGION_OPTIONS,
   TIMELINE_OPTIONS,
+  isEnergyTreatmentCategory,
 } from "./DiscussedTreatmentsModal/constants";
 import {
   SUGGESTION_TO_ISSUES,
   SUGGESTION_TO_AREA,
 } from "./DiscussedTreatmentsModal/suggestionsMapping";
 import { groupIssuesByConcern } from "../../config/issueToConcernMapping";
-import type { TreatmentPlanPrefill } from "./DiscussedTreatmentsModal/TreatmentPhotos";
+import type {
+  TreatmentPlanAddDirectOptions,
+  TreatmentPlanPrefill,
+} from "./DiscussedTreatmentsModal/TreatmentPhotos";
 import PhotoViewerModal from "./PhotoViewerModal";
 import TreatmentPhotosModal from "./TreatmentPhotosModal";
 import { AiSparkleLogo, GeminiWordmark } from "../ai/AiGeminiBrand";
@@ -128,7 +132,8 @@ interface AnalysisOverviewModalProps {
   onClose: () => void;
   onAddToPlanDirect?: (
     prefill: TreatmentPlanPrefill,
-  ) => Promise<void> | void;
+    options?: TreatmentPlanAddDirectOptions,
+  ) => Promise<void | DiscussedItem> | DiscussedItem | void;
   initialDetailView?: DetailView | null;
 }
 
@@ -386,7 +391,10 @@ function SuggestionCard({
   card: PatientSuggestionCard;
   detectedIssues: Set<string>;
   discussedItems?: DiscussedItem[];
-  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => Promise<void> | void;
+  onAddToPlanDirect?: (
+    prefill: TreatmentPlanPrefill,
+    options?: TreatmentPlanAddDirectOptions,
+  ) => Promise<void | DiscussedItem> | DiscussedItem | void;
   providerCode?: string;
   onViewExamples: (interest: string) => void;
 }) {
@@ -427,7 +435,7 @@ function SuggestionCard({
   }, [discussedItems, card.suggestionName]);
 
   const isSkincare = what === "Skincare";
-  const showWhereRow = !isSkincare && what !== "Energy Device";
+  const showWhereRow = !isSkincare && !isEnergyTreatmentCategory(what);
 
   const openForm = () => {
     setWhat(treatments[0] ?? "");
@@ -457,7 +465,7 @@ function SuggestionCard({
   const handleConfirm = async () => {
     if (!onAddToPlanDirect) return;
     const region =
-      isSkincare || what === "Energy Device"
+      isSkincare || isEnergyTreatmentCategory(what)
         ? ""
         : where.length > 0
           ? where.join(", ")
@@ -743,7 +751,10 @@ function DrillDownSuggestions({
   detectedIssueNames: string[];
   detectedIssues: Set<string>;
   discussedItems?: DiscussedItem[];
-  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => Promise<void> | void;
+  onAddToPlanDirect?: (
+    prefill: TreatmentPlanPrefill,
+    options?: TreatmentPlanAddDirectOptions,
+  ) => Promise<void | DiscussedItem> | DiscussedItem | void;
   providerCode?: string;
   client: Client;
 }) {
@@ -825,7 +836,10 @@ function CategoryDetailContent({
   detectedIssues: Set<string>;
   onBack: () => void;
   discussedItems?: DiscussedItem[];
-  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => Promise<void> | void;
+  onAddToPlanDirect?: (
+    prefill: TreatmentPlanPrefill,
+    options?: TreatmentPlanAddDirectOptions,
+  ) => Promise<void | DiscussedItem> | DiscussedItem | void;
   providerCode?: string;
   animatedKeysRef: React.MutableRefObject<Set<string>>;
   suggestionCards: PatientSuggestionCard[];
@@ -1011,7 +1025,10 @@ function AreaDetailContent({
   interestAreaNames: Set<string>;
   onBack: () => void;
   discussedItems?: DiscussedItem[];
-  onAddToPlanDirect?: (prefill: TreatmentPlanPrefill) => Promise<void> | void;
+  onAddToPlanDirect?: (
+    prefill: TreatmentPlanPrefill,
+    options?: TreatmentPlanAddDirectOptions,
+  ) => Promise<void | DiscussedItem> | DiscussedItem | void;
   providerCode?: string;
   animatedKeysRef: React.MutableRefObject<Set<string>>;
   suggestionCards: PatientSuggestionCard[];

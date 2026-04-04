@@ -115,6 +115,31 @@ export function notifyLoginToSlack(provider: Provider): void {
 }
 
 /**
+ * Update allowed fields on a Provider record (currently: Treatment Pricing).
+ * Returns the updated record.
+ */
+export async function updateProviderFields(
+  providerId: string,
+  fields: Record<string, any>,
+): Promise<Record<string, any>> {
+  if (!providerId?.trim()) throw new Error("providerId is required");
+  const apiUrl = `${API_BASE_URL}/api/dashboard/provider/${encodeURIComponent(providerId.trim())}`;
+  const response = await fetch(apiUrl, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields }),
+  });
+  if (!response.ok) {
+    const err = await safeJsonParse(response).catch(() => ({}));
+    throw new Error(
+      err.message || err.error?.message || "Failed to update provider",
+    );
+  }
+  const data = await safeJsonParse(response);
+  return data.record ?? data;
+}
+
+/**
  * Ask the backend for a **fresh** Airtable attachment URL for the blueprint hero photo.
  * Airtable download URLs expire (~2h); this lets the patient page recover when the link
  * payload only has an expired URL (no embedded data URL).

@@ -28,7 +28,7 @@ export interface TreatmentPhotosModalProps {
   onAddToPlanDirect?: (
     prefill: TreatmentPlanPrefill,
     options?: TreatmentPlanAddDirectOptions,
-  ) => void | Promise<void>;
+  ) => void | DiscussedItem | Promise<void | DiscussedItem>;
   /** Current plan items – for "Added to plan" state */
   planItems?: DiscussedItem[];
 }

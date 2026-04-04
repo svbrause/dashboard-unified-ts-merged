@@ -13,6 +13,7 @@ import {
   hasFacialInterestedTreatments,
 } from "../../utils/statusFormatting";
 import { WEB_POPUP_LEAD_NO_ANALYSIS_STATUS } from "../../utils/clientMapper";
+import { showOnlineTreatmentFinderSection } from "../../utils/leadSource";
 import { updateLeadRecord, fetchRecordQuizFields } from "../../services/api";
 import {
   archiveClient,
@@ -34,7 +35,10 @@ import DiscussedTreatmentsModal from "./DiscussedTreatmentsModal";
 import TreatmentPlanCheckoutModal, {
   prefetchCheckoutImages,
 } from "./TreatmentPlanCheckoutModal";
-import { getDiscussedPlanItemPriceLabels } from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
+import {
+  getDiscussedPlanItemPriceLabels,
+  getDiscussedItemQuoteOrderRankById,
+} from "./DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import TreatmentPhotosModal from "./TreatmentPhotosModal";
 import AnalysisOverviewModal, {
   type DetailView,
@@ -65,9 +69,9 @@ import {
   RECOMMENDED_PRODUCT_REASONS,
 } from "../../data/skinTypeQuiz";
 import {
-  formatTreatmentPlanRecordMetaLine,
-  getTreatmentDisplayName,
   generateId,
+  getTreatmentPlanRowPrimaryLabel,
+  getTreatmentPlanRowSecondaryLabel,
 } from "./DiscussedTreatmentsModal/utils";
 import {
   PLAN_SECTIONS,
@@ -92,6 +96,7 @@ import {
 import {
   splitName,
   cleanPhoneNumber,
+  coerceToAirtableNumberAge,
   formatPhoneDisplay,
   formatPhoneInput,
 } from "../../utils/validation";
@@ -154,6 +159,11 @@ export default function ClientDetailModal({
     [client?.discussedItems],
   );
 
+  const planQuoteOrderRank = useMemo(
+    () => getDiscussedItemQuoteOrderRankById(client?.discussedItems ?? []),
+    [client?.discussedItems],
+  );
+
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedClient, setEditedClient] = useState<Partial<Client> | null>(
     null,
@@ -194,10 +204,6 @@ export default function ClientDetailModal({
   const [recommenderMode, setRecommenderMode] = useState<
     "by-treatment" | "by-suggestion" | null
   >(null);
-  /** Region filter chips from the active treatment recommender — passed into post-visit blueprint for AI mirror. */
-  const [recommenderFocusRegions, setRecommenderFocusRegions] = useState<
-    string[]
-  >([]);
   const [showSkinTypeQuiz, setShowSkinTypeQuiz] = useState(false);
   const [showWellnessQuiz, setShowWellnessQuiz] = useState(false);
   const [selectedSkinProduct, setSelectedSkinProduct] =
@@ -241,17 +247,6 @@ export default function ClientDetailModal({
       }
     }
   }, [client]);
-
-  useEffect(() => {
-    setRecommenderFocusRegions([]);
-  }, [client?.id]);
-
-  const handleRecommenderRegionsChange = useCallback(
-    (regions: readonly string[]) => {
-      setRecommenderFocusRegions([...regions]);
-    },
-    [],
-  );
 
   // Prefetch checkout images when client has discussed items so Checkout opens with images ready
   useEffect(() => {
@@ -367,6 +362,7 @@ export default function ClientDetailModal({
     if (!editedClient || !client) return;
 
     try {
+      const airtableAge = coerceToAirtableNumberAge(editedClient.age);
       await updateLeadRecord(client.id, client.tableSource, {
         Name: editedClient.name,
         Email:
@@ -388,7 +384,7 @@ export default function ClientDetailModal({
               : undefined
             : undefined,
         "Zip Code": editedClient.zipCode || null,
-        Age: editedClient.age || null,
+        ...(airtableAge !== null ? { Age: airtableAge } : {}),
         Source: editedClient.source || undefined,
       });
 
@@ -581,7 +577,6 @@ export default function ClientDetailModal({
               client={client}
               onBack={() => setRecommenderMode(null)}
               onUpdate={onUpdate}
-              onRecommenderRegionsChange={handleRecommenderRegionsChange}
               onAddToPlanDirect={appendDiscussedItemFromPrefill}
               onOpenCheckout={() => setShowCheckoutModal(true)}
               onRemovePlanItem={async (itemId) => {
@@ -630,7 +625,6 @@ export default function ClientDetailModal({
               client={client}
               onBack={() => setRecommenderMode(null)}
               onUpdate={onUpdate}
-              onRecommenderRegionsChange={handleRecommenderRegionsChange}
               onAddToPlanDirect={appendDiscussedItemFromPrefill}
             />
           )}
@@ -950,8 +944,8 @@ export default function ClientDetailModal({
                 </div>
               </div>
 
-              {/* Online Treatment Finder – Web Popup Leads */}
-              {hasWebPopupForm && (
+              {/* Online Treatment Finder – marketing web / popup funnel only (not Add Client or Walk-in) */}
+              {showOnlineTreatmentFinderSection(client) && (
                 <div className="detail-section detail-section-with-border">
                   <div className="detail-section-title detail-section-title-flex">
                     <span>Online Treatment Finder</span>
@@ -1207,8 +1201,10 @@ export default function ClientDetailModal({
                           const items = client.discussedItems || [];
                           const skincareItems = items
                             .filter((i) => i.treatment?.trim() === "Skincare")
-                            .sort((a, b) =>
-                              (a.product || "").localeCompare(b.product || ""),
+                            .sort(
+                              (a, b) =>
+                                (planQuoteOrderRank.get(a.id) ?? 9999) -
+                                (planQuoteOrderRank.get(b.id) ?? 9999),
                             );
                           const hasSkincare = skincareItems.length > 0;
                           const sectionLabels = hasSkincare
@@ -1231,10 +1227,12 @@ export default function ClientDetailModal({
                                         return t === "Completed";
                                       return t === "Wishlist" || !t;
                                     })
-                                    .sort((a, b) =>
-                                      (a.treatment || "").localeCompare(
-                                        b.treatment || "",
-                                      ),
+                                    .sort(
+                                      (a, b) =>
+                                        (planQuoteOrderRank.get(a.id) ??
+                                          9999) -
+                                        (planQuoteOrderRank.get(b.id) ??
+                                          9999),
                                     );
                             if (sectionItems.length === 0) return null;
                             return (
@@ -1250,6 +1248,8 @@ export default function ClientDetailModal({
                                     const priceLabel =
                                       discussedPlanPriceLabels.get(item.id) ??
                                       null;
+                                    const planSecondary =
+                                      getTreatmentPlanRowSecondaryLabel(item);
                                     return (
                                       <div
                                         key={item.id}
@@ -1257,15 +1257,13 @@ export default function ClientDetailModal({
                                       >
                                         <div className="discussed-treatments-record-row-main">
                                           <div className="discussed-treatments-record-treatment-heading-outer">
-                                            {getTreatmentDisplayName(item)}
+                                            {getTreatmentPlanRowPrimaryLabel(
+                                              item,
+                                            )}
                                           </div>
-                                          {formatTreatmentPlanRecordMetaLine(
-                                            item,
-                                          ) ? (
+                                          {planSecondary ? (
                                             <div className="discussed-treatments-record-meta-line-outer">
-                                              {formatTreatmentPlanRecordMetaLine(
-                                                item,
-                                              )}
+                                              {planSecondary}
                                             </div>
                                           ) : null}
                                         </div>
@@ -1330,7 +1328,7 @@ export default function ClientDetailModal({
                           {wellnessPlanItems.map((item) => (
                             <li key={item.id}>
                               <span className="detail-wellness-plan-treatment">
-                                {getTreatmentDisplayName(item)}
+                                {getTreatmentPlanRowPrimaryLabel(item)}
                               </span>
                               {item.timeline?.trim() ? (
                                 <span className="detail-wellness-plan-meta">
@@ -1935,9 +1933,7 @@ export default function ClientDetailModal({
             setReturnToOverviewView(null);
           }}
           initialDetailView={returnToOverviewView ?? undefined}
-          onAddToPlanDirect={async (prefill) => {
-            await appendDiscussedItemFromPrefill(prefill);
-          }}
+          onAddToPlanDirect={appendDiscussedItemFromPrefill}
         />
       )}
       {showShareTreatmentPlan && client && (
@@ -1954,7 +1950,6 @@ export default function ClientDetailModal({
         <ShareTreatmentPlanLinkModal
           client={client}
           discussedItems={client.discussedItems ?? []}
-          recommenderFocusRegions={recommenderFocusRegions}
           onClose={() => setShowShareTreatmentPlanLink(false)}
           onSuccess={() => {
             setShowShareTreatmentPlanLink(false);

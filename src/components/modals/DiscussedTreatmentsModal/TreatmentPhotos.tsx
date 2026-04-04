@@ -22,9 +22,9 @@ import { showToast, showError } from "../../../utils/toast";
 
 /** Map issue to treatment types for filtering (when opened from an issue) */
 const ISSUE_TO_TREATMENT: Record<string, string[]> = {
-  wrinkles: ["Neurotoxin", "Energy Device", "Chemical Peel"],
-  "fine lines": ["Neurotoxin", "Energy Device", "Skincare"],
-  "crow's feet": ["Neurotoxin", "Energy Device"],
+  wrinkles: ["Neurotoxin", "Energy Treatment", "Chemical Peel"],
+  "fine lines": ["Neurotoxin", "Energy Treatment", "Skincare"],
+  "crow's feet": ["Neurotoxin", "Energy Treatment"],
   "forehead lines": ["Neurotoxin"],
   "frown lines": ["Neurotoxin"],
   "volume loss": ["Filler"],
@@ -32,23 +32,23 @@ const ISSUE_TO_TREATMENT: Record<string, string[]> = {
   "thin lips": ["Filler"],
   "nasolabial folds": ["Filler"],
   "marionette lines": ["Filler"],
-  "under eye bags": ["Filler", "Energy Device"],
+  "under eye bags": ["Filler", "Energy Treatment"],
   "dark circles": ["Filler", "Skincare"],
-  acne: ["Chemical Peel", "Energy Device", "Skincare"],
-  "acne scars": ["Microneedling", "Energy Device", "Chemical Peel", "PRP", "PDGF"],
-  hyperpigmentation: ["Chemical Peel", "Energy Device", "Skincare"],
-  "dark spots": ["Chemical Peel", "Energy Device", "Skincare"],
-  "sun damage": ["Energy Device", "Chemical Peel"],
-  redness: ["Energy Device", "Skincare"],
-  rosacea: ["Energy Device", "Skincare"],
-  "skin laxity": ["Energy Device", "Microneedling"],
-  "sagging skin": ["Energy Device", "Microneedling"],
-  "double chin": ["Filler", "Energy Device"],
-  jowls: ["Filler", "Energy Device", "Microneedling"],
-  "uneven skin tone": ["Chemical Peel", "Energy Device", "Skincare"],
-  texture: ["Microneedling", "Chemical Peel", "Energy Device", "PRP", "PDGF"],
+  acne: ["Chemical Peel", "Energy Treatment", "Skincare"],
+  "acne scars": ["Microneedling", "Energy Treatment", "Chemical Peel"],
+  hyperpigmentation: ["Chemical Peel", "Energy Treatment", "Skincare"],
+  "dark spots": ["Chemical Peel", "Energy Treatment", "Skincare"],
+  "sun damage": ["Energy Treatment", "Chemical Peel"],
+  redness: ["Energy Treatment", "Skincare"],
+  rosacea: ["Energy Treatment", "Skincare"],
+  "skin laxity": ["Energy Treatment", "Microneedling"],
+  "sagging skin": ["Energy Treatment", "Microneedling"],
+  "double chin": ["Filler", "Energy Treatment"],
+  jowls: ["Filler", "Energy Treatment", "Microneedling"],
+  "uneven skin tone": ["Chemical Peel", "Energy Treatment", "Skincare"],
+  texture: ["Microneedling", "Chemical Peel", "Energy Treatment"],
   pores: ["Microneedling", "Chemical Peel"],
-  "droopy eyelids": ["Energy Device", "Neurotoxin"],
+  "droopy eyelids": ["Energy Treatment", "Neurotoxin"],
 };
 
 interface TreatmentPhotosProps {
@@ -91,7 +91,7 @@ export interface TreatmentPlanAddDirectOptions {
 export interface TreatmentPlanPrefill {
   interest: string;
   region: string;
-  /** Normalized treatment type (e.g. "Energy Device", "Filler") */
+  /** Normalized treatment type (e.g. "Energy Treatment", "Filler") */
   treatment: string;
   /** Specific product/device name if available (e.g. "Heat/Energy") */
   treatmentProduct?: string;
@@ -197,8 +197,8 @@ const REGION_CANONICAL = [
 
 /** Treatment name normalization: map various names to canonical display names. */
 const TREATMENT_NORMALIZATION: Record<string, string> = {
-  "heat/energy": "Energy Device",
-  "heat energy": "Energy Device",
+  "heat/energy": "Energy Treatment",
+  "heat energy": "Energy Treatment",
   "oral/topical": "Skincare",
   "topical/skincare": "Skincare",
   "topical skincare": "Skincare",
@@ -233,10 +233,10 @@ function getTreatmentOptionsFromPhotos(photos: TreatmentPhoto[]): string[] {
       if (normalized) set.add(normalized);
     }
   }
-  // Preferred order: Skincare, Energy Device, then alphabetical for the rest
+  // Preferred order: Skincare, Energy Treatment, then alphabetical for the rest
   const order = [
     "Skincare",
-    "Energy Device",
+    "Energy Treatment",
     "Filler",
     "Neurotoxin",
     "Microneedling",

@@ -5,7 +5,12 @@ import {
   selectVideosForChapterPlanItems,
 } from "../config/postVisitBlueprintVideos";
 import type { TreatmentResultsCard } from "./postVisitBlueprintCases";
-import { TREATMENT_META } from "../components/modals/DiscussedTreatmentsModal/constants";
+import {
+  TREATMENT_META,
+  canonicalPlanTreatmentName,
+  LEGACY_ENERGY_DEVICE_CATEGORY,
+  ENERGY_TREATMENT_CATEGORY,
+} from "../components/modals/DiscussedTreatmentsModal/constants";
 import { getWellnestPeptideMeta } from "../data/wellnestOfferings";
 import {
   getTreatmentDisplayName,
@@ -74,6 +79,13 @@ function norm(s: string): string {
   return s.trim().toLowerCase();
 }
 
+/** Normalized chapter key; legacy "Energy Device" rows share the same key as Energy Treatment. */
+function chapterTreatmentNormKey(treatment: string): string {
+  const t = treatment.trim();
+  if (t === LEGACY_ENERGY_DEVICE_CATEGORY) return norm(ENERGY_TREATMENT_CATEGORY);
+  return norm(t);
+}
+
 function isWishlistItem(item: DiscussedItem): boolean {
   return (item.timeline ?? "").trim().toLowerCase() === "wishlist";
 }
@@ -120,7 +132,7 @@ function resolveChapterPriceDisplay(
         const line = quoteLineItems[i]!;
         const d = discussedItems[dIdx];
         if (!d || !line) continue;
-        if (norm(d.treatment ?? "") !== chapterKey) continue;
+        if (chapterTreatmentNormKey(d.treatment ?? "") !== chapterKey) continue;
         fromQuote.push(priceDisplayForChapterQuickFacts(chapterKey, line));
       }
       if (fromQuote.length > 0) {
@@ -205,18 +217,23 @@ export function buildTreatmentChapters(
   for (const item of discussedItems) {
     const t = item.treatment?.trim();
     if (!t) continue;
-    const key = norm(t);
+    const key = chapterTreatmentNormKey(t);
     if (seen.has(key)) continue;
     seen.add(key);
 
     const planItems = discussedItems.filter(
-      (i) => norm(i.treatment ?? "") === key,
+      (i) => chapterTreatmentNormKey(i.treatment ?? "") === key,
     );
     const meta: ChapterMetaSource =
-      (TREATMENT_META[t] as ChapterMetaSource | undefined) ??
+      (TREATMENT_META[
+        canonicalPlanTreatmentName(t)
+      ] as ChapterMetaSource | undefined) ??
       getWellnestPeptideMeta(t) ??
       {};
-    const caseCard = treatmentCards.find((c) => c.key === key) ?? null;
+    const caseCard =
+      treatmentCards.find(
+        (c) => chapterTreatmentNormKey(c.treatment) === key,
+      ) ?? null;
     const { priceRange, priceFactLabel } = resolveChapterPriceDisplay(
       key,
       planItems,
@@ -233,7 +250,7 @@ export function buildTreatmentChapters(
 
     chapters.push({
       key,
-      treatment: t,
+      treatment: canonicalPlanTreatmentName(t),
       displayName: getTreatmentDisplayName(planItems[0]),
       displayArea: areas.size > 0 ? Array.from(areas).join(", ") : null,
       whyRecommended: buildWhyRecommended(planItems),

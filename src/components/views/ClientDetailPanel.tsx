@@ -13,6 +13,7 @@ import {
   hasFacialInterestedTreatments,
 } from "../../utils/statusFormatting";
 import { WEB_POPUP_LEAD_NO_ANALYSIS_STATUS } from "../../utils/clientMapper";
+import { showOnlineTreatmentFinderSection } from "../../utils/leadSource";
 import {
   updateLeadRecord,
   prefetchSmsForPhone,
@@ -38,7 +39,10 @@ import DiscussedTreatmentsModal from "../modals/DiscussedTreatmentsModal";
 import TreatmentPlanCheckoutModal, {
   prefetchCheckoutImages,
 } from "../modals/TreatmentPlanCheckoutModal";
-import { getDiscussedPlanItemPriceLabels } from "../modals/DiscussedTreatmentsModal/TreatmentPlanCheckout";
+import {
+  getDiscussedPlanItemPriceLabels,
+  getDiscussedItemQuoteOrderRankById,
+} from "../modals/DiscussedTreatmentsModal/TreatmentPlanCheckout";
 import TreatmentPhotosModal from "../modals/TreatmentPhotosModal";
 import AnalysisOverviewModal, {
   type DetailView,
@@ -61,6 +65,7 @@ import {
   WELLNESS_QUIZ_ENABLED,
 } from "../../data/wellnessQuiz";
 import {
+  buildQuizSkincareRoutineSections,
   computeQuizScores,
   SKIN_TYPE_DISPLAY_LABELS,
   SKIN_TYPE_SCORE_ORDER,
@@ -68,9 +73,9 @@ import {
   RECOMMENDED_PRODUCT_REASONS,
 } from "../../data/skinTypeQuiz";
 import {
-  formatTreatmentPlanRecordMetaLine,
-  getTreatmentDisplayName,
   generateId,
+  getTreatmentPlanRowPrimaryLabel,
+  getTreatmentPlanRowSecondaryLabel,
 } from "../modals/DiscussedTreatmentsModal/utils";
 import {
   PLAN_SECTIONS,
@@ -95,6 +100,7 @@ import {
 import {
   splitName,
   cleanPhoneNumber,
+  coerceToAirtableNumberAge,
   formatPhoneDisplay,
   formatPhoneInput,
 } from "../../utils/validation";
@@ -155,6 +161,11 @@ export default function ClientDetailPanel({
 
   const discussedPlanPriceLabels = useMemo(
     () => getDiscussedPlanItemPriceLabels(client?.discussedItems ?? []),
+    [client?.discussedItems],
+  );
+
+  const planQuoteOrderRank = useMemo(
+    () => getDiscussedItemQuoteOrderRankById(client?.discussedItems ?? []),
     [client?.discussedItems],
   );
 
@@ -405,6 +416,7 @@ export default function ClientDetailPanel({
     if (!editedClient || !client) return;
 
     try {
+      const airtableAge = coerceToAirtableNumberAge(editedClient.age);
       await updateLeadRecord(client.id, client.tableSource, {
         Name: editedClient.name,
         Email:
@@ -426,7 +438,7 @@ export default function ClientDetailPanel({
               : undefined
             : undefined,
         "Zip Code": editedClient.zipCode || null,
-        Age: editedClient.age || null,
+        ...(airtableAge !== null ? { Age: airtableAge } : {}),
         Source: editedClient.source || undefined,
       });
 
@@ -1051,8 +1063,8 @@ export default function ClientDetailPanel({
                     </div>
                   </div>
 
-                  {/* Online Treatment Finder – Web Popup Leads */}
-                  {hasWebPopupForm && (
+                  {/* Online Treatment Finder – marketing web / popup funnel only (not Add Client or Walk-in) */}
+                  {showOnlineTreatmentFinderSection(client) && (
                     <div className="detail-section detail-section-with-border">
                       <div className="detail-section-title detail-section-title-flex">
                         <span>Online Treatment Finder</span>
@@ -1328,10 +1340,10 @@ export default function ClientDetailPanel({
                                 .filter(
                                   (i) => i.treatment?.trim() === "Skincare",
                                 )
-                                .sort((a, b) =>
-                                  (a.product || "").localeCompare(
-                                    b.product || "",
-                                  ),
+                                .sort(
+                                  (a, b) =>
+                                    (planQuoteOrderRank.get(a.id) ?? 9999) -
+                                    (planQuoteOrderRank.get(b.id) ?? 9999),
                                 );
                               const hasSkincare = skincareItems.length > 0;
                               const sectionLabels = hasSkincare
@@ -1357,10 +1369,12 @@ export default function ClientDetailPanel({
                                             return t === "Completed";
                                           return t === "Wishlist" || !t;
                                         })
-                                        .sort((a, b) =>
-                                          (a.treatment || "").localeCompare(
-                                            b.treatment || "",
-                                          ),
+                                        .sort(
+                                          (a, b) =>
+                                            (planQuoteOrderRank.get(a.id) ??
+                                              9999) -
+                                            (planQuoteOrderRank.get(b.id) ??
+                                              9999),
                                         );
                                 if (sectionItems.length === 0) return null;
                                 return (
@@ -1377,6 +1391,10 @@ export default function ClientDetailPanel({
                                           discussedPlanPriceLabels.get(
                                             item.id,
                                           ) ?? null;
+                                        const planSecondary =
+                                          getTreatmentPlanRowSecondaryLabel(
+                                            item,
+                                          );
                                         return (
                                           <div
                                             key={item.id}
@@ -1384,15 +1402,13 @@ export default function ClientDetailPanel({
                                           >
                                             <div className="discussed-treatments-record-row-main">
                                               <div className="discussed-treatments-record-treatment-heading-outer">
-                                                {getTreatmentDisplayName(item)}
+                                                {getTreatmentPlanRowPrimaryLabel(
+                                                  item,
+                                                )}
                                               </div>
-                                              {formatTreatmentPlanRecordMetaLine(
-                                                item,
-                                              ) ? (
+                                              {planSecondary ? (
                                                 <div className="discussed-treatments-record-meta-line-outer">
-                                                  {formatTreatmentPlanRecordMetaLine(
-                                                    item,
-                                                  )}
+                                                  {planSecondary}
                                                 </div>
                                               ) : null}
                                             </div>
@@ -1461,7 +1477,7 @@ export default function ClientDetailPanel({
                               {wellnessPlanItems.map((item) => (
                                 <li key={item.id}>
                                   <span className="detail-wellness-plan-treatment">
-                                    {getTreatmentDisplayName(item)}
+                                    {getTreatmentPlanRowPrimaryLabel(item)}
                                   </span>
                                   {item.timeline?.trim() ? (
                                     <span className="detail-wellness-plan-meta">
@@ -1710,8 +1726,8 @@ export default function ClientDetailPanel({
                               (() => {
                                 const carouselItems =
                                   getSkincareCarouselItems();
-                                const products: SkinQuizProduct[] = client
-                                  .skincareQuiz!.recommendedProductNames!.map(
+                                const products: SkinQuizProduct[] = skincareQuiz
+                                  .recommendedProductNames!.map(
                                     (name) => {
                                       const item = carouselItems.find(
                                         (p) => p.name === name,
@@ -1764,6 +1780,76 @@ export default function ClientDetailPanel({
                                         </button>
                                       ))}
                                     </div>
+                                  </div>
+                                );
+                              })()}
+                            {skincareQuiz &&
+                              (() => {
+                                const carouselItems =
+                                  getSkincareCarouselItems();
+                                const routineSections =
+                                  buildQuizSkincareRoutineSections(
+                                    skincareQuiz.recommendedProductNames,
+                                    skincareQuiz.result,
+                                    (name) =>
+                                      carouselItems.find(
+                                        (p) => p.name === name,
+                                      ),
+                                  );
+                                if (routineSections.length === 0) return null;
+                                return (
+                                  <div className="skin-analysis-routine-groups">
+                                    {routineSections.map((section) => (
+                                      <div
+                                        key={section.id}
+                                        className="skin-analysis-products skin-analysis-products--routine-group"
+                                      >
+                                        <span className="skin-analysis-products-label">
+                                          {section.title}
+                                        </span>
+                                        <div className="skin-analysis-product-chips skin-analysis-product-chips--column">
+                                          {section.items.map((product) => {
+                                            const item = carouselItems.find(
+                                              (p) => p.name === product.name,
+                                            );
+                                            const p: SkinQuizProduct = {
+                                              name: product.name,
+                                              imageUrl: item?.imageUrl,
+                                              productUrl: item?.productUrl,
+                                              recommendedFor: product.blurb,
+                                              description: item?.description,
+                                              price: item?.price,
+                                              imageUrls: item?.imageUrls,
+                                            };
+                                            return (
+                                              <button
+                                                key={`${section.id}-${product.name}`}
+                                                type="button"
+                                                className="skin-analysis-product-chip"
+                                                onClick={() =>
+                                                  setSelectedSkinProduct(p)
+                                                }
+                                              >
+                                                {p.imageUrl ? (
+                                                  <img
+                                                    src={p.imageUrl}
+                                                    alt=""
+                                                    className="skin-analysis-product-chip-thumb"
+                                                  />
+                                                ) : (
+                                                  <span className="skin-analysis-product-chip-placeholder">
+                                                    ◆
+                                                  </span>
+                                                )}
+                                                <span className="skin-analysis-product-chip-name">
+                                                  {product.displayName}
+                                                </span>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 );
                               })()}
@@ -2044,9 +2130,7 @@ export default function ClientDetailPanel({
                 setReturnToOverviewView(null);
               }}
               initialDetailView={returnToOverviewView ?? undefined}
-              onAddToPlanDirect={async (prefill) => {
-                await appendDiscussedItemFromPrefill(prefill);
-              }}
+              onAddToPlanDirect={appendDiscussedItemFromPrefill}
             />
           )}
           {showShareTreatmentPlan && client && (
